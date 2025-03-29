@@ -241,6 +241,12 @@ RTLREC rtltbl[] = {
         NULL,
         FLAG_RTL_NONE
     },
+    { "putc",
+        " LD A,L"NLS
+        " RST $10",
+        NULL,
+        FLAG_RTL_INLINE
+    },
     { "puts",
         " LD A, (HL)"NLS
         " OR A"NLS

@@ -42,6 +42,7 @@ KEYWORD keywords[] = {
     {"puts", tokPuts},
 
     {"__asm__", tokAsm},
+    {"include", tokInclude},
 };
 
 static TOKEN lookup_keyword(const char* ident) {

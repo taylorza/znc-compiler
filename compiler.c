@@ -23,6 +23,7 @@ SYMBOL* declloc(TYPEREC type, SYM_CLASS klass, const char* name, int16_t offset)
 void parse_type(TYPEREC* type);
 void parse_funcdecl(TYPEREC rettype, const char* name);
 
+void parse_include(void);
 void parse_decl(void);
 void parse_statement(void);
 void parse_if(void);
@@ -37,26 +38,25 @@ void parse_asm(void);
 
 void parse_onearg(void);
 
-static void parse(void) {
+static void parse(const char *sourcefile) {
+    if (!src_open(sourcefile)) {
+        printf("can't open '%s'", sourcefile);
+        return;
+    }
+
     get_token();
     while (tok != tokEOS) {
-        switch (tok) {
-            case tokVoid:
-            case tokChar:
-            case tokInt:            
-                parse_decl();                
-                break;
-            case tokSemi: get_token(); break;
-            default:            
-                parse_statement();
-                break;
-        }
+        parse_statement();
     }
+    src_close();
+
+    if (fileid == 255) {
 #ifdef __ZXNEXT
-    emit_ret();
+        emit_ret();
 #else
-    emit_instr("jr $");
+        emit_instr("jr $");
 #endif
+    }
 }
 
 void parse_onearg(void) {
@@ -64,47 +64,6 @@ void parse_onearg(void) {
     expect(tokLParen, errExpectLParen);
     parse_expr(0);
     expect(tokRParen, errExpectRParen);
-}
-
-void parse_decl(void) {
-    TYPEREC type;
-    
-    parse_type(&type);
-    
-    char name[MAX_IDENT_LEN + 1];
-    strncpy(name, token, MAX_IDENT_LEN);
-
-    get_token(); // skip name
-
-    if (tok == tokLParen) {
-        if (infunc) error(errSyntax);
-        parse_funcdecl(type, name);
-    } else {
-        SYMBOL* sym;
-
-        if (is_void(&type) && !is_ptr(&type)) error(errSyntax);
-
-        for(;;) {
-            if (infunc) {
-                uint16_t size = type_size(&type);
-                bp_lastlocal = size * localcount++;
-                sym = declloc(type, VARIABLE, name, bp_lastlocal);
-                if (localbytes < bp_lastlocal + size) localbytes = bp_lastlocal + size;
-            }
-            else
-                sym = declglb(type, VARIABLE, name, 0);
-
-            if (tok == tokAssign) {
-                parse_assign(0, sym, 0, type);
-            }
-            
-            if (tok != tokComma) break;
-            get_token(); // skip ','
-            strncpy(name, token, MAX_IDENT_LEN);
-            get_token(); // skip name
-        }
-        expect_semi();
-    }
 }
 
 static void parse_statement_block(void) {
@@ -141,11 +100,63 @@ void parse_statement(void) {
         case tokPutc: parse_putc(); break;  
         case tokPuts: parse_puts(); break;
         case tokAsm: parse_asm(); break;
+        case tokInclude: parse_include(); break;
         case tokSemi: get_token(); break; // empty statement
         default:
             parse_expr(0);
             expect_semi();
             break;
+    }
+}
+
+void parse_include(void) {
+    get_token(); // skip 'include'
+    if (tok != tokString) error(errSyntax);
+    
+    parse(token);
+
+    get_token(); // skip filename    
+}
+
+void parse_decl(void) {
+    TYPEREC type;
+
+    parse_type(&type);
+
+    char name[MAX_IDENT_LEN + 1];
+    strncpy(name, token, MAX_IDENT_LEN);
+
+    get_token(); // skip name
+
+    if (tok == tokLParen) {
+        if (infunc) error(errSyntax);
+        parse_funcdecl(type, name);
+    }
+    else {
+        SYMBOL* sym;
+
+        if (is_void(&type) && !is_ptr(&type)) error(errSyntax);
+
+        for (;;) {
+            if (infunc) {
+                uint16_t size = type_size(&type);
+                bp_lastlocal = size * localcount++;
+                sym = declloc(type, VARIABLE, name, bp_lastlocal);
+                if (localbytes < bp_lastlocal + size) localbytes = bp_lastlocal + size;
+            }
+            else
+                sym = declglb(type, VARIABLE, name, 0);
+
+            if (tok == tokAssign) {
+                parse_assign(0, sym, 0, type);
+            }
+
+            if (tok != tokComma) break;
+            get_token(); // skip ','
+            strncpy(name, token, MAX_IDENT_LEN);
+            get_token(); // skip name
+        }
+        expect_semi();
     }
 }
 
@@ -257,8 +268,7 @@ void parse_putc(void) {
     parse_onearg(); // (expr)
     expect_semi();
 
-    emit_instr("ld a,l");
-    emit_instr("rst $10");    
+    emit_rtl("putc");
 }
 
 void parse_puts(void) {
@@ -431,11 +441,6 @@ SYMBOL* declloc(TYPEREC type, SYM_CLASS klass, const char* name, int16_t offset)
 }
 
 void compile(const char *filename, const char *asmfilename) {
-    if (!src_open(filename)) {
-        printf("can't open '%s'", filename);
-        return;
-    }
-
     if (!asm_open(asmfilename)) {
         src_close();
         printf("can't create '%s'", asmfilename);
@@ -453,11 +458,10 @@ void compile(const char *filename, const char *asmfilename) {
     emit_strf("  output \"/dot/%s\"\n", asmfilename);
     emit_strf("  org $2000\n");
 #endif
-    parse();
+    parse(filename);
     dump_rtl();
     dump_globals();
     dump_strings();
 
-    src_close();
     asm_close();
 }

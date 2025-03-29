@@ -18,6 +18,7 @@ void error(ERROR err) {
         "Not defined",
         "Not an lvalue",
         "Type Error",
+        "File error",
     };
 
     printf("Error: %s: %s (%d, %d)\n", errmsg[err], loc[fileid].filename, token_line, token_col);

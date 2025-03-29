@@ -9,7 +9,7 @@ typedef enum TOKEN {
     tokNone,
     tokArg, tokVoid, tokChar, tokInt, tokIf, tokElse, tokFor, tokWhile, tokSwitch, tokReturn, tokBreak, tokContinue,
     tokPutc, tokPuts,
-    tokAsm,
+    tokAsm, tokInclude,
     tokIdent,
     
     tokNumber,      // number

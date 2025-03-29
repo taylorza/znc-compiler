@@ -2,7 +2,7 @@
 
 #define MAX_FILENAME_LEN 32
 #define MAX_IDENT_LEN 14
-#define MAX_NEST_DEPTH 10
+#define MAX_NEST_DEPTH 5
 #define MAX_SYMBOLS 500
 #define MAX_READ_BUF 16
 #define MAX_WRITE_BUF 16

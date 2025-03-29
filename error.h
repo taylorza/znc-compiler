@@ -17,6 +17,7 @@ typedef enum ERROR {
     errNotDefined,
     errNotlvalue,
     errTypeError,
+    errFileError,
 } ERROR;
 
 extern int errcnt;
