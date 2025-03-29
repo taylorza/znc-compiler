@@ -6,7 +6,7 @@
 #define MAX_SYMBOLS 500
 #define MAX_READ_BUF 16
 #define MAX_WRITE_BUF 16
-#define MAX_STRTBL_SIZE 1024
+#define MAX_STRTBL_SIZE 2048
 
 #ifdef __ZXNEXT
 #define NL '\r'

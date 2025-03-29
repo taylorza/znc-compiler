@@ -183,7 +183,9 @@ static uint8_t escape(void) {
 }
 
 TOKEN_TYPE get_token(void) {
-    char *temp = &token[0];
+    char *temp;
+get_token_start:
+    temp = &token[0];
     *temp = '\0';
     
     skipws();
@@ -197,9 +199,19 @@ TOKEN_TYPE get_token(void) {
         tok = tokEOS;        
         return (token_type = ttDelimiter);
     }
-
-    if (find_char_in_str("=!<>|&", c)) {
+    
+    // Handle potential double char tokens
+    if (find_char_in_str("=!<>|&/", c)) {
         switch(c) {
+            case '/':
+                *temp++ = gnc(); // skip '=' 
+                tok = tokDiv; 
+                if (ch() == '/') {
+                    while ((c = ch()) && c != '\r' && c != '\n') 
+                        gnc();
+                    goto get_token_start;    
+                }
+                break;
             case '=':
                 *temp++ = gnc(); // skip '='
                 tok = tokAssign;
@@ -268,15 +280,15 @@ TOKEN_TYPE get_token(void) {
         }
     }
 
-    if (find_char_in_str("+-*/%^;,(){}[]?:", c)) {
+    // Handle single char tokens
+    if (find_char_in_str("+-*%^;,(){}[]?:", c)) {
         *temp++ = gnc();
         *temp = '\0';
         token_type = ttDelimiter;
         switch(c) {
             case '+': tok = tokPlus; break;
             case '-': tok = tokMinus; break;
-            case '*': tok = tokStar; break;
-            case '/': tok = tokDiv; break;
+            case '*': tok = tokStar; break;            
             case '%': tok = tokMod; break;
             case '^': tok = tokBitXor; break;
             case ';': tok = tokSemi; break;

@@ -34,7 +34,41 @@
                 "Build",
             ],
             "problemMatcher": []
+        },
+        {
+            "label": "Make",
+            "type": "shell",
+            "command": "make clean all",
+            "args": [],
+            "problemMatcher": {
+                "owner": "Make",
+                "fileLocation": [
+                    "relative",
+                    "${workspaceRoot}"
+                ],
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):\\s+((warning|error)\\s+\\d+):\\s*(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "severity": 3,
+                    "message": 5
+                }
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
         },   
+        {
+            "label": "Make & Update SDCard",
+            "type": "shell",            
+            "command": "${workspaceFolder}/../../emulator/hdfmonkey put ${workspaceFolder}/../../sdcard/tbblue-dev.sd znc /dot/",            
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Make",
+            ],
+            "problemMatcher": []
+        },  
         {
             "label": "Update Test",
             "type": "shell",            

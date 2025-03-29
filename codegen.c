@@ -34,7 +34,7 @@ uint8_t asm_open(const char *asmfilename) {
 void asm_close(void) {
     if (pos) {
 #ifdef __ZXNEXT
-        //printf(".");
+        putc('.', stdout);
         esx_f_write(asm_fh, asmbuf, pos);
         esx_f_close(asm_fh);
 #else

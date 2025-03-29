@@ -12,6 +12,7 @@
         "esxdos.h": "c",
         "arch.h": "c",
         "config_zxn.h": "c",
-        "config_zx.h": "c"
+        "config_zx.h": "c",
+        "stdlib.h": "c"
     }
 }
