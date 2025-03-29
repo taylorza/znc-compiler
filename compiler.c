@@ -451,13 +451,9 @@ void compile(const char *filename, const char *asmfilename) {
     char *dot = strrchr(asmfilename, '.');
     if (dot) *dot='\0';
 
-#ifdef __ZXNEXT
-    emit_strf("  output \"/dot/%s\"\r", asmfilename);
-    emit_strf("  org $2000\r");
-#else
-    emit_strf("  output \"/dot/%s\"\n", asmfilename);
-    emit_strf("  org $2000\n");
-#endif
+    emit_strf("  output \"/dot/%s\"%c", asmfilename, NL);
+    emit_strf("  org $2000%c", NL);
+
     parse(filename);
     dump_rtl();
     dump_globals();

@@ -7,7 +7,7 @@
             "command": "build.bat",
             "args": [],
             "problemMatcher": {
-                "owner": "clang",
+                "owner": "Build",
                 "fileLocation": [
                     "relative",
                     "${workspaceRoot}"
