@@ -1,0 +1,11 @@
+codegen.c
+compiler.c
+error.c
+expr.c
+machine.c
+main.c
+rtl.c
+scanner.c
+strtbl.c
+sym.c
+util.c

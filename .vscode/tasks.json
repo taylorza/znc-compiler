@@ -1,0 +1,57 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build",
+            "type": "shell",
+            "command": "build.bat",
+            "args": [],
+            "problemMatcher": {
+                "owner": "clang",
+                "fileLocation": [
+                    "relative",
+                    "${workspaceRoot}"
+                ],
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):\\s+((warning|error)\\s+\\d+):\\s*(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "severity": 3,
+                    "message": 5
+                }
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Update SDCard",
+            "type": "shell",            
+            "command": "${workspaceFolder}/../../emulator/hdfmonkey put ${workspaceFolder}/../../sdcard/tbblue-dev.sd znc /dot/",            
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Build",
+            ],
+            "problemMatcher": []
+        },   
+        {
+            "label": "Update Test",
+            "type": "shell",            
+            "command": "${workspaceFolder}/../../emulator/hdfmonkey put ${workspaceFolder}/../../sdcard/tbblue-dev.sd tests/test.znc /",            
+            "dependsOrder": "sequence",
+            "dependsOn": [],
+            "problemMatcher": []
+        },     
+        {
+            "label": "Launch CSpect",
+            "type": "shell",
+            
+            "command": "${workspaceFolder}/../../emulator/CSpect.exe -esc -r -w2 -brk -zxnext -nextrom -mmc=${workspaceFolder}/../../sdcard/tbblue-dev.sd",
+            
+            "dependsOrder": "sequence",
+            "dependsOn": [
+            ]
+        }        
+    ]
+}

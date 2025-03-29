@@ -1,0 +1,59 @@
+#ifndef CODEGEN_H_
+#define CODEGEN_H_
+
+uint8_t asm_open(const char *asmfilename);
+void asm_close(void);
+void emit_strf(const char* fmt, ...);
+void asm_putc(char c);
+
+void nl(void);
+
+uint16_t newlbl(void);
+
+void emit_lbl(uint16_t lbl);
+void emit_lblref(uint16_t lbl);
+
+void emit_strref(uint16_t id);
+
+void emit_ch(char c);
+
+void emit_str(const char* s);
+void emit_instr(const char* s);
+
+void emit_n16(uint16_t n);
+
+void emit_ld_immed(void);
+
+void emit_push(void);
+
+void emit_pop(void);
+
+void emit_swap(void);
+
+void emit_add16(void);
+
+void emit_sub16(void);
+
+void emit_rtl(const char* name);
+void emit_call(const char *name);
+void emit_callsym(SYMBOL* sym);
+void emit_ret(void);
+void emit_jp(uint16_t lbl);
+void emit_jp_true(uint16_t lbl);
+void emit_jp_false(uint16_t lbl);
+
+void emit_sname(const char* name);
+
+void emit_ld_symval(SYMBOL* sym);
+void emit_ld_symaddr(SYMBOL* sym);
+void emit_store_sym(SYMBOL* sym);
+void emit_store(TYPEREC typ);
+void emit_load(TYPEREC typ);
+
+uint16_t emit_alloclocals(void);
+void emit_lblequ16(uint16_t lbl, uint16_t value);
+
+void emit_neg(void);
+void emit_mul2(void);
+
+#endif //CODEGEN_H_

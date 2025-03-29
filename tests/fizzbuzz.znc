@@ -1,0 +1,28 @@
+int printnum(int n) {
+  int hasvalue = 0;
+  int div = 10000;
+
+  while((n / div) == 0) {
+    div = div / 10;
+  }
+  
+  while(div) {
+    putc(n / div + '0');
+    n = n % div;			
+	div = div / 10;
+  }
+}
+
+int n=20,k=32;
+for (int i=1; i<=n; i=i+1) {
+  if (i % 15 == 0)
+    puts("fizzbuzz\r");
+  else if (i % 3 == 0)
+    puts("fizz\r");
+  else if (i % 5 == 0)
+    puts("buzz\r");
+  else {
+    printnum(i);
+    putc('\r');
+  }
+}

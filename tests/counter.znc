@@ -1,0 +1,33 @@
+int _n;
+int _hasvalue;
+int _div;
+
+int printnum(int n) {
+	_n = n;
+	_hasvalue = 0;
+	_div = 10000;
+
+  while((_n / _div) == 0) {
+    _div = _div / 10;
+  }
+  
+	while(_div) {
+    putc(_n / _div + '0');
+    _n = _n % _div;			
+		_div = _div / 10;
+	}
+}
+
+int* p = printnum;
+
+int gotoxy(char x, char y) {
+  putc(22);putc(y);putc(x);
+}
+
+for(int i=0; i<1000; i=i+1) {
+	gotoxy(10,10);
+	puts("Score: ");p(i);	
+}
+
+gotoxy(8,10);
+puts("G A M E  O V E R");

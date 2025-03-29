@@ -1,0 +1,28 @@
+void gotoxy(byte x, byte y) {
+  putc(22);putc(y);putc(x);
+}
+
+int x=15, y=10;
+int dx=1, dy=1;
+byte n = 0;
+
+gotoxy(0,0);
+for(int i=0;i<32*21;i=i+1) {
+	putc('#');
+}
+
+while (1) {
+	__asm__ {
+		halt
+		ld a, (_n)
+		out ($fe), a
+	}
+	gotoxy(x, y);
+	putc(' ');
+	x = x + dx;
+	y = y + dy;
+	if (x == 0 || x == 31) { dx = -dx; n=(n+1) % 7; }
+	if (y == 0 || y == 21) { dy = -dy; n=(n+1) % 7; }
+	gotoxy(x, y);
+	putc('*');
+}
