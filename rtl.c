@@ -271,12 +271,13 @@ RTLREC rtltbl[] = {
 };
 
 void emit_code(const char* code) {
-    char* p = code;
+    const char* p = code;
     while (*p) {
         emit_ch(*p++);
     }
     emit_nl();
 }
+
 uint8_t inc_rtl(const char* fn) {
     char depname[16] = { 0 };
     for (uint8_t i = 0; i < sizeof(rtltbl) / sizeof(RTLREC); ++i) {
@@ -303,7 +304,7 @@ uint8_t inc_rtl(const char* fn) {
             return rtl->flags;
         }
     }
-    error(errNotDefined);
+    error(errNotDefined_s, fn);
     return 0;
 }
 

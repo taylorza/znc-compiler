@@ -23,6 +23,8 @@ uint8_t is_char(const TYPEREC* type) { return type->basetype == CHAR; }
 uint8_t is_int(const TYPEREC* type) { return type->basetype == INT; }
 uint8_t is_string(const TYPEREC* type) { return type->basetype == STRING; }
 
+uint8_t is_func_or_proto(const SYMBOL* sym) { return sym->klass == FUNCTION || sym->klass == FUNCTION_PROTO; }
+
 void make_ptr(TYPEREC* type) { type->dim = 0; }
 void make_scalar(TYPEREC* type) { type->dim = 1; }
 void make_array(TYPEREC* type, uint16_t size) { type->dim = -size; }
@@ -115,6 +117,7 @@ void pop_frame(uint16_t frame) {
 void dump_globals(void) {
     for (uint16_t i = 0; i < lastgbl; ++i) {
         SYMBOL* sym = &symtab[i];
+        if (sym->klass == FUNCTION_PROTO) error(errNotDefined_s, sym->name);
         if (sym->klass == FUNCTION) continue; // skip functions
         TYPEREC* ptype = &sym->type;
         emit_sname(sym->name);

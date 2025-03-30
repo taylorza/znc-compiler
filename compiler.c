@@ -420,7 +420,7 @@ void parse_funccall(SYMBOL* sym) {
         if (tok != tokComma) break;
         get_token(); // skip ','
     }
-    if (argcount != sym->offset) error(errArgCountMismatch);
+    if (argcount != sym->offset) error(errArgMismatch);
     expect(tokRParen, errExpectRParen);
 
     emit_callsym(sym);
@@ -437,17 +437,20 @@ void parse_return(void) {
 }
 
 void parse_funcdecl(TYPEREC rettype, const char* name) {
-    infunc = 1;
     get_token(); // skip '('
 
     TYPEREC argtype;
     char argName[MAX_IDENT_LEN + 1];
 
-    uint16_t skiplbl = newlbl();
-    emit_jp(skiplbl);
+    SYMBOL* symfunc = lookupIdent(name);
+    uint8_t defined = 0;
 
-    emit_sname(name); emit_nl();
-    SYMBOL *symfunc = declglb(rettype, FUNCTION, name, 0);
+    if (!symfunc) {
+        symfunc = declglb(rettype, FUNCTION, name, 0);
+    } else if (symfunc->klass != FUNCTION_PROTO) {
+        defined = 1;
+    }
+
     uint16_t oldretlbl = retlbl;
     retlbl = newlbl(); 
     uint16_t funcframe = push_frame();
@@ -461,34 +464,50 @@ void parse_funcdecl(TYPEREC rettype, const char* name) {
         if (tok == tokComma) get_token(); // skip ','
     }
     expect(tokRParen, errExpectRParen);
+   
+    if (defined || symfunc->klass == FUNCTION_PROTO) {
+        if (func_argcount != symfunc->offset) error(errDeclMismatch);
+    }
+
     symfunc->offset = func_argcount;
-    
-    
-    if (tok == tokAsm) {
-        parse_asm(2);
+    if (tok == tokSemi) {        
+        if (!defined) symfunc->klass = FUNCTION_PROTO;
+    } else {
+        if (defined) error(errAlreadyDefined);
+
+        symfunc->klass = FUNCTION;
+        infunc = 1;
+        uint16_t skiplbl = newlbl();
+        emit_jp(skiplbl);
+
+        emit_sname(name); emit_nl();
+
+        if (tok == tokAsm) {
+            parse_asm(2);
+        }
+        else {
+            if (tok != tokLBrace) error(errExpectLBrace);
+
+            maxlocalcount = 0;
+            bp_lastlocal = 0;
+            localbytes = 0;
+            emit_func_prologue();
+            locals_lbl = emit_alloclocals();
+
+            parse_statement_block();
+
+            emit_lbl(retlbl);
+            emit_func_epilogue();
+
+            emit_lblequ16(locals_lbl, localbytes);
+        }
+        emit_lbl(skiplbl);
+
+        pop_frame(funcframe);
+
+        infunc = 0;
+        retlbl = oldretlbl;
     }
-    else {
-        if (tok != tokLBrace) error(errExpectLBrace);
-
-        maxlocalcount = 0;
-        bp_lastlocal = 0;
-        localbytes = 0;
-        emit_func_prologue();
-        locals_lbl = emit_alloclocals();
-
-        parse_statement_block();
-
-        emit_lbl(retlbl);
-        emit_func_epilogue();
-        
-        emit_lblequ16(locals_lbl, localbytes);
-    }
-    emit_lbl(skiplbl);
-        
-    pop_frame(funcframe);
-
-    infunc = 0;
-    retlbl = oldretlbl;
 }
 
 SYMBOL* declglb(TYPEREC type, SYM_CLASS klass, const char* name, int16_t value) {

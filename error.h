@@ -15,14 +15,15 @@ typedef enum ERROR {
     errTooLong,
     errTooManySymbols,
     errAlreadyDefined,
-    errNotDefined,
+    errNotDefined_s,
     errNotlvalue,
     errTypeError,
     errFileError,
-    errArgCountMismatch,
+    errArgMismatch,
+    errDeclMismatch,
 } ERROR;
 
 extern int errcnt;
-void error(ERROR err);
+void error(ERROR err, ...);
 
 #endif //ERROR_H_

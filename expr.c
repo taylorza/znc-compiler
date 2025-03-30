@@ -98,7 +98,7 @@ TYPEREC parse_ternary(uint8_t prec)
 
 TYPEREC parse_factor(uint8_t dereference) {
     SYMBOL* sym = NULL;
-    TYPEREC typ;
+    TYPEREC typ = int_type;
     uint8_t indexed = 0;
     uint8_t neg = 0;
     uint8_t loadval = 1;
@@ -168,12 +168,12 @@ TYPEREC parse_factor(uint8_t dereference) {
                                
         case tokIdent:
             sym = lookupIdent(token);
-            get_token(); // skip identifier
-            
             if (!sym) {
-                error(errNotDefined);
+                error(errNotDefined_s, token);
                 return int_type;
             }
+
+            get_token(); // skip identifier
 
             typ = sym->type;
             if (dereference) make_scalar(&typ);
@@ -198,7 +198,7 @@ TYPEREC parse_factor(uint8_t dereference) {
                 parse_assign(dereference, sym, indexed, typ);
             } else {
                 if (loadval) {
-                    if (sym->klass == FUNCTION) {
+                    if (is_func_or_proto(sym)) {
                         emit_ld_immed(); emit_sname(sym->name); emit_nl();
                     }
                     else {
@@ -217,7 +217,6 @@ TYPEREC parse_factor(uint8_t dereference) {
             break; 
         default:
             error(errSyntax);            
-            typ = int_type;
             break;
     }
     if (neg) emit_neg();

@@ -181,7 +181,7 @@ void emit_call(const char *name) {
 }
 
 void emit_callsym(SYMBOL* sym) {
-    if (sym->klass == FUNCTION) {
+    if (is_func_or_proto(sym)) {
         emit_instr("call ");
         emit_sname(sym->name);
         emit_nl();

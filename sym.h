@@ -2,7 +2,7 @@
 #define SYM_H_
 
 typedef enum BASE_TYPE { VOID, CHAR, INT, STRING } BASE_TYPE;
-typedef enum SYM_CLASS { VARIABLE, ARGUMENT, FUNCTION } SYM_CLASS;
+typedef enum SYM_CLASS { VARIABLE, ARGUMENT, FUNCTION, FUNCTION_PROTO } SYM_CLASS;
 typedef enum SYM_SCOPE { GLOBAL, LOCAL } SYM_SCOPE;
 
 typedef struct  {
@@ -35,6 +35,8 @@ uint8_t is_void(const TYPEREC* type);
 uint8_t is_char(const TYPEREC* type);
 uint8_t is_int(const TYPEREC* type);
 uint8_t is_string(const TYPEREC* type);
+
+uint8_t is_func_or_proto(const SYMBOL* sym);
 
 void make_ptr(TYPEREC* type);
 void make_scalar(TYPEREC* type);
