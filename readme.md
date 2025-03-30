@@ -1,8 +1,8 @@
 ## ZNC - A native compiler for the ZX Spectrum Next
 
-ZNC is a language and compiler for the ZX Spectrum Next. The language it self is very closely modeled after the C programming language, but does deviate in some cases where it either made the language easier to parse or in other cases where I prefered an alternate syntax.
+ZNC is a language and compiler for the ZX Spectrum Next. The language is closely modeled after the C programming language, but does deviate in some cases where it either made the language easier to parse or in other cases where I preferred an alternate syntax.
 
-The compiler is a non-optimizing single pass compiler, while the generated code is not the fastest or the smallest it should out perform non-compiled languages.
+The compiler is a non-optimizing single pass compiler, while the generated code is not the fastest or the smallest it should outperform non-compiled languages.
 
 ## Language Features
 * Data Types
