@@ -8,6 +8,7 @@ typedef enum TOKEN_TYPE {
 typedef enum TOKEN {
     tokNone,
     tokArg, tokVoid, tokChar, tokInt, tokIf, tokElse, tokFor, tokWhile, tokSwitch, tokReturn, tokBreak, tokContinue,
+    tokIn, tokOut, tokNextReg, tokReadReg,
     tokPutc, tokPuts,
     tokAsm, tokInclude,
     tokIdent,

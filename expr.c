@@ -114,6 +114,31 @@ TYPEREC parse_factor(uint8_t dereference) {
             typ = parse_expr(0);
             expect(tokRParen, errExpectRParen);
             break;
+
+        case tokIn:
+            get_token(); // skip 'in'
+            expect(tokLParen, errExpectLParen);
+            parse_expr(0);
+            expect(tokRParen, errExpectRParen);
+            emit_instr("ld c,l");
+            emit_instr("ld b,h");
+            emit_instr("in a,(c)");
+            emit_rtl("ccsxt");
+            typ = char_type;
+            break;
+
+        case tokReadReg:
+            get_token(); // skip 'readreg'
+            expect(tokLParen, errExpectLParen);
+            parse_expr(0);
+            emit_instr("ld bc, $243b");
+            emit_instr("out (c), l");
+            emit_instr("inc b");
+            expect(tokRParen, errExpectRParen);            
+            emit_instr("in a,(c)");
+            emit_rtl("ccsxt");
+            typ = char_type;
+            break;
         case tokString:
             typ = string_type;
             intval = lookupstr(token);
@@ -200,7 +225,43 @@ void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ
 {
     get_token(); // skip '='
 
-    if (dereference) {
+    if (dereference && tok == tokLBrace) {
+        get_token(); // skip '{'
+
+        emit_ld_symval(sym);
+        if (indexed) {
+            emit_pop();
+            emit_add16();
+        }
+        
+        for(;;) {
+            if (tok == tokNumber) {
+                emit_strf("  ld (hl),%d%c", intval, NL);
+                if (typ.basetype == INT) {
+                    emit_instr("inc hl");
+                    emit_strf("  ld (hl),%d>>8%c", intval, NL);
+                }
+                get_token(); // skip number
+            }
+            else {
+                emit_push();
+                parse_expr(0);
+                emit_swap(); // DE = value
+                emit_pop();
+                emit_instr("ld (hl),e");
+                if (typ.basetype == INT) {
+                    emit_instr("inc hl");
+                    emit_strf("  ld (hl), d", intval, NL);
+                }
+            }
+            if (tok != tokComma) break;
+            emit_instr("inc hl");
+            get_token(); // skip ','
+        }
+        expect(tokRBrace, errExpectRBrace);
+       
+        return;
+    } else if (dereference) {
         emit_ld_symval(sym);
         if (indexed) {
             emit_pop();

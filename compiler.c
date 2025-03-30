@@ -34,6 +34,8 @@ void parse_continue(void);
 void parse_return(void);
 void parse_putc(void); 
 void parse_puts(void);
+void parse_out(void);
+void parse_nextreg(void);
 void parse_asm(void);
 
 void parse_onearg(void);
@@ -43,7 +45,7 @@ static void parse(const char *sourcefile) {
         printf("can't open '%s'", sourcefile);
         return;
     }
-
+    printf("\ncompiling %s", sourcefile);
     get_token();
     while (tok != tokEOS) {
         parse_statement();
@@ -99,6 +101,8 @@ void parse_statement(void) {
 
         case tokPutc: parse_putc(); break;  
         case tokPuts: parse_puts(); break;
+        case tokOut: parse_out(); break;
+        case tokNextReg: parse_nextreg(); break;
         case tokAsm: parse_asm(); break;
         case tokInclude: parse_include(); break;
         case tokSemi: get_token(); break; // empty statement
@@ -276,6 +280,49 @@ void parse_puts(void) {
     expect_semi();
 
     emit_rtl("puts");   
+}
+
+void parse_out(void) {
+    get_token(); // skip 'out'
+    expect(tokLParen, errExpectLParen);
+   
+    parse_expr(0);
+    emit_instr("ld c,l");
+    emit_instr("ld b,h");
+    expect(tokComma, errSyntax);
+    parse_expr(0);
+    emit_instr("out (c),l");
+    expect(tokRParen, errExpectRParen);
+    expect_semi();
+}
+
+void parse_nextreg(void) {
+    get_token(); // skip 'nextreg'
+    expect(tokLParen, errExpectLParen);
+    
+    if (tok == tokNumber) {
+        uint8_t reg = intval;
+        get_token(); // skip number
+        expect(tokComma, errSyntax);
+        if (tok == tokNumber) {
+            emit_strf("  nreg %d, %d%c", reg, intval, NL);
+            get_token(); // skip number
+        } else {
+            parse_expr(0);
+            emit_instr("ld a,l");
+            emit_strf("  nreg %d,a%c", reg, NL);
+        }
+    } else {
+        parse_expr(0);
+        emit_instr("ld bc, $243b");
+        emit_instr("out (c), l");
+        emit_instr("inc b");
+        expect(tokComma, errSyntax);
+        parse_expr(0);
+        emit_instr("out (c), l");
+    }
+    expect(tokRParen, errExpectRParen);
+    expect_semi();    
 }
 
 void parse_asm(void) {

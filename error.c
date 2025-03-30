@@ -3,8 +3,8 @@
 int errcnt = 0;
 void error(ERROR err) {
     static const char* errmsg[] = {
-        "Syntax", 
-        "Expect '\"'", 
+        "Syntax",
+        "Expect '\"'",
         "Expect '('",
         "Expect ')'",
         "Expect '{'",
@@ -20,8 +20,8 @@ void error(ERROR err) {
         "Type Error",
         "File error",
     };
-
-    printf("Error: %s: %s (%d, %d)\n", errmsg[err], loc[fileid].filename, token_line, token_col);
-    get_token();
+   
+    printf("%c%s(%d,%d): error: %s%c", NL, loc[fileid].filename, token_line, token_col, errmsg[err], NL);
+    exit(1);
     ++errcnt;
 }

@@ -6,9 +6,9 @@ uint16_t nxtlbl = 0;    // label counter
 uint16_t argcntlbl = 0; // label for the argcount for the current function
 
 #ifdef __ZXNEXT
-uint8_t asm_fh;
+uint8_t asm_fh = 0;
 #else
-FILE *asm_fh;
+FILE *asm_fh = NULL;
 #endif
 
 #ifndef __ZXNEXT
@@ -32,16 +32,23 @@ uint8_t asm_open(const char *asmfilename) {
 }
 
 void asm_close(void) {
+    
     if (pos) {
 #ifdef __ZXNEXT
         putc('.', stdout);
         esx_f_write(asm_fh, asmbuf, pos);
-        esx_f_close(asm_fh);
 #else
         fwrite(asmbuf, 1, pos, asm_fh);
-        if (asm_fh != stdout) fclose(asm_fh);
 #endif
         pos = 0;
+    }
+
+    if (asm_fh) {
+#ifdef __ZXNEXT
+        esx_f_close(asm_fh);
+#else        
+        if (asm_fh != stdout) fclose(asm_fh);
+#endif
     }
 }
 
@@ -132,6 +139,10 @@ void emit_n16(uint16_t n) {
 
 void emit_ld_immed(void) {
     ot("ld hl,");
+}
+
+void emit_ldbc_immed(void) {
+    ot("ld bc,");
 }
 
 void emit_push(void) {

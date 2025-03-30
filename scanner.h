@@ -31,6 +31,7 @@ extern int16_t intval;
 
 uint8_t src_open(const char *filename);
 void src_close(void);
+void src_closeall(void); 
 
 TOKEN_TYPE get_token(void);
 void expect(TOKEN t, ERROR err);

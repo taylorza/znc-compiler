@@ -1,5 +1,3 @@
-#pragma printf = %s %c %d
-
 #define MAX_FILENAME_LEN 32
 #define MAX_IDENT_LEN 14
 #define MAX_NEST_DEPTH 5

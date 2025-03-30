@@ -1,23 +1,6 @@
-void gotoxy(byte x, byte y) {
-  putc(22);putc(y);putc(x);
-}
+include "stdlib.znc"
 
-int x=15, y=10;
-int dx=1, dy=1;
-byte n = 0;
-
-while (1) {
-	__asm__ {
-		halt
-		ld a, (_n)
-		out ($fe), a
-	}
-	gotoxy(x, y);
-	putc(' ');
-	x = x + dx;
-	y = y + dy;
-	if (x == 0 || x == 31) { dx = -dx; n=(n+1) & 7; }
-	if (y == 0 || y == 21) { dy = -dy; n=(n+1) & 7; }
-	gotoxy(x, y);
-	putc('*');
-}
+int i=128;
+printnum(i); putc('\r');
+printnum(i>>1); putc('\r');
+printnum(i<<2); putc('\r');

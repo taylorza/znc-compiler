@@ -23,6 +23,7 @@ void emit_instr(const char* s);
 void emit_n16(uint16_t n);
 
 void emit_ld_immed(void);
+void emit_ldbc_immed(void);
 
 void emit_push(void);
 

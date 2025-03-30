@@ -41,6 +41,11 @@ KEYWORD keywords[] = {
     {"putc", tokPutc},
     {"puts", tokPuts},
 
+    {"in", tokIn},
+    {"out", tokOut},
+    {"nextreg", tokNextReg},
+    {"readreg", tokReadReg},
+    
     {"__asm__", tokAsm},
     {"include", tokInclude},
 };
@@ -92,7 +97,6 @@ uint8_t src_open(const char *filename) {
     src->handle = fopen(filename, "r");
     if (!src->handle) return 0;
 #endif
-    printf("\ncompiling %s .", filename);
     return src_read();
 }
 
@@ -107,6 +111,10 @@ void src_close(void) {
     src->filename[0] = '\0';
     
     code = loc[fileid].buf + loc[fileid].ofs;
+}
+
+void src_closeall(void) {
+    while (fileid != 255) src_close();
 }
 
 static uint8_t isws(char c) {
@@ -148,7 +156,7 @@ static void skipws(void) {
 
         if (nl_seen) {
             loc[fileid].line++;
-            loc[fileid].col = 0;
+            loc[fileid].col = 1;
         }
     }
 }
@@ -192,7 +200,7 @@ get_token_start:
     skipws();
     token_line = loc[fileid].line;
     token_col = loc[fileid].col;
-
+    
     char c = ch();
 
     if (c == '\0') {
