@@ -36,7 +36,7 @@ void parse_putc(void);
 void parse_puts(void);
 void parse_out(void);
 void parse_nextreg(void);
-void parse_asm(void);
+void parse_asm(int asmcol);
 
 void parse_onearg(void);
 
@@ -103,7 +103,7 @@ void parse_statement(void) {
         case tokPuts: parse_puts(); break;
         case tokOut: parse_out(); break;
         case tokNextReg: parse_nextreg(); break;
-        case tokAsm: parse_asm(); break;
+        case tokAsm: parse_asm(0); break;
         case tokInclude: parse_include(); break;
         case tokSemi: get_token(); break; // empty statement
         default:
@@ -325,21 +325,24 @@ void parse_nextreg(void) {
     expect_semi();    
 }
 
-void parse_asm(void) {
-    int asmcol = token_col;
+void parse_asm(int asmcol) {
+    if (asmcol == 0) asmcol = token_col;
     get_token(); // skip 'asm'
     expect(tokLBrace, errExpectLBrace);
     while (tok != tokRBrace && tok != tokEOS) {
         int last_token_line = token_line;
         if (token_col < asmcol) {
-            emit_str("%s"); nl();
+            emit_strf("%s", token);
         } else {
-            emit_strf("  %s ", token);
+            emit_strf("  %s", token);
         }
         get_token();
+        TOKEN lasttok = tok;
         while (token_line == last_token_line && tok != tokRBrace && tok != tokEOS) {
-            emit_str(token);
-            get_token();
+            if (tok == tokIdent && lasttok == tokIdent) emit_ch(' ');
+            lasttok = tok; 
+            emit_str(token);            
+            get_token();                        
         }
         nl();
     }
@@ -460,23 +463,31 @@ void parse_funcdecl(TYPEREC rettype, const char* name) {
         if (tok == tokComma) get_token(); // skip ','
     }
     expect(tokRParen, errExpectRParen);
-    if (tok != tokLBrace) error(errExpectLBrace);
     
-    maxlocalcount = 0;
-    bp_lastlocal = 0; 
-    localbytes = 0;
-    locals_lbl = emit_alloclocals();
-    parse_statement_block();
-    emit_lbl(retlbl);
-    clean_stack(localbytes);
-    emit_ret();
-    emit_lblequ16(locals_lbl, localbytes);
-    emit_lbl(skiplbl);
+    if (tok == tokAsm) {
+        parse_asm(2);
+    }
+    else {
+        if (tok != tokLBrace) error(errExpectLBrace);
 
+        maxlocalcount = 0;
+        bp_lastlocal = 0;
+        localbytes = 0;
+        locals_lbl = emit_alloclocals();
+
+        parse_statement_block();
+
+        emit_lbl(retlbl);
+        clean_stack(localbytes);
+        emit_ret();
+        emit_lblequ16(locals_lbl, localbytes);
+    }
+    emit_lbl(skiplbl);
+        
     pop_frame(funcframe);
-    
+
     infunc = 0;
-    retlbl = oldretlbl; 
+    retlbl = oldretlbl;
 }
 
 SYMBOL* declglb(TYPEREC type, SYM_CLASS klass, const char* name, int16_t value) {
