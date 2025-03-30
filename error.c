@@ -11,7 +11,8 @@ void error(ERROR err) {
         "Expect '}'",
         "Expect '['",
         "Expect ']'",
-        "Expect ';'",
+        "Expect ';'", 
+        "Expect ','",
         "Too long",
         "Too many symbols",
         "Aready defined",
@@ -19,6 +20,7 @@ void error(ERROR err) {
         "Not an lvalue",
         "Type Error",
         "File error",
+        "Argument count mismatch",
     };
    
     printf("%c%s(%d,%d): error: %s%c", NL, loc[fileid].filename, token_line, token_col, errmsg[err], NL);

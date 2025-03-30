@@ -11,6 +11,7 @@ typedef enum ERROR {
     errExpectLBrack,
     errExpectRBrack,
     errExpectSemi,
+    errExpectComma,
     errTooLong,
     errTooManySymbols,
     errAlreadyDefined,
@@ -18,6 +19,7 @@ typedef enum ERROR {
     errNotlvalue,
     errTypeError,
     errFileError,
+    errArgCountMismatch,
 } ERROR;
 
 extern int errcnt;

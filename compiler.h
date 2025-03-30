@@ -4,7 +4,6 @@
 extern uint8_t func_argcount;
 extern uint16_t locals_lbl; 
 
-extern uint16_t bp_lastarg;
 extern uint16_t bp_lastlocal;
 extern uint16_t localbytes;
 

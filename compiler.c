@@ -6,11 +6,10 @@ uint16_t contlbl = 0;       // in scope continue label
 
 uint8_t infunc;             // 1 if parsing a function
 uint8_t func_argcount;      // number of arguments for function being parsed
-uint16_t locals_lbl;   // label of the EQU with the arg count
+uint16_t locals_lbl;        // label of the EQU with the arg count
 uint8_t localcount;         // number of live local variables
 uint8_t maxlocalcount;      // highwater mark for local variables
 
-uint16_t bp_lastarg;        // base pointer of the last argument
 uint16_t bp_lastlocal;      // base pointer of the last local
 uint16_t localbytes;        // total bytes for locals
 
@@ -56,7 +55,7 @@ static void parse(const char *sourcefile) {
 #ifdef __ZXNEXT
         emit_ret();
 #else
-        emit_instr("jr $");
+        emit_instrln("jr $");
 #endif
     }
 }
@@ -72,10 +71,12 @@ static void parse_statement_block(void) {
     get_token(); // skip '{'
     uint16_t blockframe = push_frame();
     uint8_t old_localcount = localcount;
+    uint16_t old_bp = bp_lastlocal;
     while (tok != tokEOS && tok != tokRBrace) {
         parse_statement();
     }
     if (maxlocalcount < localcount) maxlocalcount = localcount;
+    bp_lastlocal = old_bp;
     localcount = old_localcount;
     pop_frame(blockframe);
     expect(tokRBrace, errSyntax);
@@ -143,10 +144,10 @@ void parse_decl(void) {
 
         for (;;) {
             if (infunc) {
-                uint16_t size = type_size(&type);
-                bp_lastlocal = size * localcount++;
+                uint16_t size = type_size(&type); 
                 sym = declloc(type, VARIABLE, name, bp_lastlocal);
-                if (localbytes < bp_lastlocal + size) localbytes = bp_lastlocal + size;
+                bp_lastlocal += size;
+                if (localbytes < bp_lastlocal) localbytes = bp_lastlocal;
             }
             else
                 sym = declglb(type, VARIABLE, name, 0);
@@ -287,11 +288,11 @@ void parse_out(void) {
     expect(tokLParen, errExpectLParen);
    
     parse_expr(0);
-    emit_instr("ld c,l");
-    emit_instr("ld b,h");
-    expect(tokComma, errSyntax);
+    emit_instrln("ld c,l");
+    emit_instrln("ld b,h");
+    expect(tokComma, errExpectComma);
     parse_expr(0);
-    emit_instr("out (c),l");
+    emit_instrln("out (c),l");
     expect(tokRParen, errExpectRParen);
     expect_semi();
 }
@@ -301,25 +302,24 @@ void parse_nextreg(void) {
     expect(tokLParen, errExpectLParen);
     
     if (tok == tokNumber) {
-        uint8_t reg = intval;
+        uint8_t reg = (uint8_t)intval;
         get_token(); // skip number
-        expect(tokComma, errSyntax);
+        expect(tokComma, errExpectComma);
         if (tok == tokNumber) {
-            emit_strf("  nreg %d, %d%c", reg, intval, NL);
+            emit_nreg_immed(reg, (uint8_t)intval);            
             get_token(); // skip number
         } else {
             parse_expr(0);
-            emit_instr("ld a,l");
-            emit_strf("  nreg %d,a%c", reg, NL);
+            emit_nreg_A(reg);
         }
     } else {
         parse_expr(0);
-        emit_instr("ld bc, $243b");
-        emit_instr("out (c), l");
-        emit_instr("inc b");
-        expect(tokComma, errSyntax);
+        emit_instrln("ld bc, $243b");
+        emit_instrln("out (c), l");
+        emit_instrln("inc b");
+        expect(tokComma, errExpectComma);
         parse_expr(0);
-        emit_instr("out (c), l");
+        emit_instrln("out (c), l");
     }
     expect(tokRParen, errExpectRParen);
     expect_semi();    
@@ -332,9 +332,9 @@ void parse_asm(int asmcol) {
     while (tok != tokRBrace && tok != tokEOS) {
         int last_token_line = token_line;
         if (token_col < asmcol) {
-            emit_strf("%s", token);
+            emit_str("%s", token);
         } else {
-            emit_strf("  %s", token);
+            emit_str("  %s", token);
         }
         get_token();
         TOKEN lasttok = tok;
@@ -344,7 +344,7 @@ void parse_asm(int asmcol) {
             emit_str(token);            
             get_token();                        
         }
-        nl();
+        emit_nl();
     }
     if (tok != tokRBrace) error(errExpectRBrace);
     get_token(); // skip '}'
@@ -393,19 +393,19 @@ static void clean_stack(int16_t bytes) {
     
     if (bytes < 8) {
         while ((bytes-2) >= 0) {
-            emit_instr("pop bc");
+            emit_instrln("pop bc");
             bytes -= 2;
         }
         while (bytes) {
-            emit_instr("dec sp");
+            emit_instrln("dec sp");
             bytes--;
         }
         return;
     } else  {
         emit_swap();
-        emit_ld_immed(); emit_n16(bytes); nl();
-        emit_instr("add hl,sp");
-        emit_instr("ld sp,hl");        
+        emit_ld_immed(); emit_n16(bytes); emit_nl();
+        emit_instrln("add hl,sp");
+        emit_instrln("ld sp,hl");        
         emit_swap();
     }
 }
@@ -414,16 +414,17 @@ void parse_funccall(SYMBOL* sym) {
     get_token(); // skip '('
     uint8_t argcount = 0;
     while (tok != tokRParen) {
-        parse_expr(0);
         ++argcount;
-        emit_push();
+        parse_expr(0);
+        emit_push();        
         if (tok != tokComma) break;
         get_token(); // skip ','
     }
-    bp_lastarg = argcount * 2;
+    if (argcount != sym->offset) error(errArgCountMismatch);
     expect(tokRParen, errExpectRParen);
+
     emit_callsym(sym);
-    clean_stack(bp_lastarg);
+    clean_stack(sym->offset * 2);
 }
 
 void parse_return(void) {
@@ -445,24 +446,23 @@ void parse_funcdecl(TYPEREC rettype, const char* name) {
     uint16_t skiplbl = newlbl();
     emit_jp(skiplbl);
 
-    emit_sname(name); nl();
-    declglb(rettype, FUNCTION, name, 0);
-    
+    emit_sname(name); emit_nl();
+    SYMBOL *symfunc = declglb(rettype, FUNCTION, name, 0);
     uint16_t oldretlbl = retlbl;
     retlbl = newlbl(); 
     uint16_t funcframe = push_frame();
     func_argcount = 0;
     while (tok != tokRParen) {
         parse_type(&argtype);
-        if (is_array(&argtype)) make_ptr(&argtype);
-
-        strncpy(argName, token, MAX_IDENT_LEN);
-        bp_lastarg = 2 * func_argcount++;
-        declloc(argtype, ARGUMENT, argName, bp_lastarg);
+        if (is_array(&argtype)) make_ptr(&argtype);        
+        strncpy(argName, token, MAX_IDENT_LEN);           
+        declloc(argtype, ARGUMENT, argName, func_argcount++);
         get_token(); // skip arg name
         if (tok == tokComma) get_token(); // skip ','
     }
     expect(tokRParen, errExpectRParen);
+    symfunc->offset = func_argcount;
+    
     
     if (tok == tokAsm) {
         parse_asm(2);
@@ -473,13 +473,14 @@ void parse_funcdecl(TYPEREC rettype, const char* name) {
         maxlocalcount = 0;
         bp_lastlocal = 0;
         localbytes = 0;
+        emit_func_prologue();
         locals_lbl = emit_alloclocals();
 
         parse_statement_block();
 
         emit_lbl(retlbl);
-        clean_stack(localbytes);
-        emit_ret();
+        emit_func_epilogue();
+        
         emit_lblequ16(locals_lbl, localbytes);
     }
     emit_lbl(skiplbl);
@@ -509,8 +510,8 @@ void compile(const char *filename, const char *asmfilename) {
     char *dot = strrchr(asmfilename, '.');
     if (dot) *dot='\0';
 
-    emit_strf("  output \"/dot/%s\"%c", asmfilename, NL);
-    emit_strf("  org $2000%c", NL);
+    emit_strln("  output \"/dot/%s\"", asmfilename);
+    emit_instrln("org $2000");
 
     parse(filename);
     dump_rtl();

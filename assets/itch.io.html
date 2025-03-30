@@ -1,50 +1,56 @@
 <h2>A native compiler for the ZX Spectrum Next</h2>
 <hr>
-<p>ZNC is a language and compiler for the ZX Spectrum Next. The language is closely modeled after the C programming language, but does deviate in some cases where it either made the language easier to parse or in other cases where I preferred an alternate syntax.</p>
-<p>The compiler is a non-optimizing single pass compiler, while the generated code is not the fastest or the smallest it should outperform non-compiled languages.</p>
+<p>ZNC is a language and compiler for the ZX Spectrum Next. The language is closely modeled after the C programming
+  language, but does deviate in some cases where it either made the language easier to parse or in other cases where I
+  preferred an alternate syntax.</p>
+<p>The compiler is a non-optimizing single pass compiler, while the generated code is not the fastest or the smallest it
+  should outperform non-compiled languages.</p>
 <h2>Language Features</h2>
 <ul>
-<li>Data Types
+  <li>Data Types
     <ul>
-    <li>char/byte</li>
-    <li>int</li>
-    <li>arrays</li>
-    <li>pointers</li>
+      <li>char/byte</li>
+      <li>int</li>
+      <li>arrays</li>
+      <li>pointers</li>
     </ul>
-</li>
-<li>Flow control
+  </li>
+  <li>Flow control
     <ul>
-        <li>if/else</li>
-        <li>while/for loops</li>
+      <li>if/else</li>
+      <li>while/for loops</li>
     </ul>
-</li>
-<li>Expressions</li>
-    <ul>    
-        <li>Evaluated in accordance with operator precedence</li>
-        <li>Parenthesised expressions</li>
-        <li>Bitwise and logical operators</li>
+  </li>
+  <li>Expressions
+    <ul>
+      <li>Evaluated in accordance with operator precedence</li>
+      <li>Parenthesised expressions</li>
+      <li>Bitwise and logical operators</li>
     </ul>
-<li>Inline assembly</li>
-<li>Include files</li>
-<li>User functions</li>
+  </li>
+  <li>Inline assembly</li>
+  <li>Include files</li>
+  <li>User functions</li>
 </ul>
 <h2>Compiling code</h2>
 Currently the compiler will generate a DOT Command. Compilation is a two stage process.
 <ol>
-<li>Compile the source code to assembly language
-The following will compile a source file called demo.znc to a corresponding assembly file called demo.asm. These names do not need to match, but the assembly filename will be the base for the name of the final binary file.
-<pre>
+  <li>Compile the source code to assembly language
+    The following will compile a source file called demo.znc to a corresponding assembly file called demo.asm. These
+    names do not need to match, but the assembly filename will be the base for the name of the final binary file.
+    <pre>
 .znc demo.znc demo.asm
 </pre>
-</li>
-<li>Assemble the file to the executable binary
-Using the NextBASIC Inline Assembler, you assemble the generated assembly file to a binary.
-<pre>
+  </li>
+  <li>Assemble the file to the executable binary
+    Using the NextBASIC Inline Assembler, you assemble the generated assembly file to a binary.
+    <pre>
 .asm demo.asm
 </pre>
-</li>
+  </li>
 </ol>
-Now you should have file called `demo` in the DOT directory on your SD Card. This DOT command can be tested by executing the following at the command line.
+Now you should have file called `demo` in the DOT directory on your SD Card. This DOT command can be tested by executing
+the following at the command line.
 <pre>
 .demo
 </pre>
@@ -59,7 +65,8 @@ Next, compile and assemble the code
 .znc hello.znc hello.asm
 .asm hello.asm
 </pre>
-And if you did not get any errors with the above, you can excute the program and you should see `Hello World` printed to the screen.
+And if you did not get any errors with the above, you can excute the program and you should see `Hello World` printed to
+the screen.
 <h3>Bouncing ball</h3>
 This is a more complex example that bounces a character on the screen.
 <pre>
@@ -88,4 +95,3 @@ while (1) {
   putc('*');
 }
 </pre>
-

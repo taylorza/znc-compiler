@@ -120,9 +120,9 @@ TYPEREC parse_factor(uint8_t dereference) {
             expect(tokLParen, errExpectLParen);
             parse_expr(0);
             expect(tokRParen, errExpectRParen);
-            emit_instr("ld c,l");
-            emit_instr("ld b,h");
-            emit_instr("in a,(c)");
+            emit_instrln("ld c,l");
+            emit_instrln("ld b,h");
+            emit_instrln("in a,(c)");
             emit_rtl("ccsxt");
             typ = char_type;
             break;
@@ -131,24 +131,27 @@ TYPEREC parse_factor(uint8_t dereference) {
             get_token(); // skip 'readreg'
             expect(tokLParen, errExpectLParen);
             parse_expr(0);
-            emit_instr("ld bc, $243b");
-            emit_instr("out (c), l");
-            emit_instr("inc b");
+            emit_instrln("ld bc, $243b");
+            emit_instrln("out (c), l");
+            emit_instrln("inc b");
             expect(tokRParen, errExpectRParen);            
-            emit_instr("in a,(c)");
+            emit_instrln("in a,(c)");
             emit_rtl("ccsxt");
             typ = char_type;
             break;
         case tokString:
             typ = string_type;
             intval = lookupstr(token);
-            emit_ld_immed(); emit_strref(intval); nl();
+            emit_ld_immed(); emit_strref(intval); emit_nl();
             get_token(); // skip string
             break;
 
         case tokStar:
             get_token();    // skip '*'
             typ = parse_factor(1);
+            if (tok == tokAssign) {
+                parse_assign(0, NULL, 0, typ);
+            }
             break;
 
         case tokNumber:
@@ -158,7 +161,7 @@ TYPEREC parse_factor(uint8_t dereference) {
             }
             emit_ld_immed();
             emit_n16(intval);
-            nl();
+            emit_nl();
             get_token();
             typ = int_type;
             break;
@@ -188,7 +191,7 @@ TYPEREC parse_factor(uint8_t dereference) {
                 if (is_int(&typ)) emit_mul2();
                 dereference = 1;
                 indexed = 1;
-                emit_push();
+                emit_push(); // save index
             }
 
             if (tok == tokAssign) {
@@ -196,7 +199,7 @@ TYPEREC parse_factor(uint8_t dereference) {
             } else {
                 if (loadval) {
                     if (sym->klass == FUNCTION) {
-                        emit_ld_immed(); emit_sname(sym->name); nl();
+                        emit_ld_immed(); emit_sname(sym->name); emit_nl();
                     }
                     else {
                         emit_ld_symval(sym);
@@ -225,6 +228,14 @@ void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ
 {
     get_token(); // skip '='
 
+    if (!sym) {
+        // HL contains address to write to
+        emit_push();
+        parse_expr(0);
+        emit_store(typ);
+        return;
+    }
+
     if (dereference && tok == tokLBrace) {
         get_token(); // skip '{'
 
@@ -236,10 +247,10 @@ void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ
         
         for(;;) {
             if (tok == tokNumber) {
-                emit_strf("  ld (hl),%d%c", intval, NL);
+                emit_instrln("ld (hl),%d", intval);
                 if (typ.basetype == INT) {
-                    emit_instr("inc hl");
-                    emit_strf("  ld (hl),%d>>8%c", intval, NL);
+                    emit_instrln("inc hl");
+                    emit_instrln("ld (hl),%d>>8", intval);
                 }
                 get_token(); // skip number
             }
@@ -248,14 +259,14 @@ void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ
                 parse_expr(0);
                 emit_swap(); // DE = value
                 emit_pop();
-                emit_instr("ld (hl),e");
+                emit_instrln("ld (hl),e");
                 if (typ.basetype == INT) {
-                    emit_instr("inc hl");
-                    emit_strf("  ld (hl), d", intval, NL);
+                    emit_instrln("inc hl");
+                    emit_instrln("ld (hl), d", intval);
                 }
             }
             if (tok != tokComma) break;
-            emit_instr("inc hl");
+            emit_instrln("inc hl");
             get_token(); // skip ','
         }
         expect(tokRBrace, errExpectRBrace);
@@ -263,10 +274,6 @@ void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ
         return;
     } else if (dereference) {
         emit_ld_symval(sym);
-        if (indexed) {
-            emit_pop();
-            emit_add16();
-        }
         emit_push();
     }
     
@@ -382,15 +389,15 @@ TYPEREC parse_binop(TOKEN op, TYPEREC ltyp, uint8_t opprec) {
         case tokShl:
             if (pointer) error(errSyntax);
             emit_pop();             // DE = value to shift
-            emit_instr("ld b, l");  // B  = shift count
-            emit_instr("bsla de, b");
+            emit_instrln("ld b, l");  // B  = shift count
+            emit_instrln("bsla de, b");
             emit_swap();            // HL = result;
             break;
         case tokShr:
             if (pointer) error(errSyntax);
             emit_pop();             // DE = value to shift
-            emit_instr("ld b, l");  // B  = shift count
-            emit_instr("bsra de, b");
+            emit_instrln("ld b, l");  // B  = shift count
+            emit_instrln("bsra de, b");
             emit_swap();            // HL = result;
             break;
 

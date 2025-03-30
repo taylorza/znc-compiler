@@ -31,7 +31,6 @@
 #include "strtbl.h"
 #include "sym.h"
 #include "scanner.h"
-#include "machine.h"
 #include "codegen.h"
 #include "rtl.h"
 #include "expr.h"

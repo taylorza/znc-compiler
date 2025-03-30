@@ -11,12 +11,12 @@ uint16_t lastloc = 0;
 
 uint16_t type_size(const TYPEREC* type) {
     if (is_array(type)) {
-        return type->dim * (type->basetype == INT ? 2 : 1);
+        return (-type->dim) * (type->basetype == INT ? 2 : 1);
     }
     return 2;
 }
 
-uint8_t is_array(const TYPEREC* type) { return type->dim > 1; }
+uint8_t is_array(const TYPEREC* type) { return type->dim < 0; }
 uint8_t is_ptr(const TYPEREC* type) { return type->dim == 0; }
 uint8_t is_void(const TYPEREC* type) { return type->basetype == VOID; }
 uint8_t is_char(const TYPEREC* type) { return type->basetype == CHAR; }
@@ -25,7 +25,7 @@ uint8_t is_string(const TYPEREC* type) { return type->basetype == STRING; }
 
 void make_ptr(TYPEREC* type) { type->dim = 0; }
 void make_scalar(TYPEREC* type) { type->dim = 1; }
-void make_array(TYPEREC* type, uint16_t size) { type->dim = size; }
+void make_array(TYPEREC* type, uint16_t size) { type->dim = -size; }
 
 SYMBOL* findglb(const char *name) {
     for (uint16_t i=0; i < lastgbl; i++) {
@@ -123,7 +123,7 @@ void dump_globals(void) {
         uint16_t size = is_int(ptype) || is_ptr(ptype) ? 2 : 1;
         if (is_array(ptype)) size *= ptype->dim;
         emit_n16(size);
-        nl();        
+        emit_nl();        
     }
 }
 

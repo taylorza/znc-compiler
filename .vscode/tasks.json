@@ -72,7 +72,7 @@
         {
             "label": "Update Test",
             "type": "shell",            
-            "command": "${workspaceFolder}/../../emulator/hdfmonkey put ${workspaceFolder}/../../sdcard/tbblue-dev.sd tests/test.znc /",            
+            "command": "${workspaceFolder}/sync.bat ${workspaceFolder}",            
             "dependsOrder": "sequence",
             "dependsOn": [],
             "problemMatcher": []

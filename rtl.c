@@ -270,6 +270,13 @@ RTLREC rtltbl[] = {
 */
 };
 
+void emit_code(const char* code) {
+    char* p = code;
+    while (*p) {
+        emit_ch(*p++);
+    }
+    emit_nl();
+}
 uint8_t inc_rtl(const char* fn) {
     char depname[16] = { 0 };
     for (uint8_t i = 0; i < sizeof(rtltbl) / sizeof(RTLREC); ++i) {
@@ -289,7 +296,7 @@ uint8_t inc_rtl(const char* fn) {
                 }
             }
             if (rtl->flags & FLAG_RTL_INLINE) {
-                emit_str(rtl->code); nl();                
+                emit_code(rtl->code);
             } else {
                 rtl->flags |= FLAG_RTL_INCLUDE;                
             }  
@@ -310,9 +317,9 @@ void dump_rtl(void) {
 #if __ZXNEXT
             //printf("\n  %s", rtl->name);
 #endif
-            nl();
-            emit_str(rtl->name); nl();
-            emit_str(rtl->code); nl();
+            emit_nl();
+            emit_str(rtl->name); emit_nl();
+            emit_code(rtl->code);
             emit_ret();
         }     
     }

@@ -7,7 +7,7 @@ typedef enum SYM_SCOPE { GLOBAL, LOCAL } SYM_SCOPE;
 
 typedef struct  {
     BASE_TYPE basetype;
-    uint16_t dim; // 0-pointer, 1-scalar, >1-array
+    int16_t dim; // 0-pointer, 1-scalar, <0-array
 } TYPEREC;
 
 extern TYPEREC const int_void;

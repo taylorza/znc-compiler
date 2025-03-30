@@ -1,5 +1,4 @@
 int printnum(int n) {
-  int hasvalue = 0;
   int div = 10000;
 
   while((n / div) == 0) {
