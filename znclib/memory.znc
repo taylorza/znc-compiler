@@ -41,17 +41,3 @@ void memset(void *dst, char b, int len) __asm__ {
   pop ix       
   ret
 }
-
-int printnum(int n) {
-  int div = 10000;
-
-  while((n / div) == 0) {
-    div = div / 10;
-  }
-  
-  while(div) {
-    putc(n / div + '0');
-    n = n % div;			
-	  div = div / 10;
-  }
-}

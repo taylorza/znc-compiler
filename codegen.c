@@ -265,7 +265,7 @@ void emit_ld_symval(SYMBOL* sym) {
                 emit_instrln("add hl, de");
             } else {
                 emit_instrln("ld h,(ix-%d)", bp_offset);
-                emit_instrln("ld l,(ix-%d)", bp_offset +1);
+                emit_instrln("ld l,(ix-%d)", bp_offset+1);
             }
         } else if (sym->klass == ARGUMENT) {
             bp_offset = 2 + (func_argcount - sym->offset) * 2;            

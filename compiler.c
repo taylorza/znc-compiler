@@ -331,18 +331,22 @@ void parse_asm(int asmcol) {
     expect(tokLBrace, errExpectLBrace);
     while (tok != tokRBrace && tok != tokEOS) {
         int last_token_line = token_line;
-        if (token_col < asmcol) {
+        if (token_col <= asmcol) {
             emit_str("%s", token);
         } else {
-            emit_str("  %s", token);
+            emit_str("  %s ", token);
         }
+        TOKEN lasttok = tok; 
         get_token();
-        TOKEN lasttok = tok;
         while (token_line == last_token_line && tok != tokRBrace && tok != tokEOS) {
-            if (tok == tokIdent && lasttok == tokIdent) emit_ch(' ');
             lasttok = tok; 
-            emit_str(token);            
+            if (tok == tokNumber) {
+                emit_n16(intval);
+            } else {
+                emit_str(token);
+            }
             get_token();                        
+            if (tok == tokIdent && lasttok == tokIdent) emit_ch(' ');
         }
         emit_nl();
     }

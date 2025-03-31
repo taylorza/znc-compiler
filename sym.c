@@ -124,7 +124,7 @@ void dump_globals(void) {
         emit_ch(' ');
         emit_str("ds ");
         uint16_t size = is_int(ptype) || is_ptr(ptype) ? 2 : 1;
-        if (is_array(ptype)) size *= ptype->dim;
+        if (is_array(ptype)) size *= -ptype->dim;
         emit_n16(size);
         emit_nl();        
     }

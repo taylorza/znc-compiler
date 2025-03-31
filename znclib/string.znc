@@ -1,0 +1,41 @@
+char* strcpy(char *dst, char *src) __asm__ {
+  push ix
+  ld ix,0
+  add ix,sp
+
+  ld d,(ix+7)
+  ld e,(ix+6)
+  
+  ld h,(ix+5)
+  ld l,(ix+4) 
+
+.n
+  cp (hl)
+  ldi
+  jr nz,.n
+
+.x
+  ex de,hl
+  pop ix
+  ret
+}
+
+int strlen(char *s) __asm__ {
+  push ix
+  ld ix,0
+  add ix,sp
+
+  ld h,(ix+5)
+  ld l,(ix+4) 
+
+  xor a
+  ld c,a
+  ld b,a
+
+  cpir
+  ld hl, 0xffff
+  sbc hl,bc
+
+  pop ix
+  ret
+}
