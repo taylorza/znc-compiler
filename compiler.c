@@ -218,39 +218,60 @@ void parse_for(void) {
     uint16_t blockframe = push_frame();
     uint8_t old_localcount = localcount;
 
-    uint16_t lblCond = newlbl();
+    uint16_t old_brklbl = brklbl;
+    uint16_t old_contlbl = contlbl;
+
+    uint16_t lblCond=65535;
     uint16_t lblEndFor = brklbl = newlbl();
     uint16_t lblBody = newlbl();
-    uint16_t lblPost = contlbl = newlbl();
+    uint16_t lblPost = contlbl = 65535;
 
     // parse initializer
     if (tok == tokChar || tok == tokInt) {
         parse_decl();
     }
     else {
-        parse_expr(0);
-        expect_semi();
+        if (tok != tokSemi) parse_expr(0);
     }
+    expect_semi();
     
     // parse condition
-    emit_lbl(lblCond);
-    parse_expr(0); expect_semi();
-    emit_jp_false(lblEndFor);
-    emit_jp(lblBody);
+    if (tok != tokSemi) {
+        lblCond = newlbl();
+        emit_lbl(lblCond);
+        parse_expr(0); 
+        emit_jp_false(lblEndFor);
+    }
+    expect_semi();
 
     // parse post statement
-    emit_lbl(lblPost);
-    parse_expr(0); expect(tokRParen, errExpectRParen);
-    emit_jp(lblCond);
+    if (tok != tokRParen) {
+        emit_jp(lblBody);
+        lblPost = contlbl = newlbl();
+        emit_lbl(lblPost);
+        parse_expr(0);
+        if (lblCond != 65535) emit_jp(lblCond);
+    } else {
+        contlbl = lblBody;
+    }
+    expect(tokRParen, errExpectRParen);
 
     emit_lbl(lblBody);
     parse_statement();
-    emit_jp(lblPost);
+    if (lblPost != 65535)
+        emit_jp(lblPost);
+    else if (lblCond != 65535)
+        emit_jp(lblCond);
+    else
+        emit_jp(lblBody);
     emit_lbl(lblEndFor);
 
     if (maxlocalcount < localcount) maxlocalcount = localcount;
     localcount = old_localcount;
     pop_frame(blockframe);
+
+    brklbl = old_brklbl;
+    contlbl = old_contlbl;
 }
 
 void parse_break(void) {

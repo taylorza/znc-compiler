@@ -234,52 +234,48 @@ void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ
         emit_store(typ);
         return;
     }
-
-    if (dereference && tok == tokLBrace) {
-        get_token(); // skip '{'
-
-        emit_ld_symval(sym);
-        if (indexed) {
-            emit_pop();
-            emit_add16();
-        }
-        
-        for(;;) {
-            if (tok == tokNumber) {
-                emit_instrln("ld (hl),%d", intval);
-                if (typ.basetype == INT) {
-                    emit_instrln("inc hl");
-                    emit_instrln("ld (hl),%d>>8", intval);
-                }
-                get_token(); // skip number
-            }
-            else {
-                emit_push();
-                parse_expr(0);
-                emit_swap(); // DE = value
-                emit_pop();
-                emit_instrln("ld (hl),e");
-                if (typ.basetype == INT) {
-                    emit_instrln("inc hl");
-                    emit_instrln("ld (hl), d", intval);
-                }
-            }
-            if (tok != tokComma) break;
-            emit_instrln("inc hl");
-            get_token(); // skip ','
-        }
-        expect(tokRBrace, errExpectRBrace);
-       
-        return;
-    } else if (dereference) {
-        emit_ld_symval(sym);
-        if (indexed) {
-            emit_pop();
-            emit_add16();
-        }
-        emit_push();
-    }
     
+    if (dereference) {
+        emit_ld_symval(sym);
+        if (indexed) {
+            emit_pop();
+            emit_add16();
+        }
+
+        if (tok == tokLBrace) {
+            get_token(); // skip '{'
+
+            for (;;) {
+                if (tok == tokNumber) {
+                    emit_instrln("ld (hl),%d", intval);
+                    if (typ.basetype == INT) {
+                        emit_instrln("inc hl");
+                        emit_instrln("ld (hl),%d>>8", intval);
+                    }
+                    get_token(); // skip number
+                }
+                else {
+                    emit_push();
+                    parse_expr(0);
+                    emit_swap(); // DE = value
+                    emit_pop();
+                    emit_instrln("ld (hl),e");
+                    if (typ.basetype == INT) {
+                        emit_instrln("inc hl");
+                        emit_instrln("ld (hl), d", intval);
+                    }
+                }
+                if (tok != tokComma) break;
+                emit_instrln("inc hl");
+                get_token(); // skip ','
+            }
+            expect(tokRBrace, errExpectRBrace);
+
+            return;
+        } else {
+            emit_push();
+        }
+    }
     parse_expr(0);
 
     if (dereference) {
