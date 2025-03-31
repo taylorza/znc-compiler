@@ -273,6 +273,10 @@ void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ
         return;
     } else if (dereference) {
         emit_ld_symval(sym);
+        if (indexed) {
+            emit_pop();
+            emit_add16();
+        }
         emit_push();
     }
     
