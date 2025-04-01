@@ -276,8 +276,30 @@ void emit_ld_symval(SYMBOL* sym) {
 }
 
 void emit_ld_symaddr(SYMBOL* sym) {
-    emit_ld_immed();
-    emit_sname(sym->name); emit_nl();
+    TYPEREC* ptype = &sym->type;
+
+    if (sym->scope == GLOBAL) {
+        emit_ld_immed();
+        emit_sname(sym->name); emit_nl();
+    }
+    else if (sym->scope == LOCAL) {
+        int8_t bp_offset = 0;
+        if (sym->klass == VARIABLE) {
+            bp_offset = (uint8_t)sym->offset;
+            if (is_array(ptype))
+                bp_offset = (bp_offset - type_size(ptype)) + 1;
+            else
+                bp_offset = (bp_offset - 2) + 1;
+            
+        }
+        else if (sym->klass == ARGUMENT) {
+            bp_offset = 2 + (func_argcount - sym->offset) * 2;            
+        }
+        emit_instrln("ld hl, %d", bp_offset);  
+        emit_instrln("ld d, ixh");
+        emit_instrln("ld e, ixl");
+        emit_instrln("add hl, de");
+    }
 }
 
 void emit_store_sym(SYMBOL* sym) {

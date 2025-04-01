@@ -146,6 +146,41 @@ TYPEREC parse_factor(uint8_t dereference) {
             get_token(); // skip string
             break;
 
+        case tokAmp:
+            get_token(); // skip '&'
+            if (tok != tokIdent) error(errNotlvalue);
+            sym = lookupIdent(token);
+            if (!sym) {
+                error(errNotDefined_s, token);
+                return int_type;
+            }
+            get_token(); // skip identifier
+            typ = sym->type;
+
+            if (tok == tokLBrack) {
+                if (is_ptr(&typ)) {
+                    emit_ld_symval(sym);
+                } else if (is_array(&typ) || sym->klass == FUNCTION) {
+                    emit_ld_symaddr(sym);
+                    typ = sym->type;
+                    make_ptr(&typ);
+                } else {
+                    error(errSyntax);
+                }
+                get_token();    // skip '['
+                emit_push();
+                parse_expr(0);   // index expression
+                expect(tokRBrack, errExpectRBrack); // skip ']'
+                if (is_int(&typ)) emit_mul2();
+                emit_pop();
+                emit_add16();
+            } else {
+                emit_ld_symaddr(sym);                
+            }
+            typ = sym->type;
+            make_ptr(&typ);
+            break;
+
         case tokStar:
             get_token();    // skip '*'
             typ = parse_factor(1);

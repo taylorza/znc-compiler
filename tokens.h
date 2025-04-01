@@ -48,7 +48,8 @@ typedef enum TOKEN {
     tokBitOr,       // |
     tokBitXor,      // ^
     tokBitAnd,      // &
-
+    tokAmp = tokBitAnd, // &
+    
     tokShl,         // <<
     tokShr,         // >>
 
