@@ -1,6 +1,8 @@
-include "stdlib.znc"
 
-int i=128;
-printnum(i); putc('\r');
-printnum(i>>1); putc('\r');
-printnum(i<<2); putc('\r');
+puts("Hello "); puts(args); putc('\r');
+
+char *p = args;
+while (*p) {
+    putc(*p); putc('\r');
+    p=p+1;
+}

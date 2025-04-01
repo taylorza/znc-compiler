@@ -556,6 +556,9 @@ void compile(const char *filename, const char *asmfilename) {
 
     emit_strln("  output \"/dot/%s\"", asmfilename);
     emit_instrln("org $2000");
+    TYPEREC str = { .basetype = CHAR, .dim = -80 };
+    addglb("args", VARIABLE, str, 0);
+    emit_rtl("ldcmdln");
 
     parse(filename);
     dump_rtl();

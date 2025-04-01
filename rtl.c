@@ -258,16 +258,30 @@ RTLREC rtltbl[] = {
         NULL,
         FLAG_RTL_NONE
     },
-/*
-    { "ccgint",
-        " LD A, (HL)"NLS
+    { "ldcmdln",
+        " LD DE,_ARGS"NLS
+        " LD BC,79"NLS
+        ".L1"NLS
+        " LD A,(HL)"NLS
+        " OR A"NLS
+        " JR Z,.L2"NLS
+        " CP \":\""NLS
+        " JR Z,.L2"NLS
+        " CP 13"NLS
+        " JR Z,.L2"NLS
+        " LD(DE),A"NLS
         " INC HL"NLS
-        " LD H, (HL)"NLS
-        " LD L, A",
+        " INC DE"NLS
+        " DEC BC"NLS
+        " LD A,B"NLS
+        " OR C"NLS
+        " JR NZ,.L1"NLS
+        ".L2"NLS
+        " XOR A"NLS
+        " LD(DE), A",
         NULL,
         FLAG_RTL_NONE
     }
-*/
 };
 
 void emit_code(const char* code) {
