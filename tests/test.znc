@@ -1,8 +1,22 @@
 
-puts("Hello "); puts(args); putc('\r');
+void setpixel(int x, int y) __asm__ {
+  push ix
+  ld ix,0
+  add ix,sp
 
-char *p = args;
-while (*p) {
-    putc(*p); putc('\r');
-    p=p+1;
+  ld e,(ix+6) ; X
+  ld d,(ix+4) ; Y
+  pixelad
+  setae
+  or (hl)
+  ld (hl),a
+
+  pop ix
+  ret
+}
+
+for(int x=0;x<=255;x=x+1) {
+  for(int y=0;y<=191;y=y+1) {
+    setpixel(x,y);
+  }
 }

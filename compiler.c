@@ -232,8 +232,8 @@ void parse_for(void) {
     }
     else {
         if (tok != tokSemi) parse_expr(0);
+        expect_semi();
     }
-    expect_semi();
     
     // parse condition
     if (tok != tokSemi) {
