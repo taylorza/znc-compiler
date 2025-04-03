@@ -167,17 +167,6 @@ RTLREC rtltbl[] = {
     NULL,
     FLAG_RTL_NONE
     },
-    // HL - DE
-    {"ccsub",
-        " LD A, E"NLS
-        " SUB L"NLS
-        " LD L,A"NLS
-        " LD A,D"NLS
-        " SBC A,H"NLS
-        " LD H,A",
-    NULL,
-    FLAG_RTL_NONE
-    },
     // HL = -HL
     {"ccneg",
         " CALL cccom"NLS
@@ -193,6 +182,18 @@ RTLREC rtltbl[] = {
         " LD A,L"NLS
         " CPL"NLS
         " LD L,A",
+    NULL,
+    FLAG_RTL_NONE
+    },
+    // HL = !HL
+    { "ccnot",
+        " LD A,H"NLS
+        " OR L"NLS
+        " JR Z,.0"NLS
+        " LD HL,0"NLS
+        " RET"NLS
+        ".0"NLS
+        " INC L",
     NULL,
     FLAG_RTL_NONE
     },

@@ -101,10 +101,12 @@ TYPEREC parse_factor(uint8_t dereference) {
     TYPEREC typ = int_type;
     uint8_t indexed = 0;
     uint8_t neg = 0;
+    uint8_t not = 0;
     uint8_t loadval = 1;
     
-    while (tok == tokPlus || tok == tokMinus) {
+    while (tok == tokPlus || tok == tokMinus || tok == tokNot) {
         if (tok == tokMinus) neg ^= 1;
+        if (tok == tokNot) not ^= 1;
         get_token();
     }
 
@@ -194,6 +196,10 @@ TYPEREC parse_factor(uint8_t dereference) {
                 intval = -intval;
                 neg = 0;
             }
+            if (not) {
+                intval = !intval;
+                not = 0;
+            }
             emit_ld_immed();
             emit_n16(intval);
             emit_nl();
@@ -227,6 +233,7 @@ TYPEREC parse_factor(uint8_t dereference) {
                 dereference = 1;
                 indexed = 1;
                 emit_push(); // save index
+                make_scalar(&typ);
             }
 
             if (tok == tokAssign) {
@@ -255,6 +262,7 @@ TYPEREC parse_factor(uint8_t dereference) {
             break;
     }
     if (neg) emit_neg();
+    if (not) emit_rtl("ccnot");
     return typ;
 }
 
