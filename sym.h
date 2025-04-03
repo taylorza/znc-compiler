@@ -44,7 +44,6 @@ void make_array(TYPEREC* type, uint16_t size);
 
 SYMBOL* findglb(const char* name);
 SYMBOL* findloc(const char* name);
-SYMBOL* getloc(int16_t offset);
 SYMBOL* lookupIdent(const char* name);
 
 SYMBOL* addglb(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value);
@@ -52,6 +51,7 @@ SYMBOL* addloc(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value);
 
 uint16_t push_frame(void);
 void pop_frame(uint16_t frame);
+uint8_t is_scoped(void);
 
 void dump_globals(void);
 

@@ -264,8 +264,8 @@ void emit_ld_symval(SYMBOL* sym) {
                 emit_instrln("ld e, ixl");                
                 emit_instrln("add hl, de");
             } else {
-                emit_instrln("ld h,(ix-%d)", bp_offset);
-                emit_instrln("ld l,(ix-%d)", bp_offset+1);
+                emit_instrln("ld h,(ix-%d)", bp_offset+1);
+                emit_instrln("ld l,(ix-%d)", bp_offset+2);
             }
         } else if (sym->klass == ARGUMENT) {
             bp_offset = 2 + (func_argcount - sym->offset) * 2;            
@@ -318,8 +318,8 @@ void emit_store_sym(SYMBOL* sym) {
         int8_t bp_offset = 0;
         if (sym->klass == VARIABLE) {
             bp_offset = (uint8_t)sym->offset;
-            emit_instrln("ld (ix-%d),h", bp_offset);
-            emit_instrln("ld (ix-%d),l", bp_offset + 1);
+            emit_instrln("ld (ix-%d),h", bp_offset + 1);
+            emit_instrln("ld (ix-%d),l", bp_offset + 2);
         }
         else if (sym->klass == ARGUMENT) {
             bp_offset = 2 + (func_argcount - sym->offset) * 2;
@@ -365,16 +365,15 @@ void emit_nreg_A(uint8_t reg) {
     emit_instrln("nreg %d,a", reg);
 }
 
-void emit_func_prologue(void) {
+void emit_frame_prologue(void) {
     emit_instrln("push ix");
     emit_instrln("ld ix,0");
     emit_instrln("add ix,sp");
 }
 
-void emit_func_epilogue(void) {
+void emit_frame_epilogue(void) {
     emit_instrln("ld sp, ix");
     emit_instrln("pop ix");
-    emit_ret();
 }
 
 void emit_neg(void) {

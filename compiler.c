@@ -12,6 +12,7 @@ uint8_t maxlocalcount;      // highwater mark for local variables
 
 uint16_t bp_lastlocal;      // base pointer of the last local
 uint16_t localbytes;        // total bytes for locals
+uint16_t exit_lbl;          // label for the global exit (return to BASIC for DOT commands)
 
 static void expect_semi(void) {
     expect(tokSemi, errExpectSemi);
@@ -50,14 +51,6 @@ static void parse(const char *sourcefile) {
         parse_statement();
     }
     src_close();
-
-    if (fileid == 255) {
-#ifdef __ZXNEXT
-        emit_ret();
-#else
-        emit_instrln("jr $");
-#endif
-    }
 }
 
 void parse_onearg(void) {
@@ -74,7 +67,7 @@ static void parse_statement_block(void) {
     uint16_t old_bp = bp_lastlocal;
     while (tok != tokEOS && tok != tokRBrace) {
         parse_statement();
-    }
+    }   
     if (maxlocalcount < localcount) maxlocalcount = localcount;
     bp_lastlocal = old_bp;
     localcount = old_localcount;
@@ -143,7 +136,7 @@ void parse_decl(void) {
         if (is_void(&type) && !is_ptr(&type)) error(errSyntax);
 
         for (;;) {
-            if (infunc) {
+            if (infunc || is_scoped()) {
                 uint16_t size = type_size(&type); 
                 sym = declloc(type, VARIABLE, name, bp_lastlocal);
                 bp_lastlocal += size;
@@ -513,23 +506,25 @@ void parse_funcdecl(TYPEREC rettype, const char* name) {
         else {
             if (tok != tokLBrace) error(errExpectLBrace);
 
+            uint16_t oldlocalbytes = localbytes;
             maxlocalcount = 0;
             bp_lastlocal = 0;
             localbytes = 0;
-            emit_func_prologue();
+            emit_frame_prologue();
             locals_lbl = emit_alloclocals();
 
             parse_statement_block();
 
             emit_lbl(retlbl);
-            emit_func_epilogue();
+            emit_frame_epilogue();
+            emit_ret();
 
             emit_lblequ16(locals_lbl, localbytes);
+            localbytes = oldlocalbytes;
         }
         emit_lbl(skiplbl);
 
         pop_frame(funcframe);
-
         infunc = 0;
         retlbl = oldretlbl;
     }
@@ -556,11 +551,25 @@ void compile(const char *filename, const char *asmfilename) {
 
     emit_strln("  output \"/dot/%s\"", asmfilename);
     emit_instrln("org $2000");
+    
     TYPEREC str = { .basetype = CHAR, .dim = -80 };
     addglb("args", VARIABLE, str, 0);
     emit_rtl("ldcmdln");
 
+    localbytes = 0;
+    exit_lbl = newlbl();    
+    emit_frame_prologue();
+    uint16_t top_local_lbl = emit_alloclocals();
     parse(filename);
+    emit_lbl(exit_lbl);
+    emit_frame_epilogue();        
+#ifdef __ZXNEXT
+        emit_instrln(" or a"); // Clear carry for clean exit from DOT command
+        emit_ret();
+#else
+        emit_instrln("jr $");
+#endif
+    emit_lblequ16(top_local_lbl, localbytes);
     dump_rtl();
     dump_globals();
     dump_strings();

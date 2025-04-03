@@ -7,7 +7,8 @@ TYPEREC const string_type = { .basetype = STRING, .dim = 1 };
 
 SYMBOL symtab[MAX_SYMBOLS];
 uint16_t lastgbl = 0;
-uint16_t lastloc = 0;
+uint16_t lastloc = MAX_SYMBOLS;
+uint16_t scopecount = 0; // nested scopes
 
 uint16_t type_size(const TYPEREC* type) {
     if (is_array(type)) {
@@ -39,7 +40,7 @@ SYMBOL* findglb(const char *name) {
 }
 
 SYMBOL* findloc(const char *name) {
-    for (uint16_t i=lastgbl; i < lastloc; i++) {
+    for (uint16_t i=lastloc; i < MAX_SYMBOLS; ++i) {
         if (strcmp(name, symtab[i].name) == 0) {
             return &symtab[i];
         }
@@ -82,36 +83,32 @@ SYMBOL* addloc(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) {
     SYMBOL *sym = findloc(name);
     if (sym) return sym;
 
-    if (lastloc == MAX_SYMBOLS) {
+    if (lastloc-1 == lastgbl) {
         error(errTooManySymbols);
         return NULL;
     }
 
-    sym = &symtab[lastloc];
+    sym = &symtab[--lastloc];
     strncpy(sym->name, name, MAX_IDENT_LEN);
     sym->klass = klass;
     sym->type = type;
     sym->scope = LOCAL;
     sym->offset = value;
-    ++lastloc;
-    return sym;
-}
-
-SYMBOL* getloc(int16_t offset) {
-    uint16_t i = lastloc + offset;
-    if (i >= lastloc) return NULL;
-    SYMBOL *sym = &symtab[lastloc + offset];
-    if (sym->scope != LOCAL) return NULL;
     return sym;
 }
 
 uint16_t push_frame(void) {
-    if (lastloc < lastgbl) lastloc = lastgbl;
+    ++scopecount;
     return lastloc;
 }
 
 void pop_frame(uint16_t frame) {
+    --scopecount;
     lastloc = frame;
+}
+
+uint8_t is_scoped(void) {
+    return scopecount != 0;
 }
 
 void dump_globals(void) {

@@ -60,8 +60,8 @@ void emit_lblequ16(uint16_t lbl, uint16_t value);
 void emit_nreg_immed(uint8_t reg, uint8_t val);
 void emit_nreg_A(uint8_t reg);
 
-void emit_func_prologue(void);
-void emit_func_epilogue(void);
+void emit_frame_prologue(void);
+void emit_frame_epilogue(void);
 
 void emit_neg(void);
 void emit_mul2(void);
