@@ -1,3 +1,5 @@
+make dot "/dot/udg";
+
 int udg_ptr = 0x5c7b;  // Address of UDG
 byte* ball = *udg_ptr; // UDG - A
 

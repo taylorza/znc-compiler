@@ -1,3 +1,5 @@
+make dot "/dot/bounce";
+
 void gotoxy(byte x, byte y) {
   putc(22);putc(y);putc(x);
 }

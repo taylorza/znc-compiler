@@ -384,3 +384,30 @@ void emit_mul2(void) {
     emit_instrln("add hl,hl");
 }
 
+void emit_org(uint16_t address) {
+    emit_instrln("org %d", address);
+}
+
+void emit_bank(uint8_t bank, uint16_t offset) {
+    emit_instrln("bank %d,%d", bank, offset);
+}
+
+void emit_output(const char* filename, TOKEN outputTok) {
+    emit_strln("  output \"%s\"", filename);
+    if (outputTok == tokDot) {
+        emit_org(0x2000);
+        TYPEREC str = { .basetype = CHAR, .dim = -80 };
+        addglb("args", VARIABLE, str, 0);
+        emit_rtl("ldcmdln");
+    }
+}
+
+void emit_nex(const char* filename, uint16_t start, uint16_t stack, uint16_t stacksize) {
+    emit_instrln("ds %d", stacksize);
+    emit_lbl(stack);
+    emit_instrln("equ $");
+    emit_instr("savenex \"%s\",", filename);
+    emit_lblref(start); emit_ch(',');
+    emit_lblref(stack);
+}
+

@@ -20,9 +20,11 @@ The compiler is a non-optimizing single pass compiler, while the generated code 
 * Inline assembly
 * Include files
 * User functions
+* Compiling DOT command, NEX files and raw binary files
+* Support for banking code and data
     
 ## Compiling code
-Currently the compiler will generate a DOT Command. Compilation is a two stage process.
+Compilation is a two stage process.
 
 1. Compile the source code to assembly language
 
@@ -51,6 +53,8 @@ Now you should have file called `demo` in the DOT directory on your SD Card. Thi
 
 Create a file called `hello.znc` and add the following content
 ```
+make dot "/dot/hello";
+
 puts("Hello World");
 ```
 
@@ -60,12 +64,14 @@ Next, compile and assemble the code
 .asm hello.asm
 ```
 
-And if you did not get any errors with the above, you can excute the program and you should see `Hello World` printed to the screen.
+If you did not get any errors with the above, you can excute the program and you should see `Hello World` printed to the screen.
 
 ### Bouncing ball
 This is a more complex example that bounces a character on the screen.
 
 ``` C
+make dot "/dot/ball";
+
 void gotoxy(byte x, byte y) {
   putc(22);putc(y);putc(x);
 }

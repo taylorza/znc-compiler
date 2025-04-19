@@ -66,4 +66,9 @@ void emit_frame_epilogue(void);
 void emit_neg(void);
 void emit_mul2(void);
 
+void emit_org(uint16_t address);
+void emit_bank(uint8_t bank16, uint16_t offset);
+void emit_output(const char* filename, TOKEN outputTok);
+void emit_nex(const char* filename, uint16_t start, uint16_t stack, uint16_t stacksize);
+
 #endif //CODEGEN_H_

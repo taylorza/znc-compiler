@@ -1,3 +1,5 @@
+make dot "/dot/fizzbuzz";
+
 int printnum(int n) {
   int div = 10000;
 

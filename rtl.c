@@ -21,7 +21,7 @@ RTLREC rtltbl[] = {
         " SBC A,A"NLS
         " LD H,A",
     NULL,
-    FLAG_RTL_INLINE
+    FLAG_RTL_NONE
     },
     // Bitwise OR
     {"ccor",
@@ -243,8 +243,8 @@ RTLREC rtltbl[] = {
         FLAG_RTL_NONE
     },
     { "putc",
-        " LD A,L"NLS
-        " RST $10",
+        "  ld a,l"NLS
+        "  rst 16",
         NULL,
         FLAG_RTL_INLINE
     },

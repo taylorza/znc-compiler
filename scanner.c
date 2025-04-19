@@ -45,9 +45,17 @@ KEYWORD keywords[] = {
     {"out", tokOut},
     {"nextreg", tokNextReg},
     {"readreg", tokReadReg},
-    
+
     {"__asm__", tokAsm},
     {"include", tokInclude},
+
+    {"make", tokMake},
+    {"raw", tokRaw},
+    {"dot", tokDot},
+    {"nex", tokNex},
+    {"setsp", tokSetStack},
+    {"org", tokOrg},
+    {"bank", tokBank},
 };
 
 static TOKEN lookup_keyword(const char* ident) {

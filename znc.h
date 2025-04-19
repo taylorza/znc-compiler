@@ -1,4 +1,4 @@
-#define MAX_FILENAME_LEN 32
+#define MAX_FILENAME_LEN 64
 #define MAX_IDENT_LEN 14
 #define MAX_NEST_DEPTH 5
 #define MAX_SYMBOLS 500
@@ -25,6 +25,7 @@
 #include <errno.h>
 #endif
 
+#include "dataarea.h"
 #include "util.h"
 #include "tokens.h"
 #include "error.h"

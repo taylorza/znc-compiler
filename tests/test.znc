@@ -1,3 +1,5 @@
+make dot "/dot/test";
+
 void setpixel(int x, int y) __asm__ {
   push ix
   ld ix,0

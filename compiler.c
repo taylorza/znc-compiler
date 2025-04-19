@@ -4,7 +4,10 @@ uint16_t retlbl = 0;        // function exit label
 uint16_t brklbl = 0;        // in scope break label
 uint16_t contlbl = 0;       // in scope continue label
 
-uint8_t infunc;             // 1 if parsing a function
+uint8_t emitNex = 0;        // 1 if generating a NEX file
+uint8_t infunc = 0;         // 1 if parsing a function
+uint8_t inbank = 0;         // 1 if in explicit bank
+
 uint8_t func_argcount;      // number of arguments for function being parsed
 uint16_t locals_lbl;        // label of the EQU with the arg count
 uint8_t localcount;         // number of live local variables
@@ -13,6 +16,10 @@ uint8_t maxlocalcount;      // highwater mark for local variables
 uint16_t bp_lastlocal;      // base pointer of the last local
 uint16_t localbytes;        // total bytes for locals
 uint16_t exit_lbl;          // label for the global exit (return to BASIC for DOT commands)
+uint16_t start_lbl;         // label for the start of the code
+uint16_t stack_addr;        // stack pointer address
+uint16_t stack_lbl;         // label for nex stack
+uint16_t stack_size = 256;  // stack size
 
 static void expect_semi(void) {
     expect(tokSemi, errExpectSemi);
@@ -37,20 +44,96 @@ void parse_puts(void);
 void parse_out(void);
 void parse_nextreg(void);
 void parse_asm(int asmcol);
+void parse_org(void);
+void parse_bank(void);
+
+void parse_make(const char* outfilename);
 
 void parse_onearg(void);
 
-static void parse(const char *sourcefile) {
+static void parse(const char* sourcefile, const char* outfilename, uint8_t entrypoint) {
     if (!src_open(sourcefile)) {
         printf("can't open '%s'", sourcefile);
         return;
     }
-    printf("\ncompiling %s", sourcefile);
+    printf("compiling %s\n", sourcefile);
     get_token();
+
+    // initialization statements
+    switch (tok) {
+        case tokMake: parse_make(outfilename); break;            
+        case tokOrg: parse_org(); break;
+        default:
+            // Assemble to memory default address will be $c000
+            break;
+    }
+
+    uint16_t top_local_lbl = 0;
+    if (entrypoint) {
+        start_lbl = newlbl();
+        emit_lbl(start_lbl);
+        if (emitNex) {
+            stack_lbl = newlbl();
+            emit_instr("ld sp,");
+            emit_lblref(stack_lbl); emit_nl();
+        }
+        localbytes = 0;       
+        exit_lbl = newlbl();
+        emit_frame_prologue();
+        top_local_lbl = emit_alloclocals();
+    }
+
     while (tok != tokEOS) {
         parse_statement();
     }
+
+    if (entrypoint) {
+        emit_lbl(exit_lbl);
+        emit_frame_epilogue();
+#ifdef __ZXNEXT
+        emit_instrln("or a"); // Clear carry for clean exit from DOT command
+        emit_ret();
+#else
+        emit_instrln("jr $");
+#endif
+        emit_lblequ16(top_local_lbl, localbytes);
+    }
     src_close();
+}
+
+void parse_make(const char *filename) {
+    TOKEN outputTok = tokNone;
+    get_token(); // skip 'make'
+    switch (tok) {
+        case tokNex:
+            emitNex = (tok == tokNex);
+        case tokRaw:
+        case tokDot:         
+            outputTok = tok;            
+            get_token(); // skip output type
+            if (tok == tokString) {
+                strncpy(outfilename, token, MAX_FILENAME_LEN);
+                get_token(); // skip string
+            }
+            else {
+                strncpy(outfilename, filename, MAX_FILENAME_LEN);
+                if (outputTok == tokNex) strcat(outfilename, ".nex");
+            }
+            expect_semi(); 
+            
+            if (outputTok == tokRaw || outputTok == tokDot)
+                emit_output(outfilename, outputTok);
+            
+            if (tok == tokBank) parse_bank();
+            else if (outputTok == tokNex) emit_bank(0, 0);
+
+            if (tok == tokOrg) parse_org();
+            else if (outputTok == tokNex) emit_org(0xc000);
+            break;        
+        default:
+            error(errSyntax);
+            break;
+    }
 }
 
 void parse_onearg(void) {
@@ -99,6 +182,8 @@ void parse_statement(void) {
         case tokNextReg: parse_nextreg(); break;
         case tokAsm: parse_asm(0); break;
         case tokInclude: parse_include(); break;
+        case tokOrg: parse_org(); break;
+        case tokBank: parse_bank(); break;
         case tokSemi: get_token(); break; // empty statement
         default:
             parse_expr(0);
@@ -111,7 +196,7 @@ void parse_include(void) {
     get_token(); // skip 'include'
     if (tok != tokString) error(errSyntax);
     
-    parse(token);
+    parse(token, NULL, 0);
 
     get_token(); // skip filename    
 }
@@ -530,6 +615,37 @@ void parse_funcdecl(TYPEREC rettype, const char* name) {
     }
 }
 
+void parse_org(void) {
+    get_token(); // skip 'org'
+    if (token_type != ttNumber) error(errSyntax);
+    emit_org(intval);
+    get_token(); // skip address
+    expect_semi();
+}
+
+void parse_bank(void) {
+    if (inbank) error(errSyntax);
+
+    inbank = 1;
+    get_token(); // skip bank
+    uint8_t bankid;
+    uint16_t offset = 0;
+    expect(tokLParen, errExpectLParen);
+    if (token_type != ttNumber) error(errSyntax);
+    bankid = intval;
+    get_token(); // skip bankid
+    if (tok == tokComma) {
+        get_token(); // skip ','
+        if (token_type != ttNumber) error(errSyntax);
+        offset = intval;
+        get_token(); // skip offset 
+    }
+    expect(tokRParen, errExpectRParen);
+    emit_bank(bankid, offset);
+    parse_statement_block();
+    inbank = 0;
+}
+
 SYMBOL* declglb(TYPEREC type, SYM_CLASS klass, const char* name, int16_t value) {
     return addglb(name, klass, type, value);
 }
@@ -548,31 +664,14 @@ void compile(const char *filename, const char *asmfilename) {
     // quick and dirty remove extension
     char *dot = strrchr(asmfilename, '.');
     if (dot) *dot='\0';
-
-    emit_strln("  output \"/dot/%s\"", asmfilename);
-    emit_instrln("org $2000");
     
-    TYPEREC str = { .basetype = CHAR, .dim = -80 };
-    addglb("args", VARIABLE, str, 0);
-    emit_rtl("ldcmdln");
-
-    localbytes = 0;
-    exit_lbl = newlbl();    
-    emit_frame_prologue();
-    uint16_t top_local_lbl = emit_alloclocals();
-    parse(filename);
-    emit_lbl(exit_lbl);
-    emit_frame_epilogue();        
-#ifdef __ZXNEXT
-        emit_instrln(" or a"); // Clear carry for clean exit from DOT command
-        emit_ret();
-#else
-        emit_instrln("jr $");
-#endif
-    emit_lblequ16(top_local_lbl, localbytes);
+    parse(filename, asmfilename, 1);
+    
     dump_rtl();
     dump_globals();
     dump_strings();
+
+    if (emitNex) emit_nex(outfilename, start_lbl, stack_lbl, stack_size);
 
     asm_close();
 }

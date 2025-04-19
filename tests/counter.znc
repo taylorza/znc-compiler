@@ -1,3 +1,5 @@
+make dot "/dot/counter";
+
 int _n;
 int _hasvalue;
 int _div;
