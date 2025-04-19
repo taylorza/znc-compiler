@@ -8,8 +8,8 @@ void cleanup(void);
 
 int main(unsigned int argc, unsigned char **argv) { 
     show_banner();
-    if (argc < 3) {
-        show_help("source and output file expected\n");
+    if (argc < 2 || argc > 3) {
+        show_help("expected source and output\n");
         return 0;
     }    
 #ifdef __ZXNEXT 
@@ -18,7 +18,17 @@ int main(unsigned int argc, unsigned char **argv) {
 #endif
 
     atexit(cleanup);
-    compile(argv[1], argv[2]);
+    const char *src_file = argv[1];
+    const char *out_file;
+
+    if (argc == 2) {
+        strcpy(outfilename, src_file);
+        set_file_ext(outfilename, "asm");
+        out_file = outfilename;
+    } else {
+        out_file = argv[2];
+    }
+    compile(src_file, out_file);
 
     return 0;
 }
@@ -40,7 +50,7 @@ void show_help(const char *msg) {
     printf(
         "%s\n\n"
         "Usage:\n"
-        "znc <srcfile> <outfile>\n\n", 
+        "znc <src> [<out>]\n\n", 
         msg
     );
 }
