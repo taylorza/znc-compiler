@@ -35,7 +35,7 @@ void asm_close(void) {
     
     if (pos) {
 #ifdef __ZXNEXT
-        zx_border(asmbuf[0] & 7);
+        zx_border(asmbuf[0] & 1);
         esx_f_write(asm_fh, asmbuf, pos);
 #else
         fwrite(asmbuf, 1, pos, asm_fh);
@@ -55,7 +55,7 @@ void asm_close(void) {
 void asm_putc(char c) {
     if (pos == MAX_WRITE_BUF) {
 #ifdef __ZXNEXT
-        zx_border(asmbuf[0] & 7);
+        zx_border(asmbuf[0] & 1);
         esx_f_write(asm_fh, asmbuf, pos);        
 #else
         fwrite(asmbuf, 1, pos, asm_fh);
