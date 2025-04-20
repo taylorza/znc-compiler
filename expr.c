@@ -333,21 +333,17 @@ TYPEREC parse_binop(TOKEN op, TYPEREC ltyp, uint8_t opprec) {
     uint8_t scaleIdx = 0;
 
     if (op == tokOr || op == tokAnd) {
-        uint16_t donelbl = newlbl();
+        uint16_t short_circuit_lbl = newlbl();
         switch (op) {
             case tokOr:
-                emit_jp_true(donelbl);
-                parse_expr(opprec + 1);
-                emit_jp_true(donelbl);
-                emit_lbl(donelbl);
+                emit_jp_true(short_circuit_lbl);
                 break;
             case tokAnd:
-                emit_jp_false(donelbl);
-                parse_expr(opprec + 1);
-                emit_jp_false(donelbl);
-                emit_lbl(donelbl);
+                emit_jp_false(short_circuit_lbl);
                 break;
         }
+        parse_expr(opprec + 1);
+        emit_lbl(short_circuit_lbl);
         return ltyp;
     }
 
