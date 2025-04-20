@@ -4,24 +4,24 @@ ZNC is a language and compiler for the ZX Spectrum Next. The language is closely
 
 The compiler is a non-optimizing single pass compiler, while the generated code is not the fastest or the smallest it should outperform non-compiled languages.
 
-## Language Features
-* Data Types
-    - char/byte
-    - int
-    - arrays
-    - pointers
-* Flow control
-    - if/else
-    - while/for loops
-* Expressions
-    - Evaluated in accordance with operator precedence
-    - Parenthesised expressions
-    - Bitwise and logical operators
-* Inline assembly
-* Include files
-* User functions
-* Compiling DOT command, NEX files and raw binary files
-* Support for banking code and data
+In this language:
+
+**Build Directives.** A program may start with optional build directives:
+
+* The `make` directive configures the build mode (with options "dot", "nex", or "raw") and optionally a string specifying the name an location of the resulting binary.
+* The org directive sets the origin (memory address) of the code.
+
+**Top‐Level Items.** Programs are a sequence of top‑level items (declarations and/or statements). Unlike traditional C, top‑level statements are allowed. However, if a top‑level statement calls a function, the function must have been declared before its use—either via a full definition or via a prototype.
+
+**Declarations.** There are variable declarations, function definitions, and function prototypes. Variable types include scalar types (`char`, `byte`, `int`), arrays (e.g. `int[10]`), and pointers (e.g. `int*`).
+
+**Control Structures.** You’ll find the usual control constructs: `if`–`else`, `while`, and `for` loops, as well as statements such as `break`, `continue`, and `return`.
+
+**Inline Assembly.** A special __asm__ block can be used to embed raw Z80N assembly code inside functions.
+
+**I/O Primitives.** For basic output, built‑in functions `putc()` and `puts()` are provided.
+
+**Banks.** A bank construct allows you to group a statement block into a memory bank
     
 ## Compiling code
 Compilation is a two stage process.
@@ -99,47 +99,144 @@ while (1) {
 ```
 
 ## Syntax (incomplete)
-``` BNF
-<program>       => <statement>*
-<statement>     => <stmnt block>
-                    | <decl>
-                    | <assignment>                    
-                    | <if>
-                    | <while>
-                    | <for>
-                    | <break>
-                    | <continue>
-                    | <return>
-                    | <putc>
-                    | <puts>
-                    | <asm>
-                    | <include>
-                    | <expr>                
-                    | ';'
-<stmnt block>   => '{' <statement>* '}'
-<decl>          => <vardecl>
-                    | <funcdecl>
-<assignment>    => [<ident>|<expr>] '=' <expr>
-<if>            => 'if' '(' <expr> ')' <statemment>
-                    ('else' <statement>)
-<while>         => 'while' '(' <expr> ')' <statement>
-<for>           => 'for' '('
-                        <decl>|<assignment> ';' 
-                        <expr> ';' 
-                        <expr>')' <statement>
-<break>         => 'break' ';'
-<continue>      => 'continue' ';'
-<return>        => 'return' (<expr>);
-<putc>          => 'putc' '('<expr>')'
-<puts>          => 'puts' '('<expr>')'
-<asm>           => '__asm__' '{' Z80 Assembly '}'
-<include>       => 'include' <string>
-<string>        => '"'...'"'
-<vardecl>       => <type> <ident> ('=' <expr>) (',' <vardecl>) ';'
-<funcdecl>      => <rettype> <ident> '('<arglist>')' 
-<expr>          => '('<expr>')' 
-                    | <expr> <op> <expr> 
-                    | <funccall>
-<funccall>      => <ident>'('<exprlist>')'
+``` EBNF
+(* Program directives and top‐level items, where declarations and statements may appear. *)
+<program>         ::= [ <make> ]
+                      [ <org> ]
+                      { <top_level_item> }
 
+<top_level_item>  ::= <decl>
+                      | <statement>
+
+<make>            ::= "make" [ "dot" | "nex" | "raw" ] "(" <string> ")" ";"
+
+<org>             ::= "org" <number> ";"
+
+<bank>            ::= "bank" "(" <number> [ "," <number> ] ")" <stmnt_block>
+
+(* Statements *)
+<statement>       ::= <stmnt_block>
+                      | <decl>
+                      | <assignment>                    
+                      | <if>
+                      | <while>
+                      | <for>
+                      | <break>
+                      | <continue>
+                      | <return>
+                      | <putc>
+                      | <puts>
+                      | <asm>
+                      | <include>
+                      | <expr>
+                      | <org>
+                      | ";"
+
+<stmnt_block>     ::= "{" { <statement> } "}"
+
+(* Declarations: variable declarations, function definitions, and function prototypes *)
+<decl>            ::= <vardecl>
+                      | <funcdecl>
+                      | <funcproto>
+
+(* Function prototype: note the trailing semicolon instead of a body *)
+<funcproto>       ::= <rettype> <ident> "(" <arglist> ")" ";"
+
+(* Assignment expressions. Either a simple identifier or a more complex lvalue/expression on the left-hand side. *)
+<assignment>      ::= <lvalue> "=" <expr> ";"
+<lvalue>          ::= <ident>
+                    | <ident> "[" <expr> "]"
+                    | "*" <lvalue>
+                    | "&" <lvalue>
+
+(* Control structures *)
+<if>              ::= "if" "(" <expr> ")" <statement> [ "else" <statement> ]
+
+<while>           ::= "while" "(" <expr> ")" <statement>
+
+<for>             ::= "for" "(" [ <decl> | <assignment> ] ";" [ <expr> ] ";" [ <expr> ] ")" <statement>
+
+<break>           ::= "break" ";"
+
+<continue>        ::= "continue" ";"
+
+<return>          ::= "return" [ <expr> ] ";"
+
+<putc>            ::= "putc" "(" <expr> ")" ";"
+
+<puts>            ::= "puts" "(" <expr> ")" ";"
+
+(* Inline assembly block (contents treated as raw Z80N Assembly). *)
+<asm>             ::= "__asm__" "{" Z80N_Assembly "}"
+
+<include>         ::= "include" <string>
+
+(* String literal: content details omitted here *)
+<string>          ::= "\"" { <character> } "\""
+
+(* Variable declaration: type, identifier, and optional initializer.
+   Multiple variables may be declared in one statement. *)
+<vardecl>         ::= <type> <ident> [ "=" <expr> ] { "," <ident> [ "=" <expr> ] } ";"
+
+(* Function definition: includes return type, name, parameter list,
+   either an assembly block, or a function body. *)
+<funcdecl>        ::= <rettype> <ident> "(" <arglist> ")"  <asm> | <stmnt_block>
+
+(* Function call used as an expression; when used as a statement, a semicolon is appended. *)
+<call_expr>       ::= <ident> "(" [ <exprlist> ] ")"
+<funccall_stmt>   ::= <call_expr> ";"
+
+<rettype>         ::= "void" | <type>
+
+(* Type definitions include scalar types, arrays, and pointers. *)
+<type>            ::= <scalartype>
+                      | <arraytype>
+                      | <pointertype>
+
+<scalartype>      ::= "char" | "byte" | "int"
+
+<arraytype>       ::= <scalartype> "[" <number> "]"
+
+<pointertype>     ::= <scalartype> "*"
+
+<arglist>         ::= <arg> { "," <arg> }
+
+<arg>             ::= <type> <ident>
+
+(* Expressions are parsed using a precedence-climbing algorithm.
+   The production below is schematic. *)
+<expr>            ::= "(" <expr> ")" 
+                      | <factor> { <op> <factor> }
+
+<factor>          ::= <number>
+                      | <string>
+                      | <call_expr>
+                      | ( "*" | "&" ) <var> [ "[" <expr> "]" ]
+
+<var>             ::= <ident>
+
+(* Operators available (similar to C, but with ++/-- excluded) *)
+<op>              ::= "+" | "-" | "*" | "/" | "%" 
+                      | "==" | "!=" | "<" | ">" | "<=" | ">=" 
+                      | "&&" | "||" | "^" | "|" | "&" | "<<" | ">>"
+
+(* Identifiers, letters, and digits *)
+<ident>           ::= <letter> { <letter> | <digit> | "_" }
+
+<letter>          ::= "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J"
+                      | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T"
+                      | "U" | "V" | "W" | "X" | "Y" | "Z"
+                      | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j"
+                      | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t"
+                      | "u" | "v" | "w" | "x" | "y" | "z"
+
+<digit>           ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+
+<number>          ::= <digit> { <digit> }
+
+<character>       ::= /* any character except the double quote " */  
+                     
+
+(* The nonterminal Z80N_Assembly is assumed to represent a block of valid Z80N assembly code. *)
+               
 ```
