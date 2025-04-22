@@ -97,7 +97,7 @@ RTLREC rtltbl[] = {
     FLAG_RTL_NONE
     },
 
-    // HL < DE
+    // DE < HL
     {"cclt",
         " CALL cccmp"NLS
         " RET C"NLS

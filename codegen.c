@@ -206,14 +206,14 @@ void emit_jp(uint16_t lbl) {
 }
 
 void emit_jp_true(uint16_t lbl) {
-    emit_instrln("ld a, h");
+    emit_instrln("ld a,h");
     emit_instrln("or l");
     emit_instr("jp nz, ");
     emit_lblref(lbl); emit_nl();
 }
 
 void emit_jp_false(uint16_t lbl) {
-    emit_instrln("ld a, h");
+    emit_instrln("ld a,h");
     emit_instrln("or l");
     emit_instr("jp z, ");
     emit_lblref(lbl); emit_nl();
