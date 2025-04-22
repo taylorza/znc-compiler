@@ -43,15 +43,17 @@ void memset(void *dst, char b, int len) __asm__ {
 }
 
 int printnum(int n) {
-  int div = 10000;
-
-  while((n / div) == 0) {
-    div = div / 10;
+  int div=10000;
+  if (n<0) {
+    putc('-');
+    n=-n;
   }
-  
+  while((n/div)==0) {
+    div=div/10;
+  }
   while(div) {
-    putc(n / div + '0');
-    n = n % div;			
-	  div = div / 10;
+    putc(n/div+'0');
+    n=n%div;			
+    div=div/10;
   }
 }
