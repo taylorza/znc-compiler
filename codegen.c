@@ -208,14 +208,14 @@ void emit_jp(uint16_t lbl) {
 void emit_jp_true(uint16_t lbl) {
     emit_instrln("ld a,h");
     emit_instrln("or l");
-    emit_instr("jp nz, ");
+    emit_instr("jp nz,");
     emit_lblref(lbl); emit_nl();
 }
 
 void emit_jp_false(uint16_t lbl) {
     emit_instrln("ld a,h");
     emit_instrln("or l");
-    emit_instr("jp z, ");
+    emit_instr("jp z,");
     emit_lblref(lbl); emit_nl();
 }
 
@@ -259,10 +259,10 @@ void emit_ld_symval(SYMBOL* sym) {
         if (sym->klass == VARIABLE) {
             bp_offset = (uint8_t)sym->offset;
             if (is_array(ptype)) {
-                emit_instrln("ld hl, %d", bp_offset - type_size(ptype) + 1);
-                emit_instrln("ld d, ixh");
-                emit_instrln("ld e, ixl");                
-                emit_instrln("add hl, de");
+                emit_instrln("ld hl,%d", bp_offset - type_size(ptype));
+                emit_instrln("ld d,ixh");
+                emit_instrln("ld e,ixl");                
+                emit_instrln("add hl,de");
             } else {
                 emit_instrln("ld h,(ix-%d)", bp_offset+1);
                 emit_instrln("ld l,(ix-%d)", bp_offset+2);
@@ -287,7 +287,7 @@ void emit_ld_symaddr(SYMBOL* sym) {
         if (sym->klass == VARIABLE) {
             bp_offset = (uint8_t)sym->offset;
             if (is_array(ptype))
-                bp_offset = (bp_offset - type_size(ptype)) + 1;
+                bp_offset = (bp_offset - type_size(ptype));
             else
                 bp_offset = (bp_offset - 2) + 1;
             
@@ -295,9 +295,9 @@ void emit_ld_symaddr(SYMBOL* sym) {
         else if (sym->klass == ARGUMENT) {
             bp_offset = 2 + (func_argcount - sym->offset) * 2;            
         }
-        emit_instrln("ld hl, %d", bp_offset);  
-        emit_instrln("ld d, ixh");
-        emit_instrln("ld e, ixl");
+        emit_instrln("ld hl,%d", bp_offset);  
+        emit_instrln("ld d,ixh");
+        emit_instrln("ld e,ixl");
         emit_instrln("add hl, de");
     }
 }
@@ -372,7 +372,7 @@ void emit_frame_prologue(void) {
 }
 
 void emit_frame_epilogue(void) {
-    emit_instrln("ld sp, ix");
+    emit_instrln("ld sp,ix");
     emit_instrln("pop ix");
 }
 

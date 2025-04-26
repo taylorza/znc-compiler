@@ -427,15 +427,15 @@ TYPEREC parse_binop(TOKEN op, TYPEREC ltyp, uint8_t opprec) {
         case tokShl:
             if (pointer) error(errSyntax);
             emit_pop();             // DE = value to shift
-            emit_instrln("ld b, l");  // B  = shift count
-            emit_instrln("bsla de, b");
+            emit_instrln("ld b,l");  // B  = shift count
+            emit_instrln("bsla de,b");
             emit_swap();            // HL = result;
             break;
         case tokShr:
             if (pointer) error(errSyntax);
             emit_pop();             // DE = value to shift
-            emit_instrln("ld b, l");  // B  = shift count
-            emit_instrln("bsra de, b");
+            emit_instrln("ld b,l");  // B  = shift count
+            emit_instrln("bsra de,b");
             emit_swap();            // HL = result;
             break;
 
