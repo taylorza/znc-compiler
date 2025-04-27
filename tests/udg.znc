@@ -1,4 +1,5 @@
-make dot "/dot/udg";
+//make dot "/dot/udg";
+make dot "udg.dot";
 
 int udg_ptr = 0x5c7b;  // Address of UDG
 byte* ball = *udg_ptr; // UDG - A
@@ -22,7 +23,7 @@ int x=15, y=10;
 int dx=1, dy=1;
 byte n = 0;
 
-while (1) {
+for(;;) {
   __asm__ {
     halt
   }
@@ -34,6 +35,7 @@ while (1) {
   if (y == 0 || y == 21) { dy = -dy; n=(n+1) & 7; }
   gotoxy(x, y);
   putc(0x90); // 0x90 - UDG - A
+  if ((in(0x7ffe) & 0x01) == 0) break;
 }
 
 

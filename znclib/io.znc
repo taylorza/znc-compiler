@@ -1,0 +1,50 @@
+void ink(byte c) {
+  putc(16);putc(c);  
+}
+
+void paper(byte c) {
+  putc(17);putc(c);
+}
+
+void gotoxy(byte x, byte y) {
+  putc(22);putc(y);putc(x);
+}
+
+void printnum(int n) {
+  int div=10000;
+  if (n<0) {
+    putc('-');
+    n=-n;
+  }
+  while((n/div)==0) {
+    div=div/10;
+  }
+  if (!div) putc('0');
+  while(div) {
+    putc(n/div+'0');
+    n=n%div;			
+    div=div/10;
+  }
+}
+
+char inkey() __asm__ {
+  ld hl,0
+  bit 5,(iy+1)
+  ret z
+  res 5,(iy+1)
+  ld a,($5c08)
+  ld l,a
+  ret 
+}
+
+char waitkey() __asm__ {
+  ld hl,0
+checkkey
+  halt
+  bit 5,(iy+1)
+  jr z, checkkey
+  res 5,(iy+1)
+  ld a,($5c08)
+  ld l,a
+  ret
+}

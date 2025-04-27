@@ -1,3 +1,8 @@
+//make dot "/dot/ulagfx";
+make dot "ulagfx.dot";
+
+include "memory.znc"
+
 void setpixel(int x, int y) __asm__ {
   push ix
   ld ix,0
@@ -70,19 +75,25 @@ void circle(int xc, int yc, int r) {
 }
 
 nextreg(7,3);
+
+// clear the screen
+memset(16384,0,6144);
+
+// draw the ruler markings
 for(int y=0;y<190;y=y+10) {
   line(0,y,25,y);
   for (int yy=y+2;yy<y+10 && yy<192;yy=yy+2) {
     line(0,yy,10,yy);
   }
 }
+
 for(;;) {
   __asm__{
     ei
     halt
     di    
   }
-  for(int i=0;i<255;i=i+1);
+  for(int i=0;i<280;i=i+1);
   out(0xfe,1);
   circle(88,80,30);
   out(0xfe,2);
@@ -91,4 +102,5 @@ for(;;) {
   line(30,30,46,19);
 
   out(0xfe,7);
+  if ((in(0x7ffe) & 0x01) == 0) break;
 }

@@ -88,7 +88,7 @@ static void parse(const char* sourcefile, const char* outfilename, uint8_t entry
         emit_lbl(exit_lbl);
         emit_frame_epilogue();
 #ifdef __ZXNEXT
-        emit_instrln("or a"); // Clear carry for clean exit from DOT command
+        emit_instrln("xor a"); // Clear A=0 and carry for clean exit from DOT command
         emit_ret();
 #else
         emit_instrln("jr $");
@@ -243,6 +243,8 @@ void parse_if(void) {
     static uint16_t lblEndIf = 0;
     uint16_t lblFalse = newlbl();
     
+    uint16_t old_endif = lblEndIf;
+    lblEndIf = 0;
     parse_onearg(); // (expr)
     emit_jp_false(lblFalse);
     parse_statement();
@@ -262,6 +264,7 @@ void parse_if(void) {
             lblEndIf = 0;
         }
     }
+    lblEndIf = old_endif;
 }
 
 void parse_while(void) {
@@ -396,26 +399,17 @@ void parse_nextreg(void) {
     get_token(); // skip 'nextreg'
     expect_LParen();
     
-    if (tok == tokNumber) {
-        uint8_t reg = (uint8_t)intval;
-        get_token(); // skip number
-        expect_comma();
-        if (tok == tokNumber) {
-            emit_nreg_immed(reg, (uint8_t)intval);            
-            get_token(); // skip number
-        } else {
-            parse_expr(0);
-            emit_nreg_A(reg);
-        }
-    } else {
-        parse_expr(0);
-        emit_instrln("ld bc, $243b");
-        emit_instrln("out (c), l");
-        emit_instrln("inc b");
-        expect_comma();
-        parse_expr(0);
-        emit_instrln("out (c), l");
-    }
+    parse_expr(0);
+    emit_push();
+    expect_comma();
+    parse_expr(0);
+    emit_pop();
+
+    emit_instrln("ld bc,9275");
+    emit_instrln("out (c),e");
+    emit_instrln("inc b");
+    emit_instrln("out (c),l");
+   
     expect_RParen();
     expect_semi();    
 }
@@ -432,16 +426,18 @@ void parse_asm(int asmcol) {
             emit_str("  %s ", token);
         }
         TOKEN lasttok = tok; 
+        TOKEN_TYPE lasttoken_type = token_type;
+
         get_token();
         while (token_line == last_token_line && tok != tokRBrace && tok != tokEOS) {
             lasttok = tok; 
             if (tok == tokNumber) {
-                emit_n16(intval);
+                emit_n(intval);
             } else {
                 emit_str(token);
             }
             get_token();                        
-            if (tok == tokIdent && lasttok == tokIdent) emit_ch(' ');
+            if ((tok == tokIdent || tok == tokNone && token_type != ttError) && (lasttok == tokIdent)) emit_ch(' ');            
         }
         emit_nl();
     }
@@ -501,7 +497,7 @@ static void clean_stack(int16_t bytes) {
         return;
     } else  {
         emit_swap();
-        emit_ld_immed(); emit_n16(bytes); emit_nl();
+        emit_ld_immed(); emit_n(bytes); emit_nl();
         emit_instrln("add hl,sp");
         emit_instrln("ld sp,hl");        
         emit_swap();

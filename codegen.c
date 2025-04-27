@@ -5,6 +5,8 @@
 uint16_t nxtlbl = 0;    // label counter
 uint16_t argcntlbl = 0; // label for the argcount for the current function
 
+char buf[64];
+
 #ifdef __ZXNEXT
 uint8_t asm_fh = 0;
 #else
@@ -91,7 +93,6 @@ void emit_lblref(uint16_t lbl) {
 }
 
 void emit_str(const char *fmt, ...) {
-    char buf[64];
     va_list v;
     va_start(v, fmt);
     vsnprintf(buf, sizeof(buf), (char *)fmt, v);
@@ -100,7 +101,6 @@ void emit_str(const char *fmt, ...) {
 }
 
 void emit_strln(const char* fmt, ...) {
-    char buf[64];
     va_list v;
     va_start(v, fmt);
     vsnprintf(buf, sizeof(buf), (char *)fmt, v);
@@ -118,7 +118,6 @@ void emit_strref(uint16_t id) {
 }
 
 void emit_instr(const char * fmt, ...) {
-    char buf[64];
     va_list v;
     va_start(v, fmt);
     vsnprintf(buf, sizeof(buf), (char *)fmt, v);
@@ -127,7 +126,6 @@ void emit_instr(const char * fmt, ...) {
 }
 
 void emit_instrln(const char* fmt, ...) {
-    char buf[64];
     va_list v;
     va_start(v, fmt);
     vsnprintf(buf, sizeof(buf), (char *)fmt, v);
@@ -136,7 +134,7 @@ void emit_instrln(const char* fmt, ...) {
     emit_nl();
 }
 
-void emit_n16(uint16_t n) {
+void emit_n(uint16_t n) {
     emit_str("%d", n);
 }
 
@@ -227,7 +225,7 @@ uint16_t emit_alloclocals(void) {
     return lbl;
 }
 void emit_lblequ16(uint16_t lbl, uint16_t value) {
-    emit_lblref(lbl); emit_str(" equ "); emit_n16(value); emit_nl();
+    emit_lblref(lbl); emit_str(" equ "); emit_n(value); emit_nl();
 }
 
 void emit_ld_symval(SYMBOL* sym) {

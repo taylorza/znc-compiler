@@ -1,0 +1,50 @@
+// John Metcalf http://www.retroprogramming.com/2017/07/xorshift-pseudorandom-numbers-in-z80.html
+int rnd() __asm__ {
+.seed+1
+    ld hl, 1
+    ld a,h
+    rra
+    ld a,l
+    rra
+    xor h
+    ld h,a
+    ld a,l
+    rra
+    ld a,h
+    rra
+    xor l
+    ld l,a
+    xor h
+    ld h,a
+    ld (.seed),hl
+    ret
+}
+
+void rndseed() __asm__ {
+_    
+    ld a, i         ; Get IF1 loaded into P/V flag
+    jp pe, .skip    ; If enabled we are fine, 
+    ld a, i         ; If disabled we need to load again just incase an 
+                    ; interrupt fired during the first load
+.skip
+    push af
+    ei
+
+    ld a, h
+    or l
+    jp z, .zeroseed
+    jp .setseed
+.zeroseed
+    ld hl, (0x5c78) ; read frame counter
+    ld a, h
+    or l
+    jp z, .zeroseed
+.setseed
+    ld (_rnd.seed), hl
+
+    pop af
+    jp  pe, .keepEnabled
+    di
+.keepEnabled
+    ret
+}

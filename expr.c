@@ -103,6 +103,8 @@ TYPEREC parse_factor(uint8_t dereference) {
     uint8_t neg = 0;
     uint8_t not = 0;
     uint8_t loadval = 1;
+    uint16_t skiplbl;
+    uint16_t counter = 0;
     
     while (tok == tokPlus || tok == tokMinus || tok == tokNot) {
         if (tok == tokMinus) neg ^= 1;
@@ -111,6 +113,29 @@ TYPEREC parse_factor(uint8_t dereference) {
     }
 
     switch (tok) {
+        case tokLBrace:
+            get_token(); // skip '{'
+            skiplbl = newlbl();
+            emit_instrln("ld hl,%c+6",'$'); // BUG?: $ is missing in literal
+            emit_jp(skiplbl);
+            
+            while (tok != tokRBrace) {
+                if (tok != tokNumber) error(errSyntax);
+                if (intval > 255) error(errSyntax);
+                if (counter++ > 0) emit_ch(','); else emit_instr("db ");
+                emit_n(intval);
+                get_token(); // skip number
+                if (tok == tokRBrace) break;
+                expect_comma();
+                if (counter == 8) {
+                    emit_nl();                    
+                    counter = 0;
+                }
+            }
+            if (counter) emit_nl();
+            expect_RBrace();
+            emit_lbl(skiplbl);
+            break;
         case tokLParen:
             get_token(); // skip '('
             typ = parse_expr(0);
@@ -133,8 +158,8 @@ TYPEREC parse_factor(uint8_t dereference) {
             get_token(); // skip 'readreg'
             expect_LParen();
             parse_expr(0);
-            emit_instrln("ld bc, $243b");
-            emit_instrln("out (c), l");
+            emit_instrln("ld bc,%c243b",'$');
+            emit_instrln("out (c),l");
             emit_instrln("inc b");
             expect_RParen();            
             emit_instrln("in a,(c)");
@@ -201,7 +226,7 @@ TYPEREC parse_factor(uint8_t dereference) {
                 not = 0;
             }
             emit_ld_immed();
-            emit_n16(intval);
+            emit_n(intval);
             emit_nl();
             get_token();
             typ = int_type;

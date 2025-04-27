@@ -42,6 +42,7 @@ void make_ptr(TYPEREC* type);
 void make_scalar(TYPEREC* type);
 void make_array(TYPEREC* type, uint16_t size);
 
+
 SYMBOL* findglb(const char* name);
 SYMBOL* findloc(const char* name);
 SYMBOL* lookupIdent(const char* name);

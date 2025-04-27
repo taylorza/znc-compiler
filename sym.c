@@ -19,16 +19,16 @@ uint16_t type_size(const TYPEREC* type) {
 
 uint8_t is_array(const TYPEREC* type) { return type->dim < 0; }
 uint8_t is_ptr(const TYPEREC* type) { return type->dim == 0; }
-uint8_t is_void(const TYPEREC* type) { return type->basetype == VOID; }
-uint8_t is_char(const TYPEREC* type) { return type->basetype == CHAR; }
-uint8_t is_int(const TYPEREC* type) { return type->basetype == INT; }
-uint8_t is_string(const TYPEREC* type) { return type->basetype == STRING; }
+uint8_t is_void(const TYPEREC* type) { return (type->basetype & 0xff) == VOID; }
+uint8_t is_char(const TYPEREC* type) { return (type->basetype & 0xff) == CHAR; }
+uint8_t is_int(const TYPEREC* type) { return (type->basetype & 0xff) == INT; }
+uint8_t is_string(const TYPEREC* type) { return (type->basetype & 0xff) == STRING; }
 
 uint8_t is_func_or_proto(const SYMBOL* sym) { return sym->klass == FUNCTION || sym->klass == FUNCTION_PROTO; }
 
-void make_ptr(TYPEREC* type) { type->dim = 0; }
-void make_scalar(TYPEREC* type) { type->dim = 1; }
-void make_array(TYPEREC* type, uint16_t size) { type->dim = -size; }
+void make_ptr(TYPEREC* type) { type->basetype &= 0xff;  type->dim = 0; }
+void make_scalar(TYPEREC* type) { type->basetype &= 0xff; type->dim = 1; }
+void make_array(TYPEREC* type, uint16_t size) { type->basetype &= 0xff;  type->dim = -size; }
 
 SYMBOL* findglb(const char *name) {
     for (uint16_t i=0; i < lastgbl; i++) {
@@ -122,7 +122,7 @@ void dump_globals(void) {
         emit_str("ds ");
         uint16_t size = is_int(ptype) || is_ptr(ptype) ? 2 : 1;
         if (is_array(ptype)) size *= -ptype->dim;
-        emit_n16(size);
+        emit_n(size);
         emit_nl();        
     }
 }

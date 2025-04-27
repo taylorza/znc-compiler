@@ -17,7 +17,7 @@
 
 // logical -> physical lookup table only needs to cover main 64k
 
-// #pragma output DOTN_LAST_PAGE = 11
+#pragma output DOTN_LAST_PAGE = 11
 
 // allocate pages for 0x8000 and up
 
@@ -33,3 +33,8 @@
 
 // default = 1  : non-zero closes open FILEs on exit
 #pragma output CRT_ENABLE_CLOSE = 1   
+
+// Dynamic Memory
+#pragma output CLIB_MALLOC_HEAP_SIZE   = 0      // default =  -1  : size of malloc heap (0 = do not create a heap, -1 = place heap between bss and bottom of stack)
+#pragma output CLIB_STDIO_HEAP_SIZE    = 256    // default = 256  : size of stdio heap (0 = do not allocate bytes for opening of files)
+#pragma output CLIB_BALLOC_TABLE_SIZE  = 0      // default =   0  : number of queues created for block memory allocator

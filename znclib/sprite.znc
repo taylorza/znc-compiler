@@ -1,0 +1,55 @@
+void spr_load(byte startid, byte *data, int count) __asm__ {
+_
+    push ix
+    ld ix,0
+    add ix,sp
+
+    ld a,(ix+8) // startid
+    ld h,(ix+7) // data
+    ld l,(ix+6)
+    ld b,(ix+5) // count
+    ld c,(ix+4)
+
+    ld (.src),hl
+    ld (.len),bc
+    ld bc,0x303b
+    out(c),a
+    ld hl,.prg
+    ld b,.prglen
+    ld c,0x6b
+    otir
+    pop ix
+    ret
+
+.prg
+    db 0b10000011
+    db 0b01111101
+.src
+    dw 0
+.len
+    dw 0
+    db 0b00010100
+    db 0b00101000
+    db 0b10101101
+    dw 0x005b
+    db 0b10000010
+    db 0b11001111
+    db 0b10000111
+.prglen equ $-.prg
+}
+
+void spr_enable() {
+  nextreg(0x15,0b01000011);
+}
+
+void spr_disable() {
+  nextreg(0x15,0b01000000);
+}
+
+void spr_update(byte spriteid, byte patternid, int x, int y, byte flags) {
+  nextreg(0x34,spriteid);
+  nextreg(0x35,x);
+  nextreg(0x36,y);
+  nextreg(0x37,flags | ((x>>8)&1));
+  nextreg(0x38,0b10000000 | (patternid & 0b00111111));
+}

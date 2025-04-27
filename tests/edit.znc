@@ -1,0 +1,28 @@
+//make dot "/dot/edit";
+make dot "edit.dot";
+
+include "io.znc"
+
+void cursor_on() {
+  putc(18);putc(1); // Flash on
+  putc(' ');        // Space for flashing character
+}
+
+void cursor_off() {
+  putc(8);          // Delete flashing space
+  putc(18);putc(0); // Flash off
+  putc(' ');        // Space to take new attribute
+  putc(8);          // Delete character
+}
+
+puts("Press EDIT to quit\r");
+cursor_on();
+for(;;) {
+  char ch=waitkey(); 
+
+  cursor_off();
+  if (ch==7) break;
+  if ((ch >= 32 && ch <= 127) || ch == 13)
+    putc(ch);
+  cursor_on();
+}

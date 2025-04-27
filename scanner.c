@@ -419,7 +419,7 @@ get_token_start:
     *temp++ = gnc();
     *temp = '\0';
     tok = tokNone;
-    return ttError;
+    return (token_type = ttError);
 }
 
 void expect(TOKEN t, char ch) {

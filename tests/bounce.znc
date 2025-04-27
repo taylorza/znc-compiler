@@ -1,14 +1,13 @@
-make dot "/dot/bounce";
+//make dot "/dot/bounce";
+make dot "bounce.dot";
 
-void gotoxy(byte x, byte y) {
-  putc(22);putc(y);putc(x);
-}
+include "io.znc"
 
 int x=15, y=10;
 int dx=1, dy=1;
 byte n = 0;
 
-while (1) {
+for(;;) {
 	__asm__ {
 		halt
 		ld a, (_n)
@@ -22,4 +21,6 @@ while (1) {
 	if (y == 0 || y == 21) { dy = -dy; n=(n+1) & 7; }
 	gotoxy(x, y);
 	putc('*');
+	
+	if ((in(0x7ffe) & 0x01) == 0) break;
 }
