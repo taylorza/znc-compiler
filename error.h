@@ -3,15 +3,7 @@
 
 typedef enum ERROR {
     errSyntax,
-    errExpectQuote,
-    errExpectLParen,
-    errExpectRParen,
-    errExpectLBrace,
-    errExpectRBrace,
-    errExpectLBrack,
-    errExpectRBrack,
-    errExpectSemi,
-    errExpectComma,
+    errExpected,
     errTooLong,
     errTooManySymbols,
     errAlreadyDefined,

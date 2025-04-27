@@ -6,15 +6,7 @@ int errcnt = 0;
 void error(ERROR err, ...) {
     static const char* errmsg[] = {
         "Syntax",
-        "Expect '\"'",
-        "Expect '('",
-        "Expect ')'",
-        "Expect '{'",
-        "Expect '}'",
-        "Expect '['",
-        "Expect ']'",
-        "Expect ';'", 
-        "Expect ','",
+        "Expected '%c'",
         "Too long",
         "Too many symbols",
         "Aready defined",

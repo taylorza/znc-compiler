@@ -86,7 +86,7 @@ TYPEREC parse_ternary(uint8_t prec)
     emit_jp_false(altlbl);
     TYPEREC ptyp = parse_expr(0);  // primary expression
     emit_jp(donelbl);
-    expect(tokColon, errSyntax);
+    expect(tokColon, ':');
     emit_lbl(altlbl);
     TYPEREC atyp = parse_expr(prec); // alternate expresion
     emit_lbl(donelbl);
@@ -114,14 +114,14 @@ TYPEREC parse_factor(uint8_t dereference) {
         case tokLParen:
             get_token(); // skip '('
             typ = parse_expr(0);
-            expect(tokRParen, errExpectRParen);
+            expect_RParen();
             break;
 
         case tokIn:
             get_token(); // skip 'in'
-            expect(tokLParen, errExpectLParen);
+            expect_LParen();
             parse_expr(0);
-            expect(tokRParen, errExpectRParen);
+            expect_RParen();
             emit_instrln("ld c,l");
             emit_instrln("ld b,h");
             emit_instrln("in a,(c)");
@@ -131,12 +131,12 @@ TYPEREC parse_factor(uint8_t dereference) {
 
         case tokReadReg:
             get_token(); // skip 'readreg'
-            expect(tokLParen, errExpectLParen);
+            expect_LParen();
             parse_expr(0);
             emit_instrln("ld bc, $243b");
             emit_instrln("out (c), l");
             emit_instrln("inc b");
-            expect(tokRParen, errExpectRParen);            
+            expect_RParen();            
             emit_instrln("in a,(c)");
             emit_rtl("ccsxt");
             typ = char_type;
@@ -172,7 +172,7 @@ TYPEREC parse_factor(uint8_t dereference) {
                 get_token();    // skip '['
                 emit_push();
                 parse_expr(0);   // index expression
-                expect(tokRBrack, errExpectRBrack); // skip ']'
+                expect(tokRBrack, ']'); // skip ']'
                 if (is_int(&typ)) emit_mul2();
                 emit_pop();
                 emit_add16();
@@ -228,7 +228,7 @@ TYPEREC parse_factor(uint8_t dereference) {
                 if (!is_ptr(&typ) && !is_array(&typ)) error(errSyntax);
                 get_token();    // skip '['
                 parse_expr(0);   // index expression
-                expect(tokRBrack, errExpectRBrack); // skip ']'
+                expect(tokRBrack, ']'); // skip ']'
                 if (is_int(&typ)) emit_mul2();
                 dereference = 1;
                 indexed = 1;
@@ -312,7 +312,7 @@ void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ
                 emit_instrln("inc hl");
                 get_token(); // skip ','
             }
-            expect(tokRBrace, errExpectRBrace);
+            expect_RBrace();
 
             return;
         } else {

@@ -21,9 +21,6 @@ uint16_t stack_addr;        // stack pointer address
 uint16_t stack_lbl;         // label for nex stack
 uint16_t stack_size = 256;  // stack size
 
-static void expect_semi(void) {
-    expect(tokSemi, errExpectSemi);
-}
 SYMBOL* declglb(TYPEREC type, SYM_CLASS klass, const char* name, int16_t value);
 SYMBOL* declloc(TYPEREC type, SYM_CLASS klass, const char* name, int16_t offset);
 
@@ -54,7 +51,7 @@ void parse_onearg(void);
 static void parse(const char* sourcefile, const char* outfilename, uint8_t entrypoint) {
     if (!src_open(sourcefile)) {
         printf("can't open '%s'", sourcefile);
-        return;
+        exit(1);
     }
     printf("compiling %s\n", sourcefile);
     get_token();
@@ -112,11 +109,11 @@ void parse_make(const char *filename) {
             outputTok = tok;            
             get_token(); // skip output type
             if (tok == tokString) {
-                strncpy(outfilename, token, MAX_FILENAME_LEN);
+                strcpy(outfilename, token);
                 get_token(); // skip string
             }
             else {
-                strncpy(outfilename, filename, MAX_FILENAME_LEN);
+                strcpy(outfilename, filename);
                 if (outputTok == tokNex) strcat(outfilename, ".nex");
             }
             expect_semi(); 
@@ -138,9 +135,9 @@ void parse_make(const char *filename) {
 
 void parse_onearg(void) {
     get_token(); // skip leading token
-    expect(tokLParen, errExpectLParen);
+    expect_LParen();
     parse_expr(0);
-    expect(tokRParen, errExpectRParen);
+    expect_RParen();
 }
 
 static void parse_statement_block(void) {
@@ -175,7 +172,6 @@ void parse_statement(void) {
         case tokBreak: parse_break(); break;
         case tokContinue: parse_continue(); break;
         case tokReturn: parse_return(); break;
-
         case tokPutc: parse_putc(); break;  
         case tokPuts: parse_puts(); break;
         case tokOut: parse_out(); break;
@@ -291,7 +287,7 @@ void parse_while(void) {
 
 void parse_for(void) {
     get_token(); // skip 'for'
-    expect(tokLParen, errExpectLParen);
+    expect_LParen();
 
     uint16_t blockframe = push_frame();
     uint8_t old_localcount = localcount;
@@ -332,7 +328,7 @@ void parse_for(void) {
     } else {
         contlbl = lblBody;
     }
-    expect(tokRParen, errExpectRParen);
+    expect_RParen();
 
     emit_lbl(lblBody);
     parse_statement();
@@ -384,26 +380,26 @@ void parse_puts(void) {
 
 void parse_out(void) {
     get_token(); // skip 'out'
-    expect(tokLParen, errExpectLParen);
+    expect_LParen();
    
     parse_expr(0);
     emit_instrln("ld c,l");
     emit_instrln("ld b,h");
-    expect(tokComma, errExpectComma);
+    expect_comma();
     parse_expr(0);
     emit_instrln("out (c),l");
-    expect(tokRParen, errExpectRParen);
+    expect_RParen();
     expect_semi();
 }
 
 void parse_nextreg(void) {
     get_token(); // skip 'nextreg'
-    expect(tokLParen, errExpectLParen);
+    expect_LParen();
     
     if (tok == tokNumber) {
         uint8_t reg = (uint8_t)intval;
         get_token(); // skip number
-        expect(tokComma, errExpectComma);
+        expect_comma();
         if (tok == tokNumber) {
             emit_nreg_immed(reg, (uint8_t)intval);            
             get_token(); // skip number
@@ -416,18 +412,18 @@ void parse_nextreg(void) {
         emit_instrln("ld bc, $243b");
         emit_instrln("out (c), l");
         emit_instrln("inc b");
-        expect(tokComma, errExpectComma);
+        expect_comma();
         parse_expr(0);
         emit_instrln("out (c), l");
     }
-    expect(tokRParen, errExpectRParen);
+    expect_RParen();
     expect_semi();    
 }
 
 void parse_asm(int asmcol) {
     if (asmcol == 0) asmcol = token_col;
     get_token(); // skip 'asm'
-    expect(tokLBrace, errExpectLBrace);
+    expect_LBrace();
     while (tok != tokRBrace && tok != tokEOS) {
         int last_token_line = token_line;
         if (token_col <= asmcol) {
@@ -449,8 +445,7 @@ void parse_asm(int asmcol) {
         }
         emit_nl();
     }
-    if (tok != tokRBrace) error(errExpectRBrace);
-    get_token(); // skip '}'
+    expect_RBrace();    
 }
 
 void parse_type(TYPEREC *type) {
@@ -524,7 +519,7 @@ void parse_funccall(SYMBOL* sym) {
         get_token(); // skip ','
     }
     if (argcount != sym->offset) error(errArgMismatch);
-    expect(tokRParen, errExpectRParen);
+    expect_RParen();
 
     emit_callsym(sym);
     clean_stack(sym->offset * 2);
@@ -566,7 +561,7 @@ void parse_funcdecl(TYPEREC rettype, const char* name) {
         get_token(); // skip arg name
         if (tok == tokComma) get_token(); // skip ','
     }
-    expect(tokRParen, errExpectRParen);
+    expect_RParen();
    
     if (defined || symfunc->klass == FUNCTION_PROTO) {
         if (func_argcount != symfunc->offset) error(errDeclMismatch);
@@ -589,7 +584,7 @@ void parse_funcdecl(TYPEREC rettype, const char* name) {
             parse_asm(2);
         }
         else {
-            if (tok != tokLBrace) error(errExpectLBrace);
+            if (tok != tokLBrace) error(errExpected, "}");
 
             uint16_t oldlocalbytes = localbytes;
             maxlocalcount = 0;
@@ -630,9 +625,9 @@ void parse_bank(void) {
     get_token(); // skip bank
     uint8_t bankid;
     uint16_t offset = 0;
-    expect(tokLParen, errExpectLParen);
+    expect_LParen();
     if (token_type != ttNumber) error(errSyntax);
-    bankid = intval;
+    bankid = (uint8_t)intval;
     get_token(); // skip bankid
     if (tok == tokComma) {
         get_token(); // skip ','
@@ -640,7 +635,7 @@ void parse_bank(void) {
         offset = intval;
         get_token(); // skip offset 
     }
-    expect(tokRParen, errExpectRParen);
+    expect_RParen();
     emit_bank(bankid, offset);
     parse_statement_block();
     inbank = 0;

@@ -1,6 +1,7 @@
 #include "znc.h"
 
-uint8_t oldspeed = 255;
+uint8_t old_speed = 255;
+uint8_t old_border = 7;
 
 void show_banner(void);
 void show_help(const char *msg);
@@ -13,7 +14,8 @@ int main(unsigned int argc, unsigned char **argv) {
         return 0;
     }    
 #ifdef __ZXNEXT 
-    oldspeed = ZXN_READ_REG(0x07) & 0x03;
+    old_speed = ZXN_READ_REG(0x07) & 0x03;
+    old_border = ((*(uint8_t*)(0x5c48)) & 0b00111000) >> 3;
     ZXN_NEXTREG(0x07, 3);
 #endif
 
@@ -38,7 +40,8 @@ void cleanup(void) {
     asm_close();
 
 #ifdef __ZXNEXT
-    ZXN_WRITE_REG(0x07, oldspeed);
+    zx_border(old_border);
+    ZXN_WRITE_REG(0x07, old_speed);
 #endif
 }
 

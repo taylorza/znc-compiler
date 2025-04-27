@@ -114,7 +114,7 @@ void emit_sname(const char *name) {
 }
 
 void emit_strref(uint16_t id) {
-    emit_str("str%d", id);
+    emit_str("str+%d", id);
 }
 
 void emit_instr(const char * fmt, ...) {

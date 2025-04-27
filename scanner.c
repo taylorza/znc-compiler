@@ -27,17 +27,9 @@ KEYWORD keywords[] = {
     {"while", tokWhile},
     {"for", tokFor},
     {"break", tokBreak},
-    {"continue", tokContinue},
+    {"continue", tokContinue},    
     {"return", tokReturn},
-
-    {"if", tokIf},
-    {"else", tokElse},
-    {"while", tokWhile},
-    {"for", tokFor},
-    {"break", tokBreak},
-    {"continue", tokContinue},
-    {"return", tokReturn},
-
+    
     {"putc", tokPutc},
     {"puts", tokPuts},
 
@@ -88,23 +80,25 @@ static uint8_t src_read(void) {
     return errno == 0;
 }
 
-uint8_t src_open(const char *filename) {
-    if (fileid+1 == MAX_NEST_FILE) return 0;
+uint8_t src_open(const char* filename) {
+    if (fileid + 1 == MAX_NEST_FILE) return 0;
 
-    SOURCEPOS *src = &loc[++fileid];
+    errno = 0;
+#ifdef __ZXNEXT
+    uint8_t handle = esxdos_f_open(filename, ESXDOS_MODE_R | ESXDOS_MODE_OE);
+    if (errno) return 0;
+#else
+    FILE *handle = fopen(filename, "r");
+    if (!handle) return 0;
+#endif
+    
+    SOURCEPOS* src = &loc[++fileid];
     strncpy(src->filename, filename, MAX_FILENAME_LEN);
+    src->handle = handle;
     src->line = 1;
     src->ofs = 0;
     src->col = 0;
 
-#ifdef __ZXNEXT
-    errno = 0;
-    src->handle = esxdos_f_open(filename, ESXDOS_MODE_R | ESXDOS_MODE_OE);
-    if (errno) return 0;
-#else
-    src->handle = fopen(filename, "r");
-    if (!src->handle) return 0;
-#endif
     return src_read();
 }
 
@@ -167,11 +161,6 @@ static void skipws(void) {
             loc[fileid].col = 1;
         }
     }
-}
-
-void resync(void) {
-    char c;
-    while ((c = ch()) && (isalnum(c) || c == '_')) gnc();
 }
 
 static uint8_t escape(void) {
@@ -379,7 +368,7 @@ get_token_start:
         *temp = '\0';
         
         if (l == 0) error(errTooLong);
-        else if (c != '"') error(errExpectQuote);
+        else if (c != '"') error(errExpected, "\"");
         else gnc();
         tok = tokString;
         return (token_type = ttString);
@@ -433,10 +422,34 @@ get_token_start:
     return ttError;
 }
 
-void expect(TOKEN t, ERROR err) {
+void expect(TOKEN t, char ch) {
     if (tok == t) {
         get_token();
     } else {
-        error(err);
+        error(errExpected, ch);
     }
+}
+
+void expect_semi(void) {
+    expect(tokSemi, ';');
+}
+
+void expect_comma(void) {
+    expect(tokComma, ',');
+}
+
+void expect_LParen(void) {
+    expect(tokLParen, '(');
+}
+
+void expect_RParen(void) {
+    expect(tokRParen, ')');
+}
+
+void expect_LBrace(void) {
+    expect(tokLBrace, '{');
+}
+
+void expect_RBrace(void) {
+    expect(tokRBrace, '}');
 }

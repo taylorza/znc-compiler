@@ -34,7 +34,13 @@ void src_close(void);
 void src_closeall(void); 
 
 TOKEN_TYPE get_token(void);
-void expect(TOKEN t, ERROR err);
-void resync(void);
+void expect(TOKEN t, char ch);
+
+void expect_semi(void);
+void expect_comma(void);
+void expect_LParen(void);
+void expect_RParen(void);
+void expect_LBrace(void);
+void expect_RBrace(void);
 
 #endif //SCANNER_H_
