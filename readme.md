@@ -28,13 +28,13 @@ Compilation is a two stage process.
 
 1. Compile the source code to assembly language
 
-The following will compile a source file called demo.znc to a corresponding assembly file called demo.asm. These names do not need to match, but the assembly filename will be the base for the name of the final binary file.
+The following will compile a source file called demo.znc to a corresponding assembly file called demo.asm.
 
 ```
-.znc demo.znc demo.asm
+.znc demo.znc
 ```
 
-2. Assemble the file to the executable binary
+1. Assemble the file to the executable binary
 
 Using the NextBASIC Inline Assembler, you assemble the generated assembly file to a binary.
 
@@ -60,7 +60,7 @@ puts("Hello World");
 
 Next, compile and assemble the code
 ```
-.znc hello.znc hello.asm
+.znc hello.znc
 .asm hello.asm
 ```
 
