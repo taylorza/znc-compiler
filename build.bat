@@ -1,1 +1,0 @@
-zcc +zxn -v -m -startup=30 -clib=sdcc_iy -SO3 -subtype=dotn -create-app --max-allocs-per-node2000 --opt-code-size @znc-main.src -o znc
