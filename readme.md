@@ -22,7 +22,27 @@ In this language:
 **I/O Primitives.** For basic output, built‑in functions `putc()` and `puts()` are provided.
 
 **Banks.** A bank construct allows you to group a statement block into a memory bank
-    
+
+## Installing the tools
+The compiler includes a suite of tools:
+
+* [ZED - A text editor](https://github.com/taylorza/zed)
+* [ZNC - The compiler](https://github.com/taylorza/znc-compiler)
+* [ZOPT - A peephole optimizer](https://github.com/taylorza/zopt)
+* [ASM - Assembler](https://taylorza.itch.io/nextbasic-inline-assembler)
+
+[**Download: ZNC COMPILER**](https://taylorza.itch.io/znc-compiler)
+
+Start by copying the downloaded zip file to the root directory of your NextZXOS SD Card. Then, from the NextZXOS command line, enter:
+
+```
+.unzip -o znc.zip
+```
+
+Once the extraction is complete, four binary components will be installed as DOT commands, and a new ZDEV directory will appear in the root. Navigate to this directory, where you will find a collection of sample programs.
+
+To see how the samples are compiled, optimized, and assembled, open `zncdemo.bas` and run it. A menu will be displayed, allowing you to select a sample to execute. As each step unfolds on the screen, you will get a clear understanding of the process involved in compiling your own applications.
+
 ## Compiling code
 Compilation is a two stage process.
 
