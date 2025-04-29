@@ -3,10 +3,10 @@
 
 typedef enum ERROR {
     errSyntax,
-    errExpected,
+    errExpected_c,
     errTooLong,
     errTooManySymbols,
-    errAlreadyDefined,
+    errAlreadyDefined_s,
     errNotDefined_s,
     errNotlvalue,
     errTypeError,

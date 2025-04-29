@@ -147,8 +147,8 @@ TYPEREC parse_factor(uint8_t dereference) {
             expect_LParen();
             parse_expr(0);
             expect_RParen();
-            emit_instrln("ld c,l");
             emit_instrln("ld b,h");
+            emit_instrln("ld c,l");
             emit_instrln("in a,(c)");
             emit_rtl("ccsxt");
             typ = char_type;
@@ -158,7 +158,7 @@ TYPEREC parse_factor(uint8_t dereference) {
             get_token(); // skip 'readreg'
             expect_LParen();
             parse_expr(0);
-            emit_instrln("ld bc,%c243b",'$');
+            emit_instrln("ld bc,9275");
             emit_instrln("out (c),l");
             emit_instrln("inc b");
             expect_RParen();            

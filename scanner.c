@@ -368,7 +368,7 @@ get_token_start:
         *temp = '\0';
         
         if (l == 0) error(errTooLong);
-        else if (c != '"') error(errExpected, "\"");
+        else if (c != '"') error(errExpected_c, '"');
         else gnc();
         tok = tokString;
         return (token_type = ttString);
@@ -426,7 +426,7 @@ void expect(TOKEN t, char ch) {
     if (tok == t) {
         get_token();
     } else {
-        error(errExpected, ch);
+        error(errExpected_c, ch);
     }
 }
 

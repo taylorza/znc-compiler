@@ -152,7 +152,7 @@ static void parse_statement_block(void) {
     bp_lastlocal = old_bp;
     localcount = old_localcount;
     pop_frame(blockframe);
-    expect(tokRBrace, errSyntax);
+    expect(tokRBrace, '}');
 }
 
 void parse_statement(void) {
@@ -205,6 +205,7 @@ void parse_decl(void) {
     char name[MAX_IDENT_LEN + 1];
     strncpy(name, token, MAX_IDENT_LEN);
 
+    if (tok != tokIdent) error(errSyntax);
     get_token(); // skip name
 
     if (tok == tokLParen) {
@@ -219,12 +220,17 @@ void parse_decl(void) {
         for (;;) {
             if (infunc || is_scoped()) {
                 uint16_t size = type_size(&type); 
+                sym = findloc(name);
+                if (sym) error(errAlreadyDefined_s, name);
                 sym = declloc(type, VARIABLE, name, bp_lastlocal);
                 bp_lastlocal += size;
                 if (localbytes < bp_lastlocal) localbytes = bp_lastlocal;
-            }
-            else
+            } else {
+                sym = findglb(name);
+                if (sym) error(errAlreadyDefined_s, name);
                 sym = declglb(type, VARIABLE, name, 0);
+            }
+                
 
             if (tok == tokAssign) {
                 parse_assign(0, sym, 0, type);
@@ -386,8 +392,8 @@ void parse_out(void) {
     expect_LParen();
    
     parse_expr(0);
-    emit_instrln("ld c,l");
     emit_instrln("ld b,h");
+    emit_instrln("ld c,l");    
     expect_comma();
     parse_expr(0);
     emit_instrln("out (c),l");
@@ -567,7 +573,7 @@ void parse_funcdecl(TYPEREC rettype, const char* name) {
     if (tok == tokSemi) {        
         if (!defined) symfunc->klass = FUNCTION_PROTO;
     } else {
-        if (defined) error(errAlreadyDefined);
+        if (defined) error(errAlreadyDefined_s, name);
 
         symfunc->klass = FUNCTION;
         infunc = 1;
@@ -580,7 +586,7 @@ void parse_funcdecl(TYPEREC rettype, const char* name) {
             parse_asm(2);
         }
         else {
-            if (tok != tokLBrace) error(errExpected, "}");
+            if (tok != tokLBrace) error(errExpected_c, "}");
 
             uint16_t oldlocalbytes = localbytes;
             maxlocalcount = 0;

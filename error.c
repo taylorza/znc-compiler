@@ -9,7 +9,7 @@ void error(ERROR err, ...) {
         "Expected '%c'",
         "Too long",
         "Too many symbols",
-        "Aready defined",
+        "Aready defined '%s'",
         "Not defined '%s'",
         "Not an lvalue",
         "Type Error",
