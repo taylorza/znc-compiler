@@ -21,7 +21,6 @@ void gotoxy(byte x, byte y) {
 
 int x=15, y=10;
 int dx=1, dy=1;
-byte n = 0;
 
 for(;;) {
   __asm__ {
@@ -31,8 +30,8 @@ for(;;) {
   putc(' ');
   x = x + dx;
   y = y + dy;
-  if (x == 0 || x == 31) { dx = -dx; n=(n+1) & 7; }
-  if (y == 0 || y == 21) { dy = -dy; n=(n+1) & 7; }
+  if (x == 0 || x == 31) dx = -dx;
+  if (y == 0 || y == 21) dy = -dy;
   gotoxy(x, y);
   putc(0x90); // 0x90 - UDG - A
   if ((in(0x7ffe) & 0x01) == 0) break;
