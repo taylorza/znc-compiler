@@ -23,6 +23,15 @@
 #include <arch/zxn.h>
 #include <arch/zxn/esxdos.h>
 #include <errno.h>
+
+#ifdef __SDCC
+#define MYCC __sdcccall(1)
+#else //!__SDCC
+#define MYCC
+#endif
+
+#else //!__ZXNEXT
+#define MYCC
 #endif
 
 #include "dataarea.h"

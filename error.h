@@ -16,6 +16,6 @@ typedef enum ERROR {
 } ERROR;
 
 extern int errcnt;
-void error(ERROR err, ...);
+void error(ERROR err, ...) MYCC;
 
 #endif //ERROR_H_

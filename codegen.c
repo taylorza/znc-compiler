@@ -21,7 +21,7 @@ FILE *asm_fh = NULL;
 char asmbuf[MAX_WRITE_BUF];
 uint8_t pos;
 
-uint8_t asm_open(const char *asmfilename) {
+uint8_t asm_open(const char *asmfilename) MYCC {
     pos = 0;
 #ifdef __ZXNEXT
     errno = 0;
@@ -33,7 +33,7 @@ uint8_t asm_open(const char *asmfilename) {
     return 1;
 }
 
-void asm_close(void) {
+void asm_close(void) MYCC {
     
     if (pos) {
 #ifdef __ZXNEXT
@@ -54,7 +54,7 @@ void asm_close(void) {
     }
 }
 
-void asm_putc(char c) {
+void asm_putc(char c) MYCC {
     if (pos == MAX_WRITE_BUF) {
 #ifdef __ZXNEXT
         zx_border(asmbuf[0] & 1);
@@ -67,32 +67,32 @@ void asm_putc(char c) {
     asmbuf[pos++] = c;
 }
 
-static void asm_puts(const char *s) {
+static void asm_puts(const char *s) MYCC {
     while (*s) asm_putc(*s++);
 }
 
-uint16_t newlbl(void) {
+uint16_t newlbl(void) MYCC {
     return ++nxtlbl;
 }
 
 
-void emit_nl(void) {
+void emit_nl(void) MYCC {
     asm_putc(NL);
 }
 
-void emit_ch(char c) {
+void emit_ch(char c) MYCC {
     asm_putc(c);
 }
 
-void emit_lbl(uint16_t lbl) {
+void emit_lbl(uint16_t lbl) MYCC {
     emit_strln("lbl%d", lbl);    
 }
 
-void emit_lblref(uint16_t lbl) {
+void emit_lblref(uint16_t lbl) MYCC {
     emit_str("lbl%d", lbl);
 }
 
-void emit_str(const char *fmt, ...) {
+void emit_str(const char *fmt, ...) MYCC {
     va_list v;
     va_start(v, fmt);
     vsnprintf(buf, sizeof(buf), (char *)fmt, v);
@@ -100,7 +100,7 @@ void emit_str(const char *fmt, ...) {
     asm_puts(buf);
 }
 
-void emit_strln(const char* fmt, ...) {
+void emit_strln(const char* fmt, ...) MYCC {
     va_list v;
     va_start(v, fmt);
     vsnprintf(buf, sizeof(buf), (char *)fmt, v);
@@ -109,15 +109,15 @@ void emit_strln(const char* fmt, ...) {
     emit_nl();
 }
 
-void emit_sname(const char *name) {
+void emit_sname(const char *name) MYCC {
     emit_str("_%s", name);    
 }
 
-void emit_strref(uint16_t id) {
+void emit_strref(uint16_t id) MYCC {
     emit_str("str+%d", id);
 }
 
-void emit_instr(const char * fmt, ...) {
+void emit_instr(const char * fmt, ...) MYCC {
     va_list v;
     va_start(v, fmt);
     vsnprintf(buf, sizeof(buf), (char *)fmt, v);
@@ -125,7 +125,7 @@ void emit_instr(const char * fmt, ...) {
     asm_puts("  "); asm_puts(buf);
 }
 
-void emit_instrln(const char* fmt, ...) {
+void emit_instrln(const char* fmt, ...) MYCC {
     va_list v;
     va_start(v, fmt);
     vsnprintf(buf, sizeof(buf), (char *)fmt, v);
@@ -134,51 +134,51 @@ void emit_instrln(const char* fmt, ...) {
     emit_nl();
 }
 
-void emit_n(uint16_t n) {
+void emit_n(uint16_t n) MYCC {
     emit_str("%d", n);
 }
 
-void emit_ld_immed(void) {
+void emit_ld_immed(void) MYCC {
     emit_instr("ld hl,");
 }
 
-void emit_ldbc_immed(void) {
+void emit_ldbc_immed(void) MYCC {
     emit_instr("ld bc,");
 }
 
-void emit_push(void) {
+void emit_push(void) MYCC {
     emit_instrln("push hl");
 }
 
-void emit_pop(void) {
+void emit_pop(void) MYCC {
     emit_instrln("pop de");
 }
 
-void emit_swap(void) {
+void emit_swap(void) MYCC {
     emit_instrln("ex de,hl");
 }
 
-void emit_add16(void) {
+void emit_add16(void) MYCC {
     emit_instrln("add hl,de");
 }
 
-void emit_sub16(void) {
+void emit_sub16(void) MYCC {
     emit_swap();
     emit_instrln("xor a");
     emit_instrln("sbc hl,de");
 }
 
-void emit_rtl(const char* name) {
+void emit_rtl(const char* name) MYCC {
     if ((inc_rtl(name) & FLAG_RTL_INLINE) == 0) {
         emit_call(name);
     }
 }
 
-void emit_call(const char *name) {
+void emit_call(const char *name) MYCC {
     emit_instrln("call %s", name);    
 }
 
-void emit_callsym(SYMBOL* sym) {
+void emit_callsym(SYMBOL* sym) MYCC {
     if (is_func_or_proto(sym)) {
         emit_instr("call ");
         emit_sname(sym->name);
@@ -194,41 +194,41 @@ void emit_callsym(SYMBOL* sym) {
     }
 }
 
-void emit_ret(void) {
+void emit_ret(void) MYCC {
     emit_instrln("ret");
 }
 
-void emit_jp(uint16_t lbl) {
+void emit_jp(uint16_t lbl) MYCC {
     emit_instr("jp ");
     emit_lblref(lbl); emit_nl();
 }
 
-void emit_jp_true(uint16_t lbl) {
+void emit_jp_true(uint16_t lbl) MYCC {
     emit_instrln("ld a,h");
     emit_instrln("or l");
     emit_instr("jp nz,");
     emit_lblref(lbl); emit_nl();
 }
 
-void emit_jp_false(uint16_t lbl) {
+void emit_jp_false(uint16_t lbl) MYCC {
     emit_instrln("ld a,h");
     emit_instrln("or l");
     emit_instr("jp z,");
     emit_lblref(lbl); emit_nl();
 }
 
-uint16_t emit_alloclocals(void) {
+uint16_t emit_alloclocals(void) MYCC {
     uint16_t lbl = newlbl();
     emit_ld_immed(); emit_str("-"); emit_lblref(lbl); emit_nl();
     emit_instrln("add hl,sp");
     emit_instrln("ld sp,hl");
     return lbl;
 }
-void emit_lblequ16(uint16_t lbl, uint16_t value) {
+void emit_lblequ16(uint16_t lbl, uint16_t value) MYCC {
     emit_lblref(lbl); emit_str(" equ "); emit_n(value); emit_nl();
 }
 
-void emit_ld_symval(SYMBOL* sym) {
+void emit_ld_symval(SYMBOL* sym) MYCC {
     TYPEREC* ptype = &sym->type;
 
     if (sym->scope == GLOBAL) {
@@ -273,7 +273,7 @@ void emit_ld_symval(SYMBOL* sym) {
     }
 }
 
-void emit_ld_symaddr(SYMBOL* sym) {
+void emit_ld_symaddr(SYMBOL* sym) MYCC {
     TYPEREC* ptype = &sym->type;
 
     if (sym->scope == GLOBAL) {
@@ -300,7 +300,7 @@ void emit_ld_symaddr(SYMBOL* sym) {
     }
 }
 
-void emit_store_sym(SYMBOL* sym) {
+void emit_store_sym(SYMBOL* sym) MYCC {
     TYPEREC* ptype = &sym->type;
     if (is_array(ptype)) error(errNotlvalue);
     if (sym->scope == GLOBAL) {
@@ -327,7 +327,7 @@ void emit_store_sym(SYMBOL* sym) {
     }
 }
 
-void emit_store(TYPEREC type) {
+void emit_store(TYPEREC type) MYCC {
     emit_pop();         // target address
     if (is_void(&type) || is_char(&type)) {
         emit_instrln("ld a,l");
@@ -341,7 +341,7 @@ void emit_store(TYPEREC type) {
     }
 }
 
-void emit_load(TYPEREC type) {
+void emit_load(TYPEREC type) MYCC {
     if (!is_ptr(&type) && is_char(&type)) {
         emit_instrln("ld a,(hl)");
         emit_rtl("ccsxt");
@@ -354,43 +354,43 @@ void emit_load(TYPEREC type) {
     }
 }
 
-void emit_nreg_immed(uint8_t reg, uint8_t val) {
+void emit_nreg_immed(uint8_t reg, uint8_t val) MYCC {
     emit_instrln("nreg %d,%d", reg, val);
 }
 
-void emit_nreg_A(uint8_t reg) {
+void emit_nreg_A(uint8_t reg) MYCC {
     emit_instrln("ld a,l");
     emit_instrln("nreg %d,a", reg);
 }
 
-void emit_frame_prologue(void) {
+void emit_frame_prologue(void) MYCC {
     emit_instrln("push ix");
     emit_instrln("ld ix,0");
     emit_instrln("add ix,sp");
 }
 
-void emit_frame_epilogue(void) {
+void emit_frame_epilogue(void) MYCC {
     emit_instrln("ld sp,ix");
     emit_instrln("pop ix");
 }
 
-void emit_neg(void) {
+void emit_neg(void) MYCC {
     emit_rtl("ccneg");
 }
 
-void emit_mul2(void) {
+void emit_mul2(void) MYCC {
     emit_instrln("add hl,hl");
 }
 
-void emit_org(uint16_t address) {
+void emit_org(uint16_t address) MYCC {
     emit_instrln("org %d", address);
 }
 
-void emit_bank(uint8_t bank, uint16_t offset) {
+void emit_bank(uint8_t bank, uint16_t offset) MYCC {
     emit_instrln("bank %d,%d", bank, offset);
 }
 
-void emit_output(const char* filename, TOKEN outputTok) {
+void emit_output(const char* filename, TOKEN outputTok) MYCC {
     emit_strln("  output \"%s\"", filename);
     if (outputTok == tokDot) {
         emit_org(0x2000);
@@ -400,7 +400,7 @@ void emit_output(const char* filename, TOKEN outputTok) {
     }
 }
 
-void emit_nex(const char* filename, uint16_t start, uint16_t stack, uint16_t stacksize) {
+void emit_nex(const char* filename, uint16_t start, uint16_t stack, uint16_t stacksize) MYCC {
     emit_instrln("ds %d", stacksize);
     emit_lbl(stack);
     emit_instrln("equ $");

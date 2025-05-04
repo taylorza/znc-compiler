@@ -28,32 +28,32 @@ typedef struct SYMBOL {
     int16_t offset;
 } SYMBOL;
 
-uint16_t type_size(const TYPEREC* type);
-uint8_t is_array(const TYPEREC* type);
-uint8_t is_ptr(const TYPEREC* type);
-uint8_t is_void(const TYPEREC* type);
-uint8_t is_char(const TYPEREC* type);
-uint8_t is_int(const TYPEREC* type);
-uint8_t is_string(const TYPEREC* type);
+uint16_t type_size(const TYPEREC* type) MYCC;
+uint8_t is_array(const TYPEREC* type) MYCC;
+uint8_t is_ptr(const TYPEREC* type) MYCC;
+uint8_t is_void(const TYPEREC* type) MYCC;
+uint8_t is_char(const TYPEREC* type) MYCC;
+uint8_t is_int(const TYPEREC* type) MYCC;
+uint8_t is_string(const TYPEREC* type) MYCC;
 
-uint8_t is_func_or_proto(const SYMBOL* sym);
+uint8_t is_func_or_proto(const SYMBOL* sym) MYCC;
 
-void make_ptr(TYPEREC* type);
-void make_scalar(TYPEREC* type);
-void make_array(TYPEREC* type, uint16_t size);
+void make_ptr(TYPEREC* type) MYCC;
+void make_scalar(TYPEREC* type) MYCC;
+void make_array(TYPEREC* type, uint16_t size) MYCC;
 
 
-SYMBOL* findglb(const char* name);
-SYMBOL* findloc(const char* name);
-SYMBOL* lookupIdent(const char* name);
+SYMBOL* findglb(const char* name) MYCC;
+SYMBOL* findloc(const char* name) MYCC;
+SYMBOL* lookupIdent(const char* name) MYCC;
 
-SYMBOL* addglb(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value);
-SYMBOL* addloc(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value);
+SYMBOL* addglb(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC;
+SYMBOL* addloc(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC;
 
-uint16_t push_frame(void);
-void pop_frame(uint16_t frame);
-uint8_t is_scoped(void);
+uint16_t push_frame(void) MYCC;
+void pop_frame(uint16_t frame) MYCC;
+uint8_t is_scoped(void) MYCC;
 
-void dump_globals(void);
+void dump_globals(void) MYCC;
 
 #endif //SYM_H_

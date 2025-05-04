@@ -5,10 +5,10 @@
 #define TYPE_INT  2
 #define CLASS_POINTER 0x80
 
-int8_t prec(TOKEN op);
+int8_t prec(TOKEN op) MYCC;
 
-TYPEREC parse_expr(uint8_t minprec);
+TYPEREC parse_expr(uint8_t minprec) MYCC;
 
-void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ);
+void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ) MYCC;
 
 #endif // EXPR_H_

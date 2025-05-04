@@ -49,7 +49,7 @@ OP_PREC prectbl[] = {
     {tokMod,    MUL_PREC},
 };
 
-int8_t prec(TOKEN op) {
+int8_t prec(TOKEN op) MYCC {
     for(uint8_t i=0; i < sizeof(prectbl)/sizeof(OP_PREC); ++i) {
         if (prectbl[i].op == op) {
             return prectbl[i].prec;
@@ -58,11 +58,11 @@ int8_t prec(TOKEN op) {
     return 0;
 }
 
-TYPEREC parse_ternary(uint8_t prec);
-TYPEREC parse_factor(uint8_t dereference);
-TYPEREC parse_binop(TOKEN op, TYPEREC ltyp, uint8_t prec);
+TYPEREC parse_ternary(uint8_t prec) MYCC;
+TYPEREC parse_factor(uint8_t dereference) MYCC;
+TYPEREC parse_binop(TOKEN op, TYPEREC ltyp, uint8_t prec) MYCC;
 
-TYPEREC parse_expr(uint8_t minprec) {
+TYPEREC parse_expr(uint8_t minprec) MYCC {
     TYPEREC ltyp = parse_factor(0);
     
     uint8_t p;
@@ -79,8 +79,7 @@ TYPEREC parse_expr(uint8_t minprec) {
     return ltyp;
 }
 
-TYPEREC parse_ternary(uint8_t prec)
-{
+TYPEREC parse_ternary(uint8_t prec) MYCC {
     uint16_t altlbl = newlbl();
     uint16_t donelbl = newlbl();
     emit_jp_false(altlbl);
@@ -96,7 +95,7 @@ TYPEREC parse_ternary(uint8_t prec)
     return ptyp;
 }
 
-TYPEREC parse_factor(uint8_t dereference) {
+TYPEREC parse_factor(uint8_t dereference) MYCC {
     SYMBOL* sym = NULL;
     TYPEREC typ = int_type;
     uint8_t indexed = 0;
@@ -291,8 +290,7 @@ TYPEREC parse_factor(uint8_t dereference) {
     return typ;
 }
 
-void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ)
-{
+void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ) MYCC {
     get_token(); // skip '='
 
     if (!sym) {
@@ -354,7 +352,7 @@ void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ
     }
 }
 
-TYPEREC parse_binop(TOKEN op, TYPEREC ltyp, uint8_t opprec) {
+TYPEREC parse_binop(TOKEN op, TYPEREC ltyp, uint8_t opprec) MYCC {
     uint8_t scaleIdx = 0;
 
     if (op == tokOr || op == tokAnd) {

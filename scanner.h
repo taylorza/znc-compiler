@@ -29,18 +29,18 @@ extern TOKEN_TYPE token_type;
 extern TOKEN tok;
 extern int16_t intval;
 
-uint8_t src_open(const char *filename);
-void src_close(void);
-void src_closeall(void); 
+uint8_t src_open(const char *filename) MYCC;
+void src_close(void) MYCC;
+void src_closeall(void) MYCC; 
 
-TOKEN_TYPE get_token(void);
-void expect(TOKEN t, char ch);
+TOKEN_TYPE get_token(void) MYCC;
+void expect(TOKEN t, char ch) MYCC;
 
-void expect_semi(void);
-void expect_comma(void);
-void expect_LParen(void);
-void expect_RParen(void);
-void expect_LBrace(void);
-void expect_RBrace(void);
+void expect_semi(void) MYCC;
+void expect_comma(void) MYCC;
+void expect_LParen(void) MYCC;
+void expect_RParen(void) MYCC;
+void expect_LBrace(void) MYCC;
+void expect_RBrace(void) MYCC;
 
 #endif //SCANNER_H_

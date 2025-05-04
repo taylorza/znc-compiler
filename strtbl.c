@@ -4,7 +4,7 @@ char strtbl[MAX_STRTBL_SIZE - 1]  = { 0 };
 
 size_t laststr = 0;
 
-int16_t lookupstr(const char* s) {
+int16_t lookupstr(const char* s) MYCC {
     for (size_t i = 0; i < laststr;) {
         const char* literal = &strtbl[i];
         if (strcmp(s, literal) == 0) {
@@ -21,7 +21,7 @@ int16_t lookupstr(const char* s) {
 }
 
 
-void dump_strings(void) {
+void dump_strings(void) MYCC {
     if (!laststr) return;
     
     emit_str("str"); emit_nl();

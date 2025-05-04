@@ -24,31 +24,31 @@ uint16_t stack_size = 256;  // stack size
 SYMBOL* declglb(TYPEREC type, SYM_CLASS klass, const char* name, int16_t value);
 SYMBOL* declloc(TYPEREC type, SYM_CLASS klass, const char* name, int16_t offset);
 
-void parse_type(TYPEREC* type);
-void parse_funcdecl(TYPEREC rettype, const char* name);
+void parse_type(TYPEREC* type) MYCC;
+void parse_funcdecl(TYPEREC rettype, const char* name) MYCC;
 
-void parse_include(void);
-void parse_decl(void);
-void parse_statement(void);
-void parse_if(void);
-void parse_while(void);
-void parse_for(void);
-void parse_break(void);
-void parse_continue(void);
-void parse_return(void);
-void parse_putc(void); 
-void parse_puts(void);
-void parse_out(void);
-void parse_nextreg(void);
-void parse_asm(int asmcol);
-void parse_org(void);
-void parse_bank(void);
+void parse_include(void) MYCC;
+void parse_decl(void) MYCC;
+void parse_statement(void) MYCC;
+void parse_if(void) MYCC;
+void parse_while(void) MYCC;
+void parse_for(void) MYCC;
+void parse_break(void) MYCC;
+void parse_continue(void) MYCC;
+void parse_return(void) MYCC;
+void parse_putc(void) MYCC; 
+void parse_puts(void) MYCC;
+void parse_out(void) MYCC;
+void parse_nextreg(void) MYCC;
+void parse_asm(int asmcol) MYCC;
+void parse_org(void) MYCC;
+void parse_bank(void) MYCC;
 
-void parse_make(const char* outfilename);
+void parse_make(const char* outfilename) MYCC;
 
-void parse_onearg(void);
+void parse_onearg(void) MYCC;
 
-static void parse(const char* sourcefile, const char* outfilename, uint8_t entrypoint) {
+static void parse(const char* sourcefile, const char* outfilename, uint8_t entrypoint) MYCC {
     if (!src_open(sourcefile)) {
         printf("can't open '%s'", sourcefile);
         exit(1);
@@ -98,7 +98,7 @@ static void parse(const char* sourcefile, const char* outfilename, uint8_t entry
     src_close();
 }
 
-void parse_make(const char *filename) {
+void parse_make(const char *filename) MYCC {
     TOKEN outputTok = tokNone;
     get_token(); // skip 'make'
     switch (tok) {
@@ -133,14 +133,14 @@ void parse_make(const char *filename) {
     }
 }
 
-void parse_onearg(void) {
+void parse_onearg(void) MYCC {
     get_token(); // skip leading token
     expect_LParen();
     parse_expr(0);
     expect_RParen();
 }
 
-static void parse_statement_block(void) {
+static void parse_statement_block(void) MYCC {
     get_token(); // skip '{'
     uint16_t blockframe = push_frame();
     uint8_t old_localcount = localcount;
@@ -155,7 +155,7 @@ static void parse_statement_block(void) {
     expect(tokRBrace, '}');
 }
 
-void parse_statement(void) {
+void parse_statement(void) MYCC {
     switch (tok) {
         case tokVoid:
         case tokChar:
@@ -188,7 +188,7 @@ void parse_statement(void) {
     }
 }
 
-void parse_include(void) {
+void parse_include(void) MYCC {
     get_token(); // skip 'include'
     if (tok != tokString) error(errSyntax);
     
@@ -197,7 +197,7 @@ void parse_include(void) {
     get_token(); // skip filename    
 }
 
-void parse_decl(void) {
+void parse_decl(void) MYCC {
     TYPEREC type;
 
     parse_type(&type);
@@ -245,7 +245,7 @@ void parse_decl(void) {
     }
 }
 
-void parse_if(void) {
+void parse_if(void) MYCC {
     static uint16_t lblEndIf = 0;
     uint16_t lblFalse = newlbl();
     
@@ -273,7 +273,7 @@ void parse_if(void) {
     lblEndIf = old_endif;
 }
 
-void parse_while(void) {
+void parse_while(void) MYCC {
     uint16_t old_brklbl = brklbl;
     uint16_t old_contlbl = contlbl;
 
@@ -294,7 +294,7 @@ void parse_while(void) {
     contlbl = old_contlbl;
 }
 
-void parse_for(void) {
+void parse_for(void) MYCC {
     get_token(); // skip 'for'
     expect_LParen();
 
@@ -357,7 +357,7 @@ void parse_for(void) {
     contlbl = old_contlbl;
 }
 
-void parse_break(void) {
+void parse_break(void) MYCC {
     get_token(); // skip 'break'
     if (!brklbl) error(errSyntax);
     expect_semi();
@@ -365,7 +365,7 @@ void parse_break(void) {
     emit_jp(brklbl);
 }
 
-void parse_continue(void) {
+void parse_continue(void) MYCC {
     get_token(); // skip 'continue'
     if (!contlbl) error(errSyntax);
     expect_semi();
@@ -373,21 +373,21 @@ void parse_continue(void) {
     emit_jp(contlbl);
 }
 
-void parse_putc(void) {
+void parse_putc(void) MYCC {
     parse_onearg(); // (expr)
     expect_semi();
 
     emit_rtl("putc");
 }
 
-void parse_puts(void) {
+void parse_puts(void) MYCC {
     parse_onearg(); // (expr)
     expect_semi();
 
     emit_rtl("puts");   
 }
 
-void parse_out(void) {
+void parse_out(void) MYCC {
     get_token(); // skip 'out'
     expect_LParen();
    
@@ -401,7 +401,7 @@ void parse_out(void) {
     expect_semi();
 }
 
-void parse_nextreg(void) {
+void parse_nextreg(void) MYCC {
     get_token(); // skip 'nextreg'
     expect_LParen();
     
@@ -420,7 +420,7 @@ void parse_nextreg(void) {
     expect_semi();    
 }
 
-void parse_asm(int asmcol) {
+void parse_asm(int asmcol) MYCC {
     if (asmcol == 0) asmcol = token_col;
     get_token(); // skip 'asm'
     expect_LBrace();
@@ -450,7 +450,7 @@ void parse_asm(int asmcol) {
     expect_RBrace();    
 }
 
-void parse_type(TYPEREC *type) {
+void parse_type(TYPEREC *type) MYCC {
     switch (tok) {
         case tokVoid: type->basetype = VOID; break;
         case tokChar: type->basetype = CHAR; break;
@@ -488,7 +488,7 @@ void parse_type(TYPEREC *type) {
     }
 }
 
-static void clean_stack(int16_t bytes) {
+static void clean_stack(int16_t bytes) MYCC {
     if (!bytes) return;
     
     if (bytes < 8) {
@@ -510,7 +510,7 @@ static void clean_stack(int16_t bytes) {
     }
 }
 
-void parse_funccall(SYMBOL* sym) {
+void parse_funccall(SYMBOL* sym) MYCC {
     get_token(); // skip '('
     uint8_t argcount = 0;
     while (tok != tokRParen) {
@@ -527,7 +527,7 @@ void parse_funccall(SYMBOL* sym) {
     clean_stack(sym->offset * 2);
 }
 
-void parse_return(void) {
+void parse_return(void) MYCC {
     get_token(); // skip 'return';
     if (tok != tokSemi) {
         parse_expr(0);
@@ -536,7 +536,7 @@ void parse_return(void) {
     emit_jp(retlbl);
 }
 
-void parse_funcdecl(TYPEREC rettype, const char* name) {
+void parse_funcdecl(TYPEREC rettype, const char* name) MYCC {
     get_token(); // skip '('
 
     TYPEREC argtype;
@@ -612,7 +612,7 @@ void parse_funcdecl(TYPEREC rettype, const char* name) {
     }
 }
 
-void parse_org(void) {
+void parse_org(void) MYCC {
     get_token(); // skip 'org'
     if (token_type != ttNumber) error(errSyntax);
     emit_org(intval);
@@ -620,7 +620,7 @@ void parse_org(void) {
     expect_semi();
 }
 
-void parse_bank(void) {
+void parse_bank(void) MYCC {
     if (inbank) error(errSyntax);
 
     inbank = 1;
@@ -651,7 +651,7 @@ SYMBOL* declloc(TYPEREC type, SYM_CLASS klass, const char* name, int16_t offset)
     return addloc(name, klass, type, offset);
 }
 
-void compile(const char *filename, const char *asmfilename) {
+void compile(const char *filename, const char *asmfilename) MYCC {
     if (!asm_open(asmfilename)) {
         src_close();
         printf("can't create '%s'", asmfilename);

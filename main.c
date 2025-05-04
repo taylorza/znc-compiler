@@ -3,9 +3,9 @@
 uint8_t old_speed = 255;
 uint8_t old_border = 7;
 
-void show_banner(void);
-void show_help(const char *msg);
-void cleanup(void);
+void show_banner(void) MYCC;
+void show_help(const char *msg) MYCC;
+void cleanup(void) MYCC;
 
 int main(unsigned int argc, unsigned char **argv) { 
     show_banner();
@@ -35,7 +35,7 @@ int main(unsigned int argc, unsigned char **argv) {
     return 0;
 }
 
-void cleanup(void) {
+void cleanup(void) MYCC {
     src_closeall();
     asm_close();
 
@@ -45,11 +45,11 @@ void cleanup(void) {
 #endif
 }
 
-void show_banner(void) {
+void show_banner(void) MYCC {
     printf("ZNC Compiler v0.1 (c)2025\n\n");
 }
 
-void show_help(const char *msg) {    
+void show_help(const char *msg) MYCC {    
     printf(
         "%s\n\n"
         "Usage:\n"

@@ -285,7 +285,7 @@ RTLREC rtltbl[] = {
     }
 };
 
-void emit_code(const char* code) {
+void emit_code(const char* code) MYCC {
     const char* p = code;
     while (*p) {
         emit_ch(*p++);
@@ -293,7 +293,7 @@ void emit_code(const char* code) {
     emit_nl();
 }
 
-uint8_t inc_rtl(const char* fn) {
+uint8_t inc_rtl(const char* fn) MYCC {
     char depname[16] = { 0 };
     for (uint8_t i = 0; i < sizeof(rtltbl) / sizeof(RTLREC); ++i) {
         RTLREC *const rtl = &rtltbl[i];
@@ -323,7 +323,7 @@ uint8_t inc_rtl(const char* fn) {
     return 0;
 }
 
-void dump_rtl(void) {
+void dump_rtl(void) MYCC {
 #if __ZXNEXT
     //printf("\nGen RTL");
 #endif

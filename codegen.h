@@ -1,74 +1,74 @@
 #ifndef CODEGEN_H_
 #define CODEGEN_H_
 
-uint8_t asm_open(const char *asmfilename);
-void asm_close(void);
+uint8_t asm_open(const char *asmfilename) MYCC;
+void asm_close(void) MYCC;
 
-void asm_putc(char c);
+void asm_putc(char c) MYCC;
 
-void emit_nl(void);
+void emit_nl(void) MYCC;
 
-uint16_t newlbl(void);
+uint16_t newlbl(void) MYCC;
 
-void emit_str(const char* fmt, ...);
-void emit_strln(const char* fmt, ...);
+void emit_str(const char* fmt, ...) MYCC;
+void emit_strln(const char* fmt, ...) MYCC;
 
-void emit_lbl(uint16_t lbl);
-void emit_lblref(uint16_t lbl);
+void emit_lbl(uint16_t lbl) MYCC;
+void emit_lblref(uint16_t lbl) MYCC;
 
-void emit_strref(uint16_t id);
+void emit_strref(uint16_t id) MYCC;
 
-void emit_ch(char c);
+void emit_ch(char c) MYCC;
 
-void emit_instr(const char* fmt, ...);
-void emit_instrln(const char* fmt, ...);
+void emit_instr(const char* fmt, ...) MYCC;
+void emit_instrln(const char* fmt, ...) MYCC;
 
-void emit_n(uint16_t n);
+void emit_n(uint16_t n) MYCC;
 
-void emit_ld_immed(void);
-void emit_ldbc_immed(void);
+void emit_ld_immed(void) MYCC;
+void emit_ldbc_immed(void) MYCC;
 
-void emit_push(void);
+void emit_push(void) MYCC;
 
-void emit_pop(void);
+void emit_pop(void) MYCC;
 
-void emit_swap(void);
+void emit_swap(void) MYCC;
 
-void emit_add16(void);
+void emit_add16(void) MYCC;
 
-void emit_sub16(void);
+void emit_sub16(void) MYCC;
 
-void emit_rtl(const char* name);
-void emit_call(const char *name);
-void emit_callsym(SYMBOL* sym);
-void emit_ret(void);
-void emit_jp(uint16_t lbl);
-void emit_jp_true(uint16_t lbl);
-void emit_jp_false(uint16_t lbl);
+void emit_rtl(const char* name) MYCC;
+void emit_call(const char *name) MYCC;
+void emit_callsym(SYMBOL* sym) MYCC;
+void emit_ret(void) MYCC;
+void emit_jp(uint16_t lbl) MYCC;
+void emit_jp_true(uint16_t lbl) MYCC;
+void emit_jp_false(uint16_t lbl) MYCC;
 
-void emit_sname(const char* name);
+void emit_sname(const char* name) MYCC;
 
-void emit_ld_symval(SYMBOL* sym);
-void emit_ld_symaddr(SYMBOL* sym);
-void emit_store_sym(SYMBOL* sym);
-void emit_store(TYPEREC typ);
-void emit_load(TYPEREC typ);
+void emit_ld_symval(SYMBOL* sym) MYCC;
+void emit_ld_symaddr(SYMBOL* sym) MYCC;
+void emit_store_sym(SYMBOL* sym) MYCC;
+void emit_store(TYPEREC typ) MYCC;
+void emit_load(TYPEREC typ) MYCC;
 
-uint16_t emit_alloclocals(void);
-void emit_lblequ16(uint16_t lbl, uint16_t value);
+uint16_t emit_alloclocals(void) MYCC;
+void emit_lblequ16(uint16_t lbl, uint16_t value) MYCC;
 
-void emit_nreg_immed(uint8_t reg, uint8_t val);
-void emit_nreg_A(uint8_t reg);
+void emit_nreg_immed(uint8_t reg, uint8_t val) MYCC;
+void emit_nreg_A(uint8_t reg) MYCC;
 
-void emit_frame_prologue(void);
-void emit_frame_epilogue(void);
+void emit_frame_prologue(void) MYCC;
+void emit_frame_epilogue(void) MYCC;
 
-void emit_neg(void);
-void emit_mul2(void);
+void emit_neg(void) MYCC;
+void emit_mul2(void) MYCC;
 
-void emit_org(uint16_t address);
-void emit_bank(uint8_t bank16, uint16_t offset);
-void emit_output(const char* filename, TOKEN outputTok);
-void emit_nex(const char* filename, uint16_t start, uint16_t stack, uint16_t stacksize);
+void emit_org(uint16_t address) MYCC;
+void emit_bank(uint8_t bank16, uint16_t offset) MYCC;
+void emit_output(const char* filename, TOKEN outputTok) MYCC;
+void emit_nex(const char* filename, uint16_t start, uint16_t stack, uint16_t stacksize) MYCC;
 
 #endif //CODEGEN_H_

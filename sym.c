@@ -10,27 +10,27 @@ uint16_t lastgbl = 0;
 uint16_t lastloc = MAX_SYMBOLS;
 uint16_t scopecount = 0; // nested scopes
 
-uint16_t type_size(const TYPEREC* type) {
+uint16_t type_size(const TYPEREC* type) MYCC {
     if (is_array(type)) {
         return (-type->dim) * (type->basetype == INT ? 2 : 1);
     }
     return 2;
 }
 
-uint8_t is_array(const TYPEREC* type) { return type->dim < 0; }
-uint8_t is_ptr(const TYPEREC* type) { return type->dim == 0; }
-uint8_t is_void(const TYPEREC* type) { return (type->basetype & 0xff) == VOID; }
-uint8_t is_char(const TYPEREC* type) { return (type->basetype & 0xff) == CHAR; }
-uint8_t is_int(const TYPEREC* type) { return (type->basetype & 0xff) == INT; }
-uint8_t is_string(const TYPEREC* type) { return (type->basetype & 0xff) == STRING; }
+uint8_t is_array(const TYPEREC* type) MYCC { return type->dim < 0; }
+uint8_t is_ptr(const TYPEREC* type) MYCC { return type->dim == 0; }
+uint8_t is_void(const TYPEREC* type) MYCC { return (type->basetype & 0xff) == VOID; }
+uint8_t is_char(const TYPEREC* type) MYCC { return (type->basetype & 0xff) == CHAR; }
+uint8_t is_int(const TYPEREC* type) MYCC { return (type->basetype & 0xff) == INT; }
+uint8_t is_string(const TYPEREC* type) MYCC { return (type->basetype & 0xff) == STRING; }
 
-uint8_t is_func_or_proto(const SYMBOL* sym) { return sym->klass == FUNCTION || sym->klass == FUNCTION_PROTO; }
+uint8_t is_func_or_proto(const SYMBOL* sym) MYCC { return sym->klass == FUNCTION || sym->klass == FUNCTION_PROTO; }
 
-void make_ptr(TYPEREC* type) { type->basetype &= 0xff;  type->dim = 0; }
-void make_scalar(TYPEREC* type) { type->basetype &= 0xff; type->dim = 1; }
-void make_array(TYPEREC* type, uint16_t size) { type->basetype &= 0xff;  type->dim = -size; }
+void make_ptr(TYPEREC* type) MYCC { type->basetype &= 0xff;  type->dim = 0; }
+void make_scalar(TYPEREC* type) MYCC { type->basetype &= 0xff; type->dim = 1; }
+void make_array(TYPEREC* type, uint16_t size) MYCC { type->basetype &= 0xff;  type->dim = -size; }
 
-SYMBOL* findglb(const char *name) {
+SYMBOL* findglb(const char *name) MYCC {
     for (uint16_t i=0; i < lastgbl; i++) {
         if (strcmp(name, symtab[i].name) == 0) {
             return &symtab[i];
@@ -39,7 +39,7 @@ SYMBOL* findglb(const char *name) {
     return NULL;
 }
 
-SYMBOL* findloc(const char *name) {
+SYMBOL* findloc(const char *name) MYCC {
     for (uint16_t i=lastloc; i < MAX_SYMBOLS; ++i) {
         if (strcmp(name, symtab[i].name) == 0) {
             return &symtab[i];
@@ -48,7 +48,7 @@ SYMBOL* findloc(const char *name) {
     return NULL;
 }
 
-SYMBOL* lookupIdent(const char* name) {
+SYMBOL* lookupIdent(const char* name) MYCC {
     SYMBOL* sym;
 
     sym = findloc(name);
@@ -60,7 +60,7 @@ SYMBOL* lookupIdent(const char* name) {
     return NULL;
 }
 
-SYMBOL* addglb(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) {
+SYMBOL* addglb(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC {
     SYMBOL *sym = findglb(name);
     if (sym) return sym;
 
@@ -79,7 +79,7 @@ SYMBOL* addglb(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) {
     return sym;
 }
 
-SYMBOL* addloc(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) {
+SYMBOL* addloc(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC {
     SYMBOL *sym = findloc(name);
     if (sym) return sym;
 
@@ -97,21 +97,21 @@ SYMBOL* addloc(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) {
     return sym;
 }
 
-uint16_t push_frame(void) {
+uint16_t push_frame(void) MYCC {
     ++scopecount;
     return lastloc;
 }
 
-void pop_frame(uint16_t frame) {
+void pop_frame(uint16_t frame) MYCC {
     --scopecount;
     lastloc = frame;
 }
 
-uint8_t is_scoped(void) {
+uint8_t is_scoped(void) MYCC {
     return scopecount != 0;
 }
 
-void dump_globals(void) {
+void dump_globals(void) MYCC {
     for (uint16_t i = 0; i < lastgbl; ++i) {
         SYMBOL* sym = &symtab[i];
         if (sym->klass == FUNCTION_PROTO) error(errNotDefined_s, sym->name);

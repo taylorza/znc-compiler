@@ -57,7 +57,7 @@ static TOKEN lookup_keyword(const char* ident) {
     return tokNone;
 }
 
-static uint8_t is_base_digit(char c, uint8_t base) {
+static uint8_t is_base_digit(char c, uint8_t base) MYCC {
     static char digits[] = "0123456789abcdef";
     c = tolower(c);
     for (uint8_t i = 0; i < base; ++i) {
@@ -66,7 +66,7 @@ static uint8_t is_base_digit(char c, uint8_t base) {
     return 255;
 }
 
-static uint8_t src_read(void) {
+static uint8_t src_read(void) MYCC {
     SOURCEPOS *src = &loc[fileid];
     errno = 0;
 #ifdef __ZXNEXT
@@ -80,7 +80,7 @@ static uint8_t src_read(void) {
     return errno == 0;
 }
 
-uint8_t src_open(const char* filename) {
+uint8_t src_open(const char* filename) MYCC {
     if (fileid + 1 == MAX_NEST_FILE) return 0;
 
     errno = 0;
@@ -102,7 +102,7 @@ uint8_t src_open(const char* filename) {
     return src_read();
 }
 
-void src_close(void) {
+void src_close(void) MYCC {
     SOURCEPOS *src = &loc[fileid--];
 #ifdef __ZXNEXT
     esxdos_f_close(src->handle);
@@ -115,15 +115,15 @@ void src_close(void) {
     code = loc[fileid].buf + loc[fileid].ofs;
 }
 
-void src_closeall(void) {
+void src_closeall(void) MYCC {
     while (fileid != 255) src_close();
 }
 
-static uint8_t isws(char c) {
+static uint8_t isws(char c) MYCC {
     return (c == ' ');
 }
 
-static char gnc(void) {
+static char gnc(void) MYCC {
     char c = *code;
     if (c) {
         ++code;
@@ -136,13 +136,13 @@ static char gnc(void) {
     return c;
 }
 
-static char ch(void) {
+static char ch(void) MYCC {
     if (!*code) 
         return gnc();
     return *code;
 }
 
-static void skipws(void) {
+static void skipws(void) MYCC {
     char c;
     uint8_t nl_seen = 0;
     while ((c = ch()) && c == ' ' || c == '\t' || c == '\r' || c == '\n') {
@@ -163,7 +163,7 @@ static void skipws(void) {
     }
 }
 
-static uint8_t escape(void) {
+static uint8_t escape(void) MYCC {
     char c = 0;
     gnc(); // skip '\'
     switch (ch()) {
@@ -188,7 +188,7 @@ static uint8_t escape(void) {
     return c;
 }
 
-TOKEN_TYPE get_token(void) {
+TOKEN_TYPE get_token(void) MYCC {
     char *temp;
 get_token_start:
     temp = &token[0];
@@ -422,7 +422,7 @@ get_token_start:
     return (token_type = ttError);
 }
 
-void expect(TOKEN t, char ch) {
+void expect(TOKEN t, char ch) MYCC {
     if (tok == t) {
         get_token();
     } else {
@@ -430,26 +430,26 @@ void expect(TOKEN t, char ch) {
     }
 }
 
-void expect_semi(void) {
+void expect_semi(void) MYCC {
     expect(tokSemi, ';');
 }
 
-void expect_comma(void) {
+void expect_comma(void) MYCC {
     expect(tokComma, ',');
 }
 
-void expect_LParen(void) {
+void expect_LParen(void) MYCC {
     expect(tokLParen, '(');
 }
 
-void expect_RParen(void) {
+void expect_RParen(void) MYCC {
     expect(tokRParen, ')');
 }
 
-void expect_LBrace(void) {
+void expect_LBrace(void) MYCC {
     expect(tokLBrace, '{');
 }
 
-void expect_RBrace(void) {
+void expect_RBrace(void) MYCC {
     expect(tokRBrace, '}');
 }
