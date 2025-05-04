@@ -520,7 +520,7 @@ void parse_funccall(SYMBOL* sym) {
         if (tok != tokComma) break;
         get_token(); // skip ','
     }
-    if (argcount != sym->offset) error(errArgMismatch);
+    if (is_func_or_proto(sym) && argcount != sym->offset) error(errArgMismatch);
     expect_RParen();
 
     emit_callsym(sym);
