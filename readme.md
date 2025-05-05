@@ -30,6 +30,7 @@ The compiler includes a suite of tools:
 * [ZNC - The compiler](https://github.com/taylorza/znc-compiler)
 * [ZOPT - A peephole optimizer](https://github.com/taylorza/zopt)
 * [ASM - Assembler](https://taylorza.itch.io/nextbasic-inline-assembler)
+* [ZIDE - Front-end driver](https://github.com/taylorza/znc-compiler)
 
 [**Download: ZNC COMPILER**](https://taylorza.itch.io/znc-compiler)
 
