@@ -8,7 +8,7 @@ ASM     = z80asm
 MAX_ALLOCS = 200000
 CFLAGS = -m -c -clib=sdcc_iy -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLOCS) -pragma-include:zpragma.inc
 AFLAGS =
-LFLAGS = -m -startup=30 -clib=sdcc_iy -subtype=dotn -SO3 --max-allocs-per-node$(MAX_ALLOCS) -pragma-include:zpragma.inc -create-app
+LFLAGS = -m -startup=30 -clib=sdcc_iy -subtype=dotn -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLOCS) -pragma-include:zpragma.inc -create-app
 
 SOURCES = codegen.c compiler.c dataarea.c error.c expr.c main.c rtl.c scanner.c strtbl.c sym.c util.c
 

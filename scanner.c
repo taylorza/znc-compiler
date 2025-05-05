@@ -422,7 +422,7 @@ get_token_start:
     return (token_type = ttError);
 }
 
-void expect(TOKEN t, char ch) MYCC {
+void expect(TOKEN t, char ch) {
     if (tok == t) {
         get_token();
     } else {

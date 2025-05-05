@@ -11,8 +11,5 @@
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/sprite.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/string.znc /zdev/
 
-%1/../../emulator/hdfmonkey get %1/../../sdcard/tbblue-dev.sd /zdev/zncdemo.txt tests/zncdemo.txt
 %1/../../emulator/hdfmonkey get %1/../../sdcard/tbblue-dev.sd /zdev/zncdemo.bas tests/zncdemo.bas
-
-
-
+%1/../../emulator/hdfmonkey get %1/../../sdcard/tbblue-dev.sd /zdev/zncdemo.bas tests/zide.bas

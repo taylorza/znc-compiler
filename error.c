@@ -3,7 +3,7 @@
 #include "znc.h"
 
 int errcnt = 0;
-void error(ERROR err, ...) MYCC {
+void error(ERROR err, ...) {
     static const char* errmsg[] = {
         "Syntax",
         "Expected '%c'",
