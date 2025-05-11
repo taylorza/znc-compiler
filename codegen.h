@@ -74,4 +74,6 @@ void emit_output(const char* filename, TOKEN outputTok) MYCC;
 void emit_nex(const char* filename, uint16_t start, uint16_t stack, uint16_t stacksize) MYCC;
 void emit_ld_const(uint16_t value) MYCC;
 
+void emit_zopt(void);
+
 #endif //CODEGEN_H_

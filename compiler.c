@@ -485,7 +485,11 @@ void parse_asm(int asmcol) MYCC {
             lasttok = tok; 
             if (tok == tokNumber) {
                 emit_n(intval);
-            } else {
+            }
+            else if (token_type == ttString) {
+                emit_str("\"%s\"",token);
+            }
+            else {
                 emit_str(token);
             }
             get_token();                        
@@ -678,7 +682,7 @@ void parse_bank(void) MYCC {
 
     EXPR_RESULT bankid_result = parse_expr_delayconst(0);
     if (!is_const(&bankid_result.type)) error_expect_const();
-    if (bankid_result.value < 0 || bankid_result.value > 255) error(errInvalid_s, "bank");
+    if (bankid_result.value > 255) error(errInvalid_s, "bank");
     bankid = (uint8_t)bankid_result.value;
     get_token(); // skip bankid
     if (tok == tokComma) {

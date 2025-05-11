@@ -422,3 +422,6 @@ void emit_nex(const char* filename, uint16_t start, uint16_t stack, uint16_t sta
     emit_lblref(stack);
 }
 
+void emit_zopt(void) {
+    emit_strln(";#ZOPT");
+}

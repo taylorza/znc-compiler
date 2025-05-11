@@ -1,0 +1,143 @@
+#ifndef FILEIO__
+const byte FILEIO__=1;
+
+byte errno=0;
+
+const byte F_OPEN=0x9a;
+const byte M_READ=1;
+const byte M_WRITE=2;
+const byte M_EXIST=0;
+const byte M_CREATE=8;
+const byte M_NOEXIST=4;
+const byte M_TRUNC=12;
+const byte M_HDR=64;
+
+byte fopen(char *filename, byte mode) __asm__ {
+  push ix
+  ld ix,0
+  add ix,sp
+
+  xor a
+  ld (_errno),a  
+  
+  ld a,'*'
+  ld b,(ix+4) ;mode
+  
+  ld h,(ix+7) ;filename
+  ld l,(ix+6)
+  
+  if !__DOT
+    push hl
+    pop ix
+  endif
+ 
+  rst 0x08
+  db 0x9a ;F_OPEN
+  
+  jr nc,.exit
+  ld (_errno),a
+  ld a,0xff
+  
+.exit
+  ld h,0
+  ld l,a
+  pop ix
+  ret      
+}
+
+byte fread(byte handle, char *buffer, int len) __asm__ {
+  push ix
+  ld ix,0
+  add ix,sp
+
+  xor a
+  ld (_errno),a  
+  
+  ld a,(ix+8) ;handle
+  
+  ld h,(ix+7) ;buffer
+  ld l,(ix+6)
+  
+  ld b,(ix+5) ;len
+  ld c,(ix+4)
+  
+  if !__DOT
+    push hl
+    pop ix
+  endif
+   
+  rst 0x08
+  db 0x9d ;F_READ
+  
+  ld h,b ;HL = bytes read
+  ld l,c
+  
+  jr nc,.exit
+  ld (_errno),a
+  ld hl,-1
+  
+.exit
+  pop ix
+  ret      
+}
+
+byte fwrite(byte handle, char *buffer, int len) __asm__ {
+  push ix
+  ld ix,0
+  add ix,sp
+
+  xor a
+  ld (_errno),a  
+  
+  ld a,(ix+8) ;handle
+  
+  ld h,(ix+7) ;buffer
+  ld l,(ix+6)
+  
+  ld b,(ix+5) ;len
+  ld c,(ix+4)
+  
+  if !__DOT
+    push hl
+    pop ix
+  endif
+ 
+  rst 0x08
+  db 0x9e ;F_WRITE
+  
+  ld h,b ;HL = bytes read
+  ld l,c
+  
+  jr nc,.exit
+  ld (_errno),a
+  ld hl,-1
+  
+.exit
+  pop ix
+  ret      
+}
+
+byte fclose(byte handle) __asm__ {
+  push ix
+  ld ix,0
+  add ix,sp
+
+  xor a
+  ld (_errno),a  
+  
+  ld a,(ix+4) ;handle
+   
+  rst 0x08
+  db 0x9b ;F_CLOSE
+  
+  jr nc,.exit
+  ld (_errno),a
+  
+.exit
+  ld h,0
+  ld l,a
+  pop ix
+  ret      
+}
+#endif
+

@@ -1,3 +1,6 @@
+#ifndef RND__
+const byte RND__=1;
+
 // John Metcalf http://www.retroprogramming.com/2017/07/xorshift-pseudorandom-numbers-in-z80.html
 int rnd() __asm__ {
 .seed+1
@@ -48,3 +51,5 @@ _
 .keepEnabled
     ret
 }
+
+#endif

@@ -242,6 +242,11 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
         case tokStar:
             get_token();    // skip '*'
             factor_result = parse_factor(1);
+            if (is_const(&factor_result.type)) {
+                emit_ld_const(factor_result.value);
+                factor_result.type.basetype = base_type(&factor_result.type);
+                make_ptr(&factor_result.type);
+            }
             if (tok == tokAssign) {
                 parse_assign(0, NULL, 0, factor_result.type);
             }
@@ -350,25 +355,24 @@ void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ
 
         if (tok == tokLBrace) {
             get_token(); // skip '{'
-
-            for (;;) {
-                if (tok == tokNumber) {
-                    emit_instrln("ld (hl),%d", intval);
-                    if (typ.basetype == INT) {
+            for (;tok != tokEOS && tok != tokRBrace;) {
+                emit_zopt();
+                emit_push();
+                EXPR_RESULT element = parse_expr_delayconst(0);
+                emit_pop();
+                emit_swap();
+                if (is_const(&element.type)) {                    
+                    emit_instrln("ld (hl),%d", element.value & 0xff);
+                    if (typ.basetype == INT){
                         emit_instrln("inc hl");
-                        emit_instrln("ld (hl),%d>>8", intval);
+                        emit_instrln("ld (hl),%d", (element.value>>8) & 0xff);
                     }
-                    get_token(); // skip number
-                }
-                else {
-                    emit_push();
-                    parse_expr(0);
-                    emit_swap(); // DE = value
-                    emit_pop();
+                } else {
+                    
                     emit_instrln("ld (hl),e");
                     if (typ.basetype == INT) {
                         emit_instrln("inc hl");
-                        emit_instrln("ld (hl), d", intval);
+                        emit_instrln("ld (hl), d");
                     }
                 }
                 if (tok != tokComma) break;

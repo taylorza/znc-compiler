@@ -1,3 +1,6 @@
+#ifndef STRING__
+const byte STRING__=1;
+
 char* strcpy(char *dst, char *src) __asm__ {
   push ix
   ld ix,0
@@ -39,3 +42,4 @@ int strlen(char *s) __asm__ {
   pop ix
   ret
 }
+#endif

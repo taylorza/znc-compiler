@@ -1,3 +1,6 @@
+#ifndef MEMORY__
+const byte MEMORY__=1;
+
 void memcpy(void *dst, void *src, int len) __asm__ {
   push ix
   ld ix,0
@@ -41,3 +44,5 @@ void memset(void *dst, char b, int len) __asm__ {
   pop ix       
   ret
 }
+
+#endif

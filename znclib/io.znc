@@ -1,3 +1,6 @@
+#ifndef IO__
+const byte IO__=1;
+
 void ink(byte c) {
   putc(16);putc(c);  
 }
@@ -11,15 +14,18 @@ void gotoxy(byte x, byte y) {
 }
 
 void printnum(int n) {
-  int div=10000;
+  if (n==0) { putc('0'); return; }
+
   if (n<0) {
     putc('-');
     n=-n;
   }
+  
+  int div=10000;  
   while((n/div)==0) {
     div=div/10;
   }
-  if (!div) putc('0');
+  
   while(div) {
     putc(n/div+'0');
     n=n%div;			
@@ -48,3 +54,5 @@ checkkey
   ld l,a
   ret
 }
+
+#endif

@@ -105,7 +105,7 @@ uint8_t src_open(const char* filename) MYCC {
     src->handle = handle;
     src->line = 1;
     src->ofs = 0;
-    src->col = 0;
+    src->col = 1;
 
     return src_read();
 }

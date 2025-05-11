@@ -1,3 +1,6 @@
+#ifndef SPRITE__
+const byte SPRITE__=1;
+
 void spr_load(byte startid, byte *data, int count) __asm__ {
 _
     push ix
@@ -53,3 +56,5 @@ void spr_update(byte spriteid, byte patternid, int x, int y, byte flags) {
   nextreg(0x37,flags | ((x>>8)&1));
   nextreg(0x38,0b10000000 | (patternid & 0b00111111));
 }
+
+#endif
