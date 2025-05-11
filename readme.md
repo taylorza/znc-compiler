@@ -132,21 +132,32 @@ run
 Once the IDE is launched, you can use the highlighted hotkeys to set the various options and execute commands. 
 
 **Options:**
+
 `W` - Sets the working file, this is file that will be opened when you launch the editor with `E`
+
 `M` - Sets the main file for your project. This is the root file that the compiler will start with
 
 **Commands:**
+
 `E` - Edit the current working file
+
 `C` - Compile the main file, any files included by the main file will also be compiled
+
 `R` - Run the executable file. The first time you run, you will be prompted to select the executable file
+
 `N` - Start editing a new file
+
 `O` - Set compiler options
+
 `Q` - Exit the IDE
 
 **Compiler Options**
+
 `O` from the main screen on the IDE brings you to the Compiler options screen. From this screen you can set the following options
 
+
 `O` - Toggle compiler optimization on/off. When off the resulting code is larger and slower, but compile times are much faster
+
 `C` - Set the command line arguments passed to your application when it is run from the main screen using the run command `R`
 
 `B` - Takes you back to the previous screen in the IDE
@@ -155,7 +166,8 @@ Once the IDE is launched, you can use the highlighted hotkeys to set the various
 The file manager enables you to create shortcuts to files you use frequently, this can be handy in a multi file project.
 
 `F` - Takes you to the file manager where you can add/remove files from the slots provided.
-`0`..`9` Opens the editor and loads the corresponding file for editing
+
+`0`..`9` - Opens the editor and loads the corresponding file for editing
 
 `B` - Takes you back to the previous screen in the IDE
 
