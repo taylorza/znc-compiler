@@ -27,6 +27,7 @@ void emit_n(uint16_t n) MYCC;
 
 void emit_ld_immed(void) MYCC;
 void emit_ldbc_immed(void) MYCC;
+void emit_ldde_immed(void) MYCC;
 
 void emit_push(void) MYCC;
 
@@ -65,10 +66,12 @@ void emit_frame_epilogue(void) MYCC;
 
 void emit_neg(void) MYCC;
 void emit_mul2(void) MYCC;
+void emit_mulDE2(void) MYCC;
 
 void emit_org(uint16_t address) MYCC;
 void emit_bank(uint8_t bank16, uint16_t offset) MYCC;
 void emit_output(const char* filename, TOKEN outputTok) MYCC;
 void emit_nex(const char* filename, uint16_t start, uint16_t stack, uint16_t stacksize) MYCC;
+void emit_ld_const(uint16_t value) MYCC;
 
 #endif //CODEGEN_H_

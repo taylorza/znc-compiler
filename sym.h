@@ -2,6 +2,7 @@
 #define SYM_H_
 
 typedef enum BASE_TYPE { VOID, CHAR, INT, STRING } BASE_TYPE;
+typedef enum MOD_TYPE {CONST=128} MOD_TYPE;
 typedef enum SYM_CLASS { VARIABLE, ARGUMENT, FUNCTION, FUNCTION_PROTO } SYM_CLASS;
 typedef enum SYM_SCOPE { GLOBAL, LOCAL } SYM_SCOPE;
 
@@ -10,9 +11,9 @@ typedef struct  {
     int16_t dim; // 0-pointer, 1-scalar, <0-array
 } TYPEREC;
 
-extern TYPEREC const int_void;
-extern TYPEREC const int_type;
+extern TYPEREC const void_type;
 extern TYPEREC const char_type;
+extern TYPEREC const int_type;
 extern TYPEREC const string_type;
 
 typedef struct VALUE {
@@ -36,11 +37,16 @@ uint8_t is_char(const TYPEREC* type) MYCC;
 uint8_t is_int(const TYPEREC* type) MYCC;
 uint8_t is_string(const TYPEREC* type) MYCC;
 
+uint8_t is_const(const TYPEREC* type) MYCC;
+
 uint8_t is_func_or_proto(const SYMBOL* sym) MYCC;
 
 void make_ptr(TYPEREC* type) MYCC;
 void make_scalar(TYPEREC* type) MYCC;
 void make_array(TYPEREC* type, uint16_t size) MYCC;
+void make_const(TYPEREC* type) MYCC;
+
+BASE_TYPE base_type(TYPEREC* type) MYCC;
 
 
 SYMBOL* findglb(const char* name) MYCC;

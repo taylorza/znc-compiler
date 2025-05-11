@@ -16,6 +16,8 @@ void error(ERROR err, ...) {
         "File error",
         "Argument mismatch",
         "Definition mismatch",
+        "Invalid %s",
+        "Expected %s",
     };
     
     char buf[64];
@@ -27,4 +29,8 @@ void error(ERROR err, ...) {
     printf("%c%s(%d,%d): error: %s%c", NL, loc[fileid].filename, token_line, token_col, buf, NL);
     exit(1);
     ++errcnt;
+}
+
+void error_expect_const(void) {
+    error(errExpected_s, "constant");
 }

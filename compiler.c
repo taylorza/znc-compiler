@@ -21,6 +21,8 @@ uint16_t stack_addr;        // stack pointer address
 uint16_t stack_lbl;         // label for nex stack
 uint16_t stack_size = 256;  // stack size
 
+uint8_t hash_if_depth = 0; // depth of #if/#ifdef statements
+
 SYMBOL* declglb(TYPEREC type, SYM_CLASS klass, const char* name, int16_t value);
 SYMBOL* declloc(TYPEREC type, SYM_CLASS klass, const char* name, int16_t offset);
 
@@ -43,6 +45,7 @@ void parse_nextreg(void) MYCC;
 void parse_asm(int asmcol) MYCC;
 void parse_org(void) MYCC;
 void parse_bank(void) MYCC;
+void parse_hashif(void) MYCC;
 
 void parse_make(const char* outfilename) MYCC;
 
@@ -98,6 +101,21 @@ static void parse(const char* sourcefile, const char* outfilename, uint8_t entry
     src_close();
 }
 
+void emit_make_defines(TOKEN outputTok) {
+    TYPEREC type = { .basetype = CHAR };
+    make_const(&type);
+
+    switch (outputTok) {
+        case tokNex: declglb(type, VARIABLE, "__NEX", 1);  break;
+        case tokDot: declglb(type, VARIABLE, "__DOT", 1);  break;
+        case tokRaw: declglb(type, VARIABLE, "__RAW", 1);  break;
+    }
+
+    emit_strln("__NEX equ %d", outputTok == tokNex ? 1 : 0);
+    emit_strln("__DOT equ %d", outputTok == tokDot ? 1 : 0);
+    emit_strln("__RAW equ %d", outputTok == tokRaw ? 1 : 0);
+}
+
 void parse_make(const char *filename) MYCC {
     TOKEN outputTok = tokNone;
     get_token(); // skip 'make'
@@ -131,6 +149,8 @@ void parse_make(const char *filename) MYCC {
             error(errSyntax);
             break;
     }
+    
+    emit_make_defines(outputTok);
 }
 
 void parse_onearg(void) MYCC {
@@ -157,6 +177,7 @@ static void parse_statement_block(void) MYCC {
 
 void parse_statement(void) MYCC {
     switch (tok) {
+        case tokConst:
         case tokVoid:
         case tokChar:
         case tokInt:
@@ -181,6 +202,18 @@ void parse_statement(void) MYCC {
         case tokOrg: parse_org(); break;
         case tokBank: parse_bank(); break;
         case tokSemi: get_token(); break; // empty statement
+
+        case tokHashIf: 
+        case tokHashIfDef:
+        case tokHashIfNDef:
+            parse_hashif(); 
+            break;
+
+        case tokHashElse:
+        case tokHashEndif:
+            if (hash_if_depth == 0) error(errSyntax);
+            break;
+
         default:
             parse_expr(0);
             expect_semi();
@@ -200,7 +233,19 @@ void parse_include(void) MYCC {
 void parse_decl(void) MYCC {
     TYPEREC type;
 
+    uint8_t constdecl = 0;
+    if (tok == tokConst) {
+        constdecl = 1;
+        get_token(); // skip 'const'
+    }
+
     parse_type(&type);
+    if (constdecl) {
+        if (is_void(&type)) error(errSyntax);
+        if (is_ptr(&type)) error(errSyntax);
+        if (is_array(&type)) error(errSyntax);
+        make_const(&type);
+    }
 
     char name[MAX_IDENT_LEN + 1];
     strncpy(name, token, MAX_IDENT_LEN);
@@ -209,7 +254,7 @@ void parse_decl(void) MYCC {
     get_token(); // skip name
 
     if (tok == tokLParen) {
-        if (infunc) error(errSyntax);
+        if (infunc || constdecl) error(errSyntax);
         parse_funcdecl(type, name);
     }
     else {
@@ -235,6 +280,7 @@ void parse_decl(void) MYCC {
             if (tok == tokAssign) {
                 parse_assign(0, sym, 0, type);
             }
+            else if (constdecl) error(errSyntax);
 
             if (tok != tokComma) break;
             get_token(); // skip ','
@@ -614,8 +660,9 @@ void parse_funcdecl(TYPEREC rettype, const char* name) MYCC {
 
 void parse_org(void) MYCC {
     get_token(); // skip 'org'
-    if (token_type != ttNumber) error(errSyntax);
-    emit_org(intval);
+    EXPR_RESULT expr_result = parse_expr_delayconst(0);
+    if (!is_const(&expr_result.type)) error_expect_const();
+    emit_org(expr_result.value);
     get_token(); // skip address
     expect_semi();
 }
@@ -628,8 +675,11 @@ void parse_bank(void) MYCC {
     uint8_t bankid;
     uint16_t offset = 0;
     expect_LParen();
-    if (token_type != ttNumber) error(errSyntax);
-    bankid = (uint8_t)intval;
+
+    EXPR_RESULT bankid_result = parse_expr_delayconst(0);
+    if (!is_const(&bankid_result.type)) error_expect_const();
+    if (bankid_result.value < 0 || bankid_result.value > 255) error(errInvalid_s, "bank");
+    bankid = (uint8_t)bankid_result.value;
     get_token(); // skip bankid
     if (tok == tokComma) {
         get_token(); // skip ','
@@ -641,6 +691,52 @@ void parse_bank(void) MYCC {
     emit_bank(bankid, offset);
     parse_statement_block();
     inbank = 0;
+}
+
+void parse_conditional(uint8_t active) MYCC {
+    uint8_t current_if_depth = hash_if_depth;
+    if (active) {
+        while (tok != tokHashElse && tok != tokHashEndif && tok != tokEOS) {
+            parse_statement();
+        }
+    } else {
+        while ((current_if_depth != hash_if_depth || (tok != tokHashElse && tok != tokHashEndif)) && tok != tokEOS) {
+            if (tok == tokHashIf || tok == tokHashIfDef) {
+                ++hash_if_depth;
+            } else if (tok == tokHashEndif) {
+                if (--hash_if_depth == 0) error(errSyntax);
+            }
+            get_token();
+        }
+    }
+}
+
+void parse_hashif(void) MYCC {
+    TOKEN op = tok;
+
+    get_token(); // skip '#if' or '#ifdef' or '#ifndef'
+    
+    uint8_t active;
+    if (op == tokHashIfDef || op == tokHashIfNDef) {
+        active = lookupIdent(token) != NULL;
+        if (op == tokHashIfNDef) active = !active;
+        get_token(); // skip identifier
+    } else {
+        EXPR_RESULT expr_result = parse_expr_delayconst(0);
+        if (!is_const(&expr_result.type)) error_expect_const();
+        active = expr_result.value != 0;
+    }
+
+    ++hash_if_depth;
+    parse_conditional(active);
+    if (tok == tokHashElse) {
+        get_token(); // skip '#else'
+        parse_conditional(!active);
+    }
+    
+    if (tok != tokHashEndif) error(errSyntax);
+    --hash_if_depth;
+    get_token(); // skip '#endif'
 }
 
 SYMBOL* declglb(TYPEREC type, SYM_CLASS klass, const char* name, int16_t value) {

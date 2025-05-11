@@ -24,11 +24,16 @@ uint8_t is_char(const TYPEREC* type) MYCC { return (type->basetype & 0xff) == CH
 uint8_t is_int(const TYPEREC* type) MYCC { return (type->basetype & 0xff) == INT; }
 uint8_t is_string(const TYPEREC* type) MYCC { return (type->basetype & 0xff) == STRING; }
 
+uint8_t is_const(const TYPEREC* type) MYCC { return (type->basetype & CONST); }
+
 uint8_t is_func_or_proto(const SYMBOL* sym) MYCC { return sym->klass == FUNCTION || sym->klass == FUNCTION_PROTO; }
 
 void make_ptr(TYPEREC* type) MYCC { type->basetype &= 0xff;  type->dim = 0; }
 void make_scalar(TYPEREC* type) MYCC { type->basetype &= 0xff; type->dim = 1; }
 void make_array(TYPEREC* type, uint16_t size) MYCC { type->basetype &= 0xff;  type->dim = -size; }
+void make_const(TYPEREC* type) MYCC { type->basetype |= CONST; }
+
+BASE_TYPE base_type(TYPEREC* type) MYCC { return type->basetype & 0x7f; }
 
 SYMBOL* findglb(const char *name) MYCC {
     for (uint16_t i=0; i < lastgbl; i++) {
@@ -115,7 +120,7 @@ void dump_globals(void) MYCC {
     for (uint16_t i = 0; i < lastgbl; ++i) {
         SYMBOL* sym = &symtab[i];
         if (sym->klass == FUNCTION_PROTO) error(errNotDefined_s, sym->name);
-        if (sym->klass == FUNCTION) continue; // skip functions
+        if (sym->klass == FUNCTION || is_const(&sym->type)) continue; // skip functions and consts
         TYPEREC* ptype = &sym->type;
         emit_sname(sym->name);
         emit_ch(' ');

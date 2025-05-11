@@ -5,9 +5,15 @@
 #define TYPE_INT  2
 #define CLASS_POINTER 0x80
 
+typedef struct EXPR_RESULT {
+    TYPEREC type;
+    uint16_t value;
+} EXPR_RESULT;
+
 int8_t prec(TOKEN op) MYCC;
 
-TYPEREC parse_expr(uint8_t minprec) MYCC;
+EXPR_RESULT parse_expr(uint8_t minprec) MYCC;
+EXPR_RESULT parse_expr_delayconst(uint8_t minprec) MYCC;
 
 void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ) MYCC;
 

@@ -17,20 +17,18 @@
 #include <stdint.h>
 #include <ctype.h>
 #include <string.h>
+#include <stdarg.h>
 
 #ifdef __ZXNEXT
 #include <z80.h>
 #include <arch/zxn.h>
 #include <arch/zxn/esxdos.h>
 #include <errno.h>
+#endif
 
 #ifdef __SDCC
 #define MYCC __sdcccall(1)
 #else //!__SDCC
-#define MYCC
-#endif
-
-#else //!__ZXNEXT
 #define MYCC
 #endif
 

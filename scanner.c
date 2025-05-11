@@ -18,6 +18,7 @@ typedef struct KEYWORD {
 } KEYWORD;
 
 KEYWORD keywords[] = {
+    {"const", tokConst},
     {"void", tokVoid},
     {"char", tokChar},
     {"byte", tokChar},
@@ -48,6 +49,13 @@ KEYWORD keywords[] = {
     {"setsp", tokSetStack},
     {"org", tokOrg},
     {"bank", tokBank},
+
+    {"#if", tokHashIf},
+    {"#ifdef", tokHashIfDef},
+    {"#ifndef", tokHashIfNDef},
+    {"#else", tokHashElse},
+    {"#endif", tokHashEndif},
+   
 };
 
 static TOKEN lookup_keyword(const char* ident) {
@@ -401,7 +409,10 @@ get_token_start:
         return (token_type = ttNumber);
     }
 
-    if (isalpha(c) || c == '_') {                
+    if (isalpha(c) || c == '_' || (token_col == 1 && c == '#')) {
+        if (c == '#') {
+            *temp++ = gnc(); // skip '#'
+        }
         while (--l && (c = ch()) && (isalnum(c) || c == '_')) {
             *temp++ = gnc();
         }

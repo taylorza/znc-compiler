@@ -13,9 +13,12 @@ typedef enum ERROR {
     errFileError,
     errArgMismatch,
     errDeclMismatch,
+    errInvalid_s,
+    errExpected_s,
 } ERROR;
 
 extern int errcnt;
 void error(ERROR err, ...);
+void error_expect_const(void);
 
 #endif //ERROR_H_

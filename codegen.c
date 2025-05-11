@@ -146,6 +146,10 @@ void emit_ldbc_immed(void) MYCC {
     emit_instr("ld bc,");
 }
 
+void emit_ldde_immed(void) MYCC {
+    emit_instr("ld de,");
+}
+
 void emit_push(void) MYCC {
     emit_instrln("push hl");
 }
@@ -296,8 +300,12 @@ void emit_ld_symaddr(SYMBOL* sym) MYCC {
         emit_instrln("ld hl,%d", bp_offset);  
         emit_instrln("ld d,ixh");
         emit_instrln("ld e,ixl");
-        emit_instrln("add hl, de");
+        emit_instrln("add hl,de");
     }
+}
+
+void emit_ld_const(uint16_t value) MYCC {
+    emit_instrln("ld hl,%d", value);
 }
 
 void emit_store_sym(SYMBOL* sym) MYCC {
@@ -350,7 +358,7 @@ void emit_load(TYPEREC type) MYCC {
         emit_instrln("ld a,(hl)");
         emit_instrln("inc hl");
         emit_instrln("ld h,(hl)");
-        emit_instrln("ld l, a");
+        emit_instrln("ld l,a");
     }
 }
 
@@ -380,6 +388,11 @@ void emit_neg(void) MYCC {
 
 void emit_mul2(void) MYCC {
     emit_instrln("add hl,hl");
+}
+
+void emit_mulDE2(void) MYCC {
+    emit_instrln("ld b,2");
+    emit_instrln("bsla de,b");
 }
 
 void emit_org(uint16_t address) MYCC {

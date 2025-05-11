@@ -1,4 +1,4 @@
-## ZNC - A native compiler for the ZX Spectrum Next
+# ZNC - A native compiler for the ZX Spectrum Next
 
 ZNC is a language and compiler for the ZX Spectrum Next. The language is closely modeled after the C programming language, but does deviate in some cases where it either made the language easier to parse or in other cases where I preferred an alternate syntax.
 
@@ -118,6 +118,146 @@ while (1) {
   putc('*');
 }
 ```
+
+## Using ZIDE
+
+As an alternative to using the command line, you can use ZIDE which provides a more user friendly development environment.
+ZIDE is a NextBASIC program that can be executed from the Browser or from the command line using the following commands.
+
+```
+load "zide.bas"
+run
+```
+
+Once the IDE is launched, you can use the highlighted hotkeys to set the various options and execute commands. 
+
+**Options:**
+`W` - Sets the working file, this is file that will be opened when you launch the editor with `E`
+`M` - Sets the main file for your project. This is the root file that the compiler will start with
+
+**Commands:**
+`E` - Edit the current working file
+`C` - Compile the main file, any files included by the main file will also be compiled
+`R` - Run the executable file. The first time you run, you will be prompted to select the executable file
+`N` - Start editing a new file
+`O` - Set compiler options
+`Q` - Exit the IDE
+
+**Compiler Options**
+`O` from the main screen on the IDE brings you to the Compiler options screen. From this screen you can set the following options
+
+`O` - Toggle compiler optimization on/off. When off the resulting code is larger and slower, but compile times are much faster
+`C` - Set the command line arguments passed to your application when it is run from the main screen using the run command `R`
+
+`B` - Takes you back to the previous screen in the IDE
+
+**File Manager:**
+The file manager enables you to create shortcuts to files you use frequently, this can be handy in a multi file project.
+
+`F` - Takes you to the file manager where you can add/remove files from the slots provided.
+`0`..`9` Opens the editor and loads the corresponding file for editing
+
+`B` - Takes you back to the previous screen in the IDE
+
+# ZNC Language Reference
+The ZNC language is designed to offer a familiar C-like structure while seamlessly integrating inline Z80N assembly.
+
+## Basic Syntax
+A typical `ZNC` source file has two major parts, **directives** and **code**
+
+### Directives
+Directives generally control the code generation process
+
+#### make
+An optional directive placed at the beginning of your source file. This directive configures the specific build options. For example, what type of binary to generate at assembly time and what the binary name should be.
+
+If make is not specified, the compiled code will be assembled directly into memory. This can be useful if you want to compile ZNC code for use as inline code in your NextBASIC applications.
+
+**Syntax**
+`make <type> ["<binary name>"];`
+
+`<type>` - Specified the type of binary to create
+* dot - Creates a DOT command binary
+* nex - Creates a NEX binary
+* raw - Raw creates a raw binary with the default code address set to 0xc000 hex or 49152 decimal
+
+`["<binary name>"]` - Optionally specifies the name of the resulting binary. If not provided, the source file name is used as the base of the binary name.
+
+**Example:**
+Create a DOT command named hello in the DOT folder a the root of the current SD card.
+
+`make dot "/dot/hello"`
+
+#### org
+This directive can occur anywhere in the code, but it is a rather advanced directive. It is used to control the base address used for code generation. If the code is compiled and assembled directly to memory ie. no `make` option was specified then it also controls the memory address the code will be assembled to.
+
+**Syntax**
+`org <address>;`
+
+`<address>` - Specifies the target address for the subsequent code
+
+**Example:**
+Target code for address 0x8000
+
+`org 0x8000;`
+
+#### bank
+The `bank` directive is used to target code for specific banks. This is useful when compiling `NEX` or direct to memory binaries. Banks contain blocks of code and data.
+
+**Syntax**
+`bank <bankno> '{' <statements> '}'`
+
+`<bankno>` - The bank that the block of code will be compiled and assembled for.
+`<statements>` - The code that will be included in this bank
+
+**Example:**
+Compile code for bank 40
+
+```c
+bank 40 {
+  for(char ch='A'; ch<='Z'; ch=ch+1) {
+    putc(ch)
+  }
+}
+```
+
+### Code
+The main component of your application is the code, the instructions that the compiler will transform into executable code and data.
+
+## Data types
+The ZNC compiler supports the following data types
+
+char - Character data type 
+byte - Byte values in the range -128..127
+int  - Integer values in the range -32768..32767
+
+You can also create pointers to or arrays for each of the data types.
+
+### Pointers
+Pointers enable to you access data in memory at the address pointed to by the pointer. And integer pointer provides access to a 2 byte integer value at the target address, while a byte pointer accesses a single byte at the address pointed to by the pointer.
+
+The follow will declare a pointer that points to the ZX Spectrum ULA screen memory and writes a byte to the screen.
+
+```
+byte *screen = 0x4000; // ZX Spectrum ULA Screen address (16384 in decimal)
+*screen = 255;         // Write the value 255 to the memory address pointed to by "screen"
+```
+
+#### Pointer arithmetic 
+**TODO**
+
+### Arrays
+You can also create arrays of the base data types. For example if you wanted to store ten integers you could declare an array of integers as follows
+
+```C
+int[10] numbers;
+```
+
+#### Array access and initialization
+**TODO**
+
+### Declaring variables
+Variables can be declared at any point in the code
 
 ## Syntax (incomplete)
 ``` EBNF

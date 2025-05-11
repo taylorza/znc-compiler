@@ -58,51 +58,85 @@ int8_t prec(TOKEN op) MYCC {
     return 0;
 }
 
-TYPEREC parse_ternary(uint8_t prec) MYCC;
-TYPEREC parse_factor(uint8_t dereference) MYCC;
-TYPEREC parse_binop(TOKEN op, TYPEREC ltyp, uint8_t prec) MYCC;
+EXPR_RESULT parse_ternary(EXPR_RESULT expr_result, uint8_t prec) MYCC;
+EXPR_RESULT parse_factor(uint8_t dereference) MYCC;
+EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT ltyp, uint8_t prec) MYCC;
+EXPR_RESULT parse_expr_delayconst(uint8_t minprec) MYCC;
 
-TYPEREC parse_expr(uint8_t minprec) MYCC {
-    TYPEREC ltyp = parse_factor(0);
+EXPR_RESULT parse_expr(uint8_t minprec) MYCC {
+    EXPR_RESULT expr_result = parse_expr_delayconst(minprec);
     
+    if (is_const(&expr_result.type)) {
+        emit_ld_const(expr_result.value);
+    }
+
+    return expr_result;
+}
+
+EXPR_RESULT parse_expr_delayconst(uint8_t minprec) MYCC {
+    EXPR_RESULT expr_result = parse_factor(0);
+
     uint8_t p;
-    while((p = prec(tok)) && p && p >= minprec) {
+    while ((p = prec(tok)) && p && p >= minprec) {
         TOKEN op = tok;
         get_token(); // skip op
 
         if (op == tokCond) {
-            ltyp = parse_ternary(p);
-        } else {
-            ltyp = parse_binop(op, ltyp, p);
+            expr_result = parse_ternary(expr_result, p);
+        }
+        else {
+            expr_result = parse_binop(op, expr_result, p);
         }
     }
-    return ltyp;
+    return expr_result;
 }
 
-TYPEREC parse_ternary(uint8_t prec) MYCC {
+EXPR_RESULT parse_ternary(EXPR_RESULT expr_result, uint8_t prec) MYCC {
     uint16_t altlbl = newlbl();
     uint16_t donelbl = newlbl();
+
+    if (is_const(&expr_result.type)) {
+        emit_ld_const(expr_result.value);
+    }
     emit_jp_false(altlbl);
-    TYPEREC ptyp = parse_expr(0);  // primary expression
+    EXPR_RESULT ptyp = parse_expr(0);  // primary expression
     emit_jp(donelbl);
     expect(tokColon, ':');
     emit_lbl(altlbl);
-    TYPEREC atyp = parse_expr(prec); // alternate expresion
+    EXPR_RESULT atyp = parse_expr(prec); // alternate expresion
     emit_lbl(donelbl);
 
-    if (ptyp.basetype != atyp.basetype) error(errTypeError);
+    if (base_type(&ptyp.type) != base_type(&atyp.type)) error(errTypeError);
     
-    return ptyp;
+    expr_result.type.basetype = base_type(&ptyp.type);
+
+    return expr_result;
 }
 
-TYPEREC parse_factor(uint8_t dereference) MYCC {
+EXPR_RESULT parse_indexer(const TYPEREC *elemtype) {
+    get_token();    // skip '['
+    EXPR_RESULT index_result = parse_expr_delayconst(0);   // index expression
+    expect(tokRBrack, ']'); // skip ']'
+
+    uint8_t scaleidx = is_int(elemtype);
+    if (is_const(&index_result.type)) {
+        emit_ld_const(index_result.value + (scaleidx * index_result.value));
+    }
+    else if (scaleidx) {
+        emit_mul2();
+    }
+    return index_result;
+}
+
+EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
     SYMBOL* sym = NULL;
-    TYPEREC typ = int_type;
+    EXPR_RESULT factor_result = { .type = int_type };
     uint8_t indexed = 0;
     uint8_t neg = 0;
     uint8_t not = 0;
     uint8_t loadval = 1;
     uint16_t skiplbl;
+    uint16_t tmplbl;
     uint16_t counter = 0;
     
     while (tok == tokPlus || tok == tokMinus || tok == tokNot) {
@@ -115,15 +149,14 @@ TYPEREC parse_factor(uint8_t dereference) MYCC {
         case tokLBrace:
             get_token(); // skip '{'
             skiplbl = newlbl();
-            emit_instrln("ld hl,%c+6",'$'); // BUG?: $ is missing in literal
             emit_jp(skiplbl);
-            
+            tmplbl = newlbl();
+            emit_lbl(tmplbl);
             while (tok != tokRBrace) {
-                if (tok != tokNumber) error(errSyntax);
-                if (intval > 255) error(errSyntax);
+                EXPR_RESULT element = parse_expr_delayconst(0);
+                if (!is_const(&element.type)) error_expect_const();
                 if (counter++ > 0) emit_ch(','); else emit_instr("db ");
-                emit_n(intval);
-                get_token(); // skip number
+                emit_n(element.value);
                 if (tok == tokRBrace) break;
                 expect_comma();
                 if (counter == 8) {
@@ -134,10 +167,13 @@ TYPEREC parse_factor(uint8_t dereference) MYCC {
             if (counter) emit_nl();
             expect_RBrace();
             emit_lbl(skiplbl);
+            emit_ld_immed(); emit_lblref(tmplbl); emit_nl();
+            factor_result.type.basetype = CHAR;
+            make_ptr(&factor_result.type);
             break;
         case tokLParen:
             get_token(); // skip '('
-            typ = parse_expr(0);
+            factor_result = parse_expr_delayconst(0);
             expect_RParen();
             break;
 
@@ -150,7 +186,7 @@ TYPEREC parse_factor(uint8_t dereference) MYCC {
             emit_instrln("ld c,l");
             emit_instrln("in a,(c)");
             emit_rtl("ccsxt");
-            typ = char_type;
+            factor_result.type = char_type;
             break;
 
         case tokReadReg:
@@ -163,10 +199,11 @@ TYPEREC parse_factor(uint8_t dereference) MYCC {
             expect_RParen();            
             emit_instrln("in a,(c)");
             emit_rtl("ccsxt");
-            typ = char_type;
+            factor_result.type = char_type;
             break;
+
         case tokString:
-            typ = string_type;
+            factor_result.type = string_type;
             intval = lookupstr(token);
             emit_ld_immed(); emit_strref(intval); emit_nl();
             get_token(); // skip string
@@ -178,40 +215,35 @@ TYPEREC parse_factor(uint8_t dereference) MYCC {
             sym = lookupIdent(token);
             if (!sym) {
                 error(errNotDefined_s, token);
-                return int_type;
+                return factor_result;
             }
             get_token(); // skip identifier
-            typ = sym->type;
+            factor_result.type = sym->type;
 
             if (tok == tokLBrack) {
-                if (is_ptr(&typ)) {
+                if (is_ptr(&factor_result.type)) {
                     emit_ld_symval(sym);
-                } else if (is_array(&typ) || sym->klass == FUNCTION) {
+                } else if (is_array(&factor_result.type) || sym->klass == FUNCTION) {
                     emit_ld_symaddr(sym);
-                    typ = sym->type;
-                    make_ptr(&typ);
+                    make_ptr(&factor_result.type);
                 } else {
                     error(errSyntax);
                 }
-                get_token();    // skip '['
                 emit_push();
-                parse_expr(0);   // index expression
-                expect(tokRBrack, ']'); // skip ']'
-                if (is_int(&typ)) emit_mul2();
+                parse_indexer(&factor_result.type);
                 emit_pop();
                 emit_add16();
             } else {
                 emit_ld_symaddr(sym);                
-            }
-            typ = sym->type;
-            make_ptr(&typ);
+            }            
+            make_ptr(&factor_result.type);
             break;
 
         case tokStar:
             get_token();    // skip '*'
-            typ = parse_factor(1);
+            factor_result = parse_factor(1);
             if (tok == tokAssign) {
-                parse_assign(0, NULL, 0, typ);
+                parse_assign(0, NULL, 0, factor_result.type);
             }
             break;
 
@@ -224,24 +256,27 @@ TYPEREC parse_factor(uint8_t dereference) MYCC {
                 intval = !intval;
                 not = 0;
             }
-            emit_ld_immed();
-            emit_n(intval);
-            emit_nl();
             get_token();
-            typ = int_type;
+            factor_result.type = int_type;
+            factor_result.value = intval;
+            make_const(&factor_result.type);
             break;
                                
         case tokIdent:
             sym = lookupIdent(token);
             if (!sym) {
                 error(errNotDefined_s, token);
-                return int_type;
+                return factor_result;
             }
 
             get_token(); // skip identifier
 
-            typ = sym->type;
-            if (dereference) make_scalar(&typ);
+            factor_result.type = sym->type;
+            if (is_const(&sym->type)) {
+                factor_result.value = sym->offset;
+                return factor_result;
+            }
+            if (dereference) make_scalar(&factor_result.type);
 
             if (tok == tokLParen) {
                 parse_funccall(sym);   
@@ -249,19 +284,17 @@ TYPEREC parse_factor(uint8_t dereference) MYCC {
             }
             
             if (tok == tokLBrack) {
-                if (!is_ptr(&typ) && !is_array(&typ)) error(errSyntax);
-                get_token();    // skip '['
-                parse_expr(0);   // index expression
-                expect(tokRBrack, ']'); // skip ']'
-                if (is_int(&typ)) emit_mul2();
+                if (!is_ptr(&factor_result.type) && !is_array(&factor_result.type)) error(errSyntax);
+                parse_indexer(&factor_result.type);
+
                 dereference = 1;
                 indexed = 1;
                 emit_push(); // save index
-                make_scalar(&typ);
+                make_scalar(&factor_result.type);
             }
 
             if (tok == tokAssign) {
-                parse_assign(dereference, sym, indexed, typ);
+                parse_assign(dereference, sym, indexed, factor_result.type);
             } else {
                 if (loadval) {
                     if (is_func_or_proto(sym)) {
@@ -277,7 +310,7 @@ TYPEREC parse_factor(uint8_t dereference) MYCC {
                     emit_add16();
                 }
                 if (dereference) {
-                    emit_load(typ);
+                    emit_load(factor_result.type);
                 }
             }
             break; 
@@ -287,11 +320,18 @@ TYPEREC parse_factor(uint8_t dereference) MYCC {
     }
     if (neg) emit_neg();
     if (not) emit_rtl("ccnot");
-    return typ;
+    return factor_result;
 }
 
 void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ) MYCC {
     get_token(); // skip '='
+
+    if (sym && is_const(&sym->type)) {
+        EXPR_RESULT r = parse_expr_delayconst(0);
+        if (!is_const(&r.type)) error_expect_const();
+        sym->offset = r.value;
+        return;
+    }
 
     if (!sym) {
         // HL contains address to write to
@@ -352,128 +392,201 @@ void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ
     }
 }
 
-TYPEREC parse_binop(TOKEN op, TYPEREC ltyp, uint8_t opprec) MYCC {
-    uint8_t scaleIdx = 0;
+EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
+    uint8_t scaleL = 0;
+    uint8_t scaleR = 0;
+    
+    EXPR_RESULT r_result = { .type = void_type};
+    EXPR_RESULT short_circuit_result = { .type = int_type };
 
-    if (op == tokOr || op == tokAnd) {
+    if (op == tokOr || op == tokAnd) {   
         uint16_t short_circuit_lbl = newlbl();
-        switch (op) {
-            case tokOr:
-                emit_jp_true(short_circuit_lbl);
-                break;
-            case tokAnd:
-                emit_jp_false(short_circuit_lbl);
-                break;
+        uint8_t short_circuit = 0;
+        if (is_const(&l_result.type)) {
+            emit_ld_const(l_result.value);
+            if (op == tokOr) {
+                short_circuit = l_result.value != 0;               
+            }
+            else if (op == tokAnd) {
+                short_circuit = l_result.value == 0;                
+            }            
         }
-        parse_expr(opprec + 1);
+        
+        if (!short_circuit) {
+            switch (op) {
+                case tokOr:
+                    emit_jp_true(short_circuit_lbl);
+                    break;
+                case tokAnd:
+                    emit_jp_false(short_circuit_lbl);
+                    break;
+            }
+        } else {
+            emit_jp(short_circuit_lbl);
+        }
+        l_result = parse_expr(opprec + 1);
         emit_lbl(short_circuit_lbl);
-        return ltyp;
+
+        return short_circuit_result;
     }
 
-    emit_push();
-    TYPEREC rtyp = parse_expr(opprec + 1);
+    if (!is_const(&l_result.type)) {
+        emit_push();        
+    }
 
-    if (is_ptr(&ltyp) && is_ptr(&rtyp)) error(errSyntax); // cannot add two pointers
-    scaleIdx = (is_ptr(&ltyp) && is_int(&ltyp));
-    uint8_t pointer = is_ptr(&ltyp) || is_ptr(&rtyp);
+    r_result = parse_expr_delayconst(opprec + 1);
+
+    scaleR = (is_ptr(&l_result.type) && is_int(&l_result.type));
+    scaleL = (is_ptr(&r_result.type) && is_int(&r_result.type));
+    if (scaleL && scaleR) error(errSyntax);
+
+    uint8_t pointer = is_ptr(&l_result.type) || is_ptr(&r_result.type);
+
+    if (pointer) {
+        // Check for invalid pointer operations
+        switch(op) {
+        case tokStar:
+        case tokDiv:
+        case tokMod:
+        case tokOr:
+        case tokAnd:
+        case tokShl:
+        case tokShr:
+            error(errSyntax);
+            break;
+        }
+    }
+
+    if (is_const(&l_result.type) && is_const(&r_result.type)) {
+        switch (op) {
+            case tokLt: 
+                if (pointer) l_result.value = l_result.value < r_result.value; 
+                else l_result.value = (int16_t)l_result.value < (int16_t)r_result.value; 
+                break;
+            case tokLeq: if (pointer) l_result.value = l_result.value <= r_result.value; 
+            else l_result.value = (int16_t)l_result.value <= (int16_t)r_result.value; 
+            break;
+            case tokGt: 
+                if (pointer) l_result.value = l_result.value > r_result.value; 
+                else l_result.value = (int16_t)l_result.value > (int16_t)r_result.value; 
+                break;
+            case tokGeq: 
+                if (pointer) l_result.value = l_result.value >= r_result.value; 
+                else l_result.value = (int16_t)l_result.value >= (int16_t)r_result.value; 
+                break;
+            case tokEq: l_result.value = l_result.value == r_result.value; break;
+            case tokNeq: l_result.value = l_result.value != r_result.value; break;
+            case tokPlus: l_result.value = (l_result.value + (l_result.value * scaleL)) + (r_result.value + (r_result.value * scaleR)); break;
+            case tokMinus: l_result.value = (l_result.value + (l_result.value * scaleL)) - (r_result.value + (r_result.value * scaleR)); break;
+            case tokStar: l_result.value = l_result.value * r_result.value; break;
+            case tokDiv: l_result.value = l_result.value / r_result.value; break;
+            case tokMod: l_result.value = l_result.value % r_result.value; break;
+            case tokOr: l_result.value = l_result.value | r_result.value; break;
+            case tokAnd: l_result.value = l_result.value & r_result.value; break;
+            case tokShl: l_result.value = l_result.value << r_result.value; break;
+            case tokShr: l_result.value = l_result.value >> r_result.value; break;
+            case tokBitOr: l_result.value = l_result.value | r_result.value; break;
+            case tokBitAnd: l_result.value = l_result.value & r_result.value; break;
+            case tokBitXor: l_result.value = l_result.value ^ r_result.value; break;
+            default:
+                error(errSyntax);
+                break;
+        }        
+        return l_result;
+    } 
+    
+    if (is_const(&l_result.type)) {
+        emit_ldde_immed();
+        emit_n(l_result.value + (l_result.value * scaleL));
+        scaleL = 0;
+        emit_nl();
+        l_result.type.basetype = base_type(&l_result.type);
+    }
+    else if (is_const(&r_result.type)) {
+        emit_ld_immed();
+        emit_n((r_result.value + (r_result.value * scaleR)));
+        scaleR = 0;
+        emit_nl();
+        r_result.type.basetype = base_type(&r_result.type);
+        emit_pop();
+    } else {
+        emit_pop();
+    }
 
     switch (op) {
         case tokLt:
-            emit_pop();
             emit_rtl(pointer ? "ccult" : "cclt");
             break;
 
         case tokLeq:
-            emit_pop();
             emit_rtl(pointer ? "ccule" : "ccle");
             break;
 
         case tokGt:
-            emit_pop();
             emit_rtl(pointer ? "ccugt" : "ccgt");
             break;
 
         case tokGeq:
-            emit_pop();
             emit_rtl(pointer ? "ccuge" : "ccge");
             break;
 
         case tokEq:
-            emit_pop();
             emit_rtl("cceq");
             break;
 
         case tokNeq:
-            emit_pop();
             emit_rtl("ccne");
             break;
 
         case tokPlus:
-            if (scaleIdx) emit_mul2();
-            emit_pop();
+            if (scaleR) emit_mul2();
+            if (scaleL) emit_mulDE2();
             emit_add16();
             break;
         case tokMinus:
-            if (scaleIdx) emit_mul2();
-            emit_pop();
+            if (scaleR) emit_mul2();
+            if (scaleL) emit_mulDE2();
             emit_sub16();
             break;
         case tokStar:
-            if (pointer) error(errSyntax);
-            emit_pop();
             emit_rtl("ccmult");
             break;
         case tokDiv:
-            if (pointer) error(errSyntax);
-            emit_pop();
             emit_rtl("ccdiv");
             break;
         case tokMod:
-            if (pointer) error(errSyntax);
-            emit_pop();
             emit_rtl("ccdiv");
             emit_swap();
             break;
 
         case tokOr:
-            if (pointer) error(errSyntax);
-            emit_pop();
             emit_rtl("ccor");
             break;
 
         case tokAnd:
-            if (pointer) error(errSyntax);
-            emit_pop();
             emit_rtl("ccand");
             break;
 
         case tokShl:
-            if (pointer) error(errSyntax);
-            emit_pop();             // DE = value to shift
             emit_instrln("ld b,l");  // B  = shift count
             emit_instrln("bsla de,b");
             emit_swap();            // HL = result;
             break;
         case tokShr:
-            if (pointer) error(errSyntax);
-            emit_pop();             // DE = value to shift
             emit_instrln("ld b,l");  // B  = shift count
             emit_instrln("bsra de,b");
             emit_swap();            // HL = result;
             break;
 
         case tokBitOr:
-            emit_pop();
             emit_rtl("ccor");
             break;
 
         case tokBitAnd:
-            emit_pop();
             emit_rtl("ccand");
             break;
 
         case tokBitXor:
-            emit_pop();
             emit_rtl("ccxor");
             break;
 
@@ -481,5 +594,5 @@ TYPEREC parse_binop(TOKEN op, TYPEREC ltyp, uint8_t opprec) MYCC {
             error(errSyntax);
             break;
     }
-    return ltyp;
+    return l_result;
 }
