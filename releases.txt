@@ -1,4 +1,9 @@
-2025/05/xx - Version 0.2
+2025/05/xx - Version 0.2a
+- Added: Missing complement operator ~
+- Initial AY library
+- ZIDE added "More..." menu that includes .sync and Quit
+
+2025/05/11 - Version 0.2
 - Added: Support for const definitions
 - Added: Conditional compilation #if/#ifdef/#ifndef/#else/#endif
 - Added: __NEX, __DOT, __RAW compiler defines to determine the build target

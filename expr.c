@@ -134,14 +134,16 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
     uint8_t indexed = 0;
     uint8_t neg = 0;
     uint8_t not = 0;
+    uint8_t cmpl = 0;
     uint8_t loadval = 1;
     uint16_t skiplbl;
     uint16_t tmplbl;
     uint16_t counter = 0;
     
-    while (tok == tokPlus || tok == tokMinus || tok == tokNot) {
+    while (tok == tokPlus || tok == tokMinus || tok == tokNot || tok == tokBitNot) {
         if (tok == tokMinus) neg ^= 1;
         if (tok == tokNot) not ^= 1;
+        if (tok == tokBitNot) cmpl ^= 1;
         get_token();
     }
 
@@ -213,10 +215,8 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             get_token(); // skip '&'
             if (tok != tokIdent) error(errNotlvalue);
             sym = lookupIdent(token);
-            if (!sym) {
-                error(errNotDefined_s, token);
-                return factor_result;
-            }
+            if (!sym) error(errNotDefined_s, token);
+                
             get_token(); // skip identifier
             factor_result.type = sym->type;
 
@@ -279,6 +279,9 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             factor_result.type = sym->type;
             if (is_const(&sym->type)) {
                 factor_result.value = sym->offset;
+                if (neg) factor_result.value = -factor_result.value;
+                if (not) factor_result.value = !factor_result.value;
+                if (cmpl) factor_result.value = ~factor_result.value;
                 return factor_result;
             }
             if (dereference) make_scalar(&factor_result.type);
@@ -325,6 +328,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
     }
     if (neg) emit_neg();
     if (not) emit_rtl("ccnot");
+    if (cmpl) emit_rtl("cccom");
     return factor_result;
 }
 
