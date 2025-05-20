@@ -295,7 +295,7 @@ get_token_start:
     }
 
     // Handle single char tokens
-    if (find_char_in_str("+-*%^;,(){}[]?:", c)) {
+    if (find_char_in_str("+-*%~^;,(){}[]?:", c)) {
         *temp++ = gnc();
         *temp = '\0';
         token_type = ttDelimiter;
@@ -304,6 +304,7 @@ get_token_start:
             case '-': tok = tokMinus; break;
             case '*': tok = tokStar; break;            
             case '%': tok = tokMod; break;
+            case '~': tok = tokBitNot; break;
             case '^': tok = tokBitXor; break;
             case ';': tok = tokSemi; break;
             case ',': tok = tokComma; break;

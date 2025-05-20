@@ -1,0 +1,110 @@
+#ifndef AY__
+const byte AY__=1;
+
+const byte AY1       = 0b00000011;
+const byte AY2       = 0b00000010;
+const byte AY3       = 0b00000001;
+const byte AY_LEFT   = 0b01000000;
+const byte AY_RIGHT  = 0b00100000;
+const byte AY_STEREO = AY_LEFT | AY_RIGHT;
+
+// Enable AY Stereo
+nextreg(6, (readreg(6) & 0b11111100) | 0b00000001);
+nextreg(8, (readreg(8) & 0b11001101) | 0b00000010);
+nextreg(9, readreg(9) & 0b00011111);
+
+void ay_select(byte chip) {
+  out(0xfffd, 0b10011100 | chip);
+}
+
+void ay_wreg(byte r, byte v) {
+  out(0xfffd,r);
+  out(0xbffd,v);
+}
+
+void ay_tone(byte chan, int tone, byte volume) {
+  byte reg = chan << 1;
+  ay_wreg(reg, tone & 0xff);
+  ay_wreg(reg+1, (tone>>8) & 0xff);
+  if (volume) {
+    ay_wreg(7, 0b00111111 & ~(1<<chan));    
+  } else {
+    ay_wreg(7, 0b00111111);    
+  }
+  ay_wreg(chan+8, volume);
+}
+
+void ay_noise(byte chan, int tone, byte volume) {
+  ay_wreg(6, tone & 0b00011111);
+  if (volume) {
+    ay_wreg(7, 0b00111111 & ~(1<<(chan+3)));    
+  } else {
+    ay_wreg(7, 0b00111111);    
+  }
+  ay_wreg(chan+8, volume);    
+}
+
+void ay_envelope(byte chan, int tone, int period, byte shape) {
+  byte reg = chan << 1;
+  ay_wreg(reg, tone & 0xff);
+  ay_wreg(reg+1, (tone>>8) & 0xff);
+
+  ay_wreg(7, 0b00111111 & ~(1<<chan));
+  ay_wreg(chan+8, 0b00010000);
+  ay_wreg(11, period & 0xff);
+  ay_wreg(12, (period >> 8) & 0xff);  
+  ay_wreg(13, shape & 0x0f);
+}
+
+void ay_pgm(byte[] values) {
+  for (byte i=0;i<14;i=i+1) {
+    ay_wreg(i, values[i]);   
+  }
+}
+
+void ay_stop(byte chan) {
+  ay_wreg(chan+8, 0); 
+  ay_wreg(7, 0b00111111);
+}
+
+void ay_stopall() {
+  ay_select(AY1); ay_stop(0); ay_stop(1); ay_stop(2);
+  ay_select(AY2); ay_stop(0); ay_stop(1); ay_stop(2);
+  ay_select(AY3); ay_stop(0); ay_stop(1); ay_stop(2);
+}
+
+void ay_ping() {
+  ay_pgm({0x18,0x00,0x00,0x00,0x00,0x00,0x00,
+          0x3e,0x10,0x00,0x00,0x00,0x0f,0x00});
+}
+
+void ay_shoot() {
+  ay_pgm({0x00,0x00,0x00,0x00,0x00,0x00,0x0f,
+          0x07,0x10,0x10,0x10,0x00,0x08,0x00});
+}
+
+void ay_explode() {
+  ay_pgm({0x00,0x00,0x00,0x00,0x00,0x00,0x1f,
+          0x07,0x10,0x10,0x10,0x00,0x18,0x00});
+}
+
+byte[14] _ayeffect;
+void ay_effect(int toneA, int toneB, byte noise, int period) {
+  _ayeffect[0] = toneA & 0xff;
+  _ayeffect[1] = (toneA>>8)&0xff; 
+  _ayeffect[2] = 0x00;
+  _ayeffect[3] = 0x00; 
+  _ayeffect[4] = toneB & 0xff;
+  _ayeffect[5] = (toneB>>8)&0xff;
+  _ayeffect[6] = noise;
+  _ayeffect[7] = 0x2a;
+  _ayeffect[8] = 0x10;
+  _ayeffect[9] = 0x10;
+  _ayeffect[10] = 0x10;
+  _ayeffect[11] = period & 0xff;
+  _ayeffect[12] = (period>>8) & 0xff;
+  _ayeffect[13] = 0x00;
+  ay_pgm(_ayeffect);
+}
+
+#endif
