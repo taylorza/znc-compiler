@@ -259,6 +259,22 @@ RTLREC rtltbl[] = {
         NULL,
         FLAG_RTL_NONE
     },
+    { "ccpstr",
+        " PUSH HL"NLS
+        " LD BC,0"NLS
+        " XOR A"NLS
+        " CPIR"NLS
+        " JR NZ,.L2"NLS
+        " DEC HL"NLS
+        " DEC HL"NLS
+        " LD A,(HL)"NLS
+        " OR $80"NLS
+        " LD (HL),A"NLS
+        ".L2"NLS
+        " POP HL",
+        NULL,
+        FLAG_RTL_NONE
+    },
     { "ldcmdln",
         " LD DE,_ARGS"NLS
         " LD BC,79"NLS

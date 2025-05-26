@@ -1,4 +1,12 @@
-2025/05/xx - Version 0.2a
+2025/05/25 - Version 0.2b
+- Added: Allow return from top-level code to exit.
+         - DOT Command return int for standard DOS error and string for custom error
+- FIX: code generation for strings containing quotes
+- FIX: support constants in array declarations
+- NEWLIB: string.znc -> strcmp, strcat
+- ZIDE: Save/load last state
+
+2025/05/19 - Version 0.2a
 - Added: Missing complement operator ~
 - Initial AY library
 - ZIDE added "More..." menu that includes .sync and Quit

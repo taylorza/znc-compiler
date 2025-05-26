@@ -4,7 +4,8 @@ uint16_t retlbl = 0;        // function exit label
 uint16_t brklbl = 0;        // in scope break label
 uint16_t contlbl = 0;       // in scope continue label
 
-uint8_t emitNex = 0;        // 1 if generating a NEX file
+TOKEN tokMakeType = tokRaw; // type of make command
+
 uint8_t infunc = 0;         // 1 if parsing a function
 uint8_t inbank = 0;         // 1 if in explicit bank
 
@@ -38,6 +39,7 @@ void parse_for(void) MYCC;
 void parse_break(void) MYCC;
 void parse_continue(void) MYCC;
 void parse_return(void) MYCC;
+void parse_exit(void) MYCC;
 void parse_putc(void) MYCC; 
 void parse_puts(void) MYCC;
 void parse_out(void) MYCC;
@@ -49,7 +51,7 @@ void parse_hashif(void) MYCC;
 
 void parse_make(const char* outfilename) MYCC;
 
-void parse_onearg(void) MYCC;
+EXPR_RESULT parse_onearg(void) MYCC;
 
 static void parse(const char* sourcefile, const char* outfilename, uint8_t entrypoint) MYCC {
     if (!src_open(sourcefile)) {
@@ -72,14 +74,14 @@ static void parse(const char* sourcefile, const char* outfilename, uint8_t entry
     if (entrypoint) {
         start_lbl = newlbl();
         emit_lbl(start_lbl);
-        if (emitNex) {
+        if (tokMakeType == tokNex) {
             stack_lbl = newlbl();
             emit_instr("ld sp,");
             emit_lblref(stack_lbl); emit_nl();
         }
         localbytes = 0;       
         exit_lbl = newlbl();
-        emit_frame_prologue();
+        emit_frame_prologue(1, exit_lbl);
         top_local_lbl = emit_alloclocals();
     }
 
@@ -88,14 +90,8 @@ static void parse(const char* sourcefile, const char* outfilename, uint8_t entry
     }
 
     if (entrypoint) {
-        emit_lbl(exit_lbl);
-        emit_frame_epilogue();
-#ifdef __ZXNEXT
-        emit_instrln("xor a"); // Clear A=0 and carry for clean exit from DOT command
-        emit_ret();
-#else
-        emit_instrln("jr $");
-#endif
+        emit_instrln("xor a"); // clear A register and carry flag
+        emit_frame_epilogue(1, exit_lbl);
         emit_lblequ16(top_local_lbl, localbytes);
     }
     src_close();
@@ -117,14 +113,15 @@ void emit_make_defines(TOKEN outputTok) {
 }
 
 void parse_make(const char *filename) MYCC {
-    TOKEN outputTok = tokNone;
     get_token(); // skip 'make'
+
+    
     switch (tok) {
-        case tokNex:
-            emitNex = (tok == tokNex);
+        case tokNex:            
         case tokRaw:
-        case tokDot:         
-            outputTok = tok;            
+        case tokDot:     
+            tokMakeType = tok; // remember type of make command
+            
             get_token(); // skip output type
             if (tok == tokString) {
                 strcpy(outfilename, token);
@@ -132,32 +129,34 @@ void parse_make(const char *filename) MYCC {
             }
             else {
                 strcpy(outfilename, filename);
-                if (outputTok == tokNex) strcat(outfilename, ".nex");
+                if (tokMakeType == tokNex) strcat(outfilename, ".nex");
             }
             expect_semi(); 
             
-            if (outputTok == tokRaw || outputTok == tokDot)
-                emit_output(outfilename, outputTok);
+            if (tokMakeType == tokRaw || tokMakeType == tokDot)
+                emit_output(outfilename, tokMakeType);
             
             if (tok == tokBank) parse_bank();
-            else if (outputTok == tokNex) emit_bank(0, 0);
+            else if (tokMakeType == tokNex) emit_bank(0, 0);
 
             if (tok == tokOrg) parse_org();
-            else if (outputTok == tokNex) emit_org(0xc000);
+            else if (tokMakeType == tokNex) emit_org(0xc000);
             break;        
         default:
             error(errSyntax);
             break;
     }
     
-    emit_make_defines(outputTok);
+    emit_make_defines(tokMakeType);
 }
 
-void parse_onearg(void) MYCC {
+EXPR_RESULT parse_onearg(void) MYCC {
+    EXPR_RESULT expr;
     get_token(); // skip leading token
     expect_LParen();
-    parse_expr(0);
+    expr = parse_expr(0);
     expect_RParen();
+    return expr;
 }
 
 static void parse_statement_block(void) MYCC {
@@ -193,6 +192,7 @@ void parse_statement(void) MYCC {
         case tokBreak: parse_break(); break;
         case tokContinue: parse_continue(); break;
         case tokReturn: parse_return(); break;
+        case tokExit: parse_exit(); break;
         case tokPutc: parse_putc(); break;  
         case tokPuts: parse_puts(); break;
         case tokOut: parse_out(); break;
@@ -522,17 +522,14 @@ void parse_type(TYPEREC *type) MYCC {
         get_token(); // skip '['
         if (tok == tokRBrack) {
             make_ptr(type);
-        }
-        else if (tok != tokNumber || intval < 0) {
-            error(errSyntax);
-        }
-        else {
-            if (intval > 0) {
+        } else {
+            EXPR_RESULT dim = parse_expr_delayconst(0);
+            if (!is_const(&dim.type)) error_expect_const();
+            if (dim.value > 0) {
                 if (is_void(type)) error(errSyntax);
-                make_array(type, intval);
+                make_array(type, dim.value);
             }
-            else make_ptr(type); // 0 size array is apointer
-            get_token(); // skip dimension
+            else make_ptr(type); // 0 size array is a pointer
         }
         expect(tokRBrack, errSyntax);       
     }
@@ -577,13 +574,55 @@ void parse_funccall(SYMBOL* sym) MYCC {
     clean_stack(sym->offset * 2);
 }
 
+void do_exit(EXPR_RESULT exit_expr) {
+    switch(tokMakeType) {
+        case tokDot:                
+            if (is_void(&exit_expr.type) || (is_const(&exit_expr.type) && exit_expr.value == 0)) {
+                emit_instrln("xor a");                            
+            } else {
+                if ((is_ptr(&exit_expr.type) && is_char(&exit_expr.type)) 
+                        || is_string(&exit_expr.type)) {
+                emit_rtl("ccpstr"); // convert C string to BASIC string
+                emit_instrln("xor a");                      
+                } else {
+                    emit_instrln("ld a,l");                    
+                }
+                emit_instrln("scf");
+            }
+            break;
+        case tokRaw:
+            if (is_void(&exit_expr.type)) {
+                emit_instr("xor a");
+                emit_instrln("ld b,a");
+                emit_instrln("ld c,a");
+            } else {
+                emit_instrln("ld b,h");
+                emit_instrln("ld c,l");
+            }
+            break;
+    }
+    emit_jp(exit_lbl);
+}
+
 void parse_return(void) MYCC {
+    EXPR_RESULT expr_result = { .type = void_type };
+
     get_token(); // skip 'return';
+    
     if (tok != tokSemi) {
-        parse_expr(0);
+        expr_result = parse_expr(0);
     }
     expect_semi();
-    emit_jp(retlbl);
+    if (infunc)
+        emit_jp(retlbl);
+    else {
+        do_exit(expr_result);
+    }
+}
+
+void parse_exit(void) MYCC {
+    EXPR_RESULT expr_result = parse_onearg();
+    do_exit(expr_result);
 }
 
 void parse_funcdecl(TYPEREC rettype, const char* name) MYCC {
@@ -642,15 +681,13 @@ void parse_funcdecl(TYPEREC rettype, const char* name) MYCC {
             maxlocalcount = 0;
             bp_lastlocal = 0;
             localbytes = 0;
-            emit_frame_prologue();
+            emit_frame_prologue(0, retlbl);
             locals_lbl = emit_alloclocals();
 
             parse_statement_block();
 
-            emit_lbl(retlbl);
-            emit_frame_epilogue();
-            emit_ret();
-
+            emit_frame_epilogue(0, retlbl);
+            
             emit_lblequ16(locals_lbl, localbytes);
             localbytes = oldlocalbytes;
         }
@@ -768,7 +805,7 @@ void compile(const char *filename, const char *asmfilename) MYCC {
     dump_globals();
     dump_strings();
 
-    if (emitNex) emit_nex(outfilename, start_lbl, stack_lbl, stack_size);
+    if (tokMakeType == tokNex) emit_nex(outfilename, start_lbl, stack_lbl, stack_size);
 
     asm_close();
 }

@@ -61,8 +61,8 @@ void emit_lblequ16(uint16_t lbl, uint16_t value) MYCC;
 void emit_nreg_immed(uint8_t reg, uint8_t val) MYCC;
 void emit_nreg_A(uint8_t reg) MYCC;
 
-void emit_frame_prologue(void) MYCC;
-void emit_frame_epilogue(void) MYCC;
+void emit_frame_prologue(uint8_t toplevel, uint16_t exit_lbl) MYCC;
+void emit_frame_epilogue(uint8_t toplevel, uint16_t exit_lbl) MYCC;
 
 void emit_neg(void) MYCC;
 void emit_mul2(void) MYCC;

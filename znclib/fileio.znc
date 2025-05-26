@@ -3,7 +3,6 @@ const byte FILEIO__=1;
 
 byte errno=0;
 
-const byte F_OPEN=0x9a;
 const byte M_READ=1;
 const byte M_WRITE=2;
 const byte M_EXIST=0;

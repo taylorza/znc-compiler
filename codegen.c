@@ -371,15 +371,28 @@ void emit_nreg_A(uint8_t reg) MYCC {
     emit_instrln("nreg %d,a", reg);
 }
 
-void emit_frame_prologue(void) MYCC {
+void emit_frame_prologue(uint8_t toplevel, uint16_t exit_lbl) MYCC {
     emit_instrln("push ix");
-    emit_instrln("ld ix,0");
-    emit_instrln("add ix,sp");
+    
+    if (toplevel) {
+        emit_instrln("ld (lbl%d+1), sp", exit_lbl);
+        emit_instrln("ld ix,(lbl%d+1)", exit_lbl);
+    }
+    else {
+        emit_instrln("ld ix,0");
+        emit_instrln("add ix,sp");
+    }
 }
 
-void emit_frame_epilogue(void) MYCC {
-    emit_instrln("ld sp,ix");
+void emit_frame_epilogue(uint8_t toplevel, uint16_t exit_lbl) MYCC {
+    emit_lbl(exit_lbl);
+    if (toplevel) {
+        emit_instrln("ld sp,0");
+    } else {
+        emit_instrln("ld sp,ix");
+    }    
     emit_instrln("pop ix");
+    emit_ret();
 }
 
 void emit_neg(void) MYCC {

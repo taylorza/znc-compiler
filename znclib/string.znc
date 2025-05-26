@@ -42,4 +42,67 @@ int strlen(char *s) __asm__ {
   pop ix
   ret
 }
+
+int strcmp(char *s1, char *s2) __asm__ {
+  push ix
+  ld ix,0
+  add ix,sp
+
+  ld d,(ix+7)
+  ld e,(ix+6)
+  
+  ld h,(ix+5)
+  ld l,(ix+4) 
+
+.l
+  ld a,(de)
+  cpi
+  jr nz,.n
+  inc de
+  or a
+  jr nz,.l
+  
+  dec de
+  ld h,a
+  ld l,a
+  jr .x
+
+.n
+  dec hl
+  sub (hl)
+  ld h,a
+
+.x
+  pop ix
+  ret
+}
+
+char* strcat(char *s1, char *s2) __asm__ {
+  push ix
+  ld ix,0
+  add ix,sp
+
+  ld d,(ix+7)
+  ld e,(ix+6)
+  
+  ld h,(ix+5)
+  ld l,(ix+4) 
+ 
+  push de
+.z
+  ld a,(de)
+  or a
+  jr z,.l
+  inc de
+  jr .z
+
+.l
+  cp (hl)
+  ldi
+  jr nz,.l
+  pop hl
+
+  pop ix
+  ret
+}
 #endif

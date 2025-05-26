@@ -31,6 +31,7 @@ void dump_strings(void) MYCC {
         uint8_t find_char_in_str = 0;
         for (size_t j = 0; *literal; ++j, ++i) {
             uint8_t ch = *literal++;
+            if (ch == '"') emit_ch('"');
             if (!find_char_in_str && j > 0) emit_ch(',');
             if (ch < 32) {
                 if (find_char_in_str) 

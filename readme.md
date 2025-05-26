@@ -349,7 +349,7 @@ Variables can be declared at any point in the code
 
 (* Variable declaration: type, identifier, and optional initializer.
    Multiple variables may be declared in one statement. *)
-<vardecl>         ::= <type> <ident> [ "=" <expr> ] { "," <ident> [ "=" <expr> ] } ";"
+<vardecl>         ::= [const] <type> <ident> [ "=" <expr> ] { "," <ident> [ "=" <expr> ] } ";"
 
 (* Function definition: includes return type, name, parameter list,
    either an assembly block, or a function body. *)

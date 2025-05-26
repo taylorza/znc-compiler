@@ -30,6 +30,7 @@ KEYWORD keywords[] = {
     {"break", tokBreak},
     {"continue", tokContinue},    
     {"return", tokReturn},
+    {"exit", tokExit},
     
     {"putc", tokPutc},
     {"puts", tokPuts},
