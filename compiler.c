@@ -1,8 +1,8 @@
 #include "znc.h"
 
+#define NO_LABEL 0xFFFF     // no label defined
+
 uint16_t retlbl = 0;        // function exit label
-uint16_t brklbl = 0;        // in scope break label
-uint16_t contlbl = 0;       // in scope continue label
 
 TOKEN tokMakeType = tokRaw; // type of make command
 
@@ -32,12 +32,12 @@ void parse_funcdecl(TYPEREC rettype, const char* name) MYCC;
 
 void parse_include(void) MYCC;
 void parse_decl(void) MYCC;
-void parse_statement(void) MYCC;
-void parse_if(void) MYCC;
+void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC;
+void parse_if(uint16_t brklbl, uint16_t contlbl) MYCC;
 void parse_while(void) MYCC;
 void parse_for(void) MYCC;
-void parse_break(void) MYCC;
-void parse_continue(void) MYCC;
+void parse_break(uint16_t brklbl) MYCC;
+void parse_continue(uint16_t contlbl) MYCC;
 void parse_return(void) MYCC;
 void parse_exit(void) MYCC;
 void parse_putc(void) MYCC; 
@@ -47,7 +47,7 @@ void parse_nextreg(void) MYCC;
 void parse_asm(int asmcol) MYCC;
 void parse_org(void) MYCC;
 void parse_bank(void) MYCC;
-void parse_hashif(void) MYCC;
+void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC;
 
 void parse_make(const char* outfilename) MYCC;
 
@@ -86,7 +86,7 @@ static void parse(const char* sourcefile, const char* outfilename, uint8_t entry
     }
 
     while (tok != tokEOS) {
-        parse_statement();
+        parse_statement(NO_LABEL, NO_LABEL);
     }
 
     if (entrypoint) {
@@ -159,13 +159,13 @@ EXPR_RESULT parse_onearg(void) MYCC {
     return expr;
 }
 
-static void parse_statement_block(void) MYCC {
+static void parse_statement_block(uint16_t brklbl, uint16_t contlbl) MYCC {
     get_token(); // skip '{'
     uint16_t blockframe = push_frame();
     uint8_t old_localcount = localcount;
     uint16_t old_bp = bp_lastlocal;
     while (tok != tokEOS && tok != tokRBrace) {
-        parse_statement();
+        parse_statement(brklbl, contlbl);
     }   
     if (maxlocalcount < localcount) maxlocalcount = localcount;
     bp_lastlocal = old_bp;
@@ -174,7 +174,7 @@ static void parse_statement_block(void) MYCC {
     expect(tokRBrace, '}');
 }
 
-void parse_statement(void) MYCC {
+void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
     switch (tok) {
         case tokConst:
         case tokVoid:
@@ -184,13 +184,13 @@ void parse_statement(void) MYCC {
             break;
 
         case tokLBrace:
-            parse_statement_block();
+            parse_statement_block(brklbl, contlbl);
             break;
-        case tokIf: parse_if(); break;
+        case tokIf: parse_if(brklbl, contlbl); break;
         case tokWhile: parse_while(); break;
         case tokFor: parse_for(); break;
-        case tokBreak: parse_break(); break;
-        case tokContinue: parse_continue(); break;
+        case tokBreak: parse_break(brklbl); break;
+        case tokContinue: parse_continue(contlbl); break;
         case tokReturn: parse_return(); break;
         case tokExit: parse_exit(); break;
         case tokPutc: parse_putc(); break;  
@@ -206,7 +206,7 @@ void parse_statement(void) MYCC {
         case tokHashIf: 
         case tokHashIfDef:
         case tokHashIfNDef:
-            parse_hashif(); 
+            parse_hashif(brklbl, contlbl); 
             break;
 
         case tokHashElse:
@@ -291,7 +291,7 @@ void parse_decl(void) MYCC {
     }
 }
 
-void parse_if(void) MYCC {
+void parse_if(uint16_t brklbl, uint16_t contlbl) MYCC {
     static uint16_t lblEndIf = 0;
     uint16_t lblFalse = newlbl();
     
@@ -299,7 +299,7 @@ void parse_if(void) MYCC {
     lblEndIf = 0;
     parse_onearg(); // (expr)
     emit_jp_false(lblFalse);
-    parse_statement();
+    parse_statement(brklbl, contlbl);
 
     if (tok == tokElse) {
         get_token(); // skip 'else'
@@ -310,7 +310,7 @@ void parse_if(void) MYCC {
     
     if (lblEndIf)
     {
-        parse_statement();
+        parse_statement(brklbl, contlbl);
         if (lblEndIf) {
             emit_lbl(lblEndIf);
             lblEndIf = 0;
@@ -320,24 +320,18 @@ void parse_if(void) MYCC {
 }
 
 void parse_while(void) MYCC {
-    uint16_t old_brklbl = brklbl;
-    uint16_t old_contlbl = contlbl;
-
-    uint16_t lblCond = contlbl = newlbl();
-    uint16_t lblEndWhile = brklbl = newlbl();
+    uint16_t lblCond = newlbl();
+    uint16_t lblEndWhile = newlbl();
     
     emit_lbl(lblCond);
 
     parse_onearg(); // (expr)
 
     emit_jp_false(lblEndWhile);
-    parse_statement();
+    parse_statement(lblEndWhile, lblCond);
     emit_jp(lblCond);
 
-    emit_lbl(lblEndWhile);
-    
-    brklbl = old_brklbl;
-    contlbl = old_contlbl;
+    emit_lbl(lblEndWhile);    
 }
 
 void parse_for(void) MYCC {
@@ -347,13 +341,14 @@ void parse_for(void) MYCC {
     uint16_t blockframe = push_frame();
     uint8_t old_localcount = localcount;
 
-    uint16_t old_brklbl = brklbl;
-    uint16_t old_contlbl = contlbl;
-
-    uint16_t lblCond=65535;
-    uint16_t lblEndFor = brklbl = newlbl();
+    uint16_t lblCond=NO_LABEL;
+    uint16_t lblEndFor, brklbl;
     uint16_t lblBody = newlbl();
-    uint16_t lblPost = contlbl = 65535;
+    uint16_t lblPost, contlbl;
+
+    lblEndFor = brklbl = newlbl();
+    lblPost = contlbl = NO_LABEL;
+
 
     // parse initializer
     if (tok == tokChar || tok == tokInt) {
@@ -386,10 +381,10 @@ void parse_for(void) MYCC {
     expect_RParen();
 
     emit_lbl(lblBody);
-    parse_statement();
-    if (lblPost != 65535)
+    parse_statement(brklbl, contlbl);
+    if (lblPost != NO_LABEL)
         emit_jp(lblPost);
-    else if (lblCond != 65535)
+    else if (lblCond != NO_LABEL)
         emit_jp(lblCond);
     else
         emit_jp(lblBody);
@@ -397,25 +392,20 @@ void parse_for(void) MYCC {
 
     if (maxlocalcount < localcount) maxlocalcount = localcount;
     localcount = old_localcount;
-    pop_frame(blockframe);
-
-    brklbl = old_brklbl;
-    contlbl = old_contlbl;
+    pop_frame(blockframe);    
 }
 
-void parse_break(void) MYCC {
+void parse_break(uint16_t brklbl) MYCC {
     get_token(); // skip 'break'
-    if (!brklbl) error(errSyntax);
-    expect_semi();
-    
+    if (brklbl == NO_LABEL) error(errSyntax);
+    expect_semi();    
     emit_jp(brklbl);
 }
 
-void parse_continue(void) MYCC {
+void parse_continue(uint16_t contlbl) MYCC {
     get_token(); // skip 'continue'
-    if (!contlbl) error(errSyntax);
-    expect_semi();
-    
+    if (contlbl == NO_LABEL) error(errSyntax);
+    expect_semi();    
     emit_jp(contlbl);
 }
 
@@ -684,7 +674,7 @@ void parse_funcdecl(TYPEREC rettype, const char* name) MYCC {
             emit_frame_prologue(0, retlbl);
             locals_lbl = emit_alloclocals();
 
-            parse_statement_block();
+            parse_statement_block(NO_LABEL, NO_LABEL);
 
             emit_frame_epilogue(0, retlbl);
             
@@ -704,7 +694,6 @@ void parse_org(void) MYCC {
     EXPR_RESULT expr_result = parse_expr_delayconst(0);
     if (!is_const(&expr_result.type)) error_expect_const();
     emit_org(expr_result.value);
-    get_token(); // skip address
     expect_semi();
 }
 
@@ -721,24 +710,25 @@ void parse_bank(void) MYCC {
     if (!is_const(&bankid_result.type)) error_expect_const();
     if (bankid_result.value > 255) error(errInvalid_s, "bank");
     bankid = (uint8_t)bankid_result.value;
-    get_token(); // skip bankid
+ 
     if (tok == tokComma) {
         get_token(); // skip ','
-        if (token_type != ttNumber) error(errSyntax);
-        offset = intval;
-        get_token(); // skip offset 
+        
+        EXPR_RESULT offset_result = parse_expr_delayconst(0);
+        if (!is_const(&offset_result.type)) error_expect_const();
+        offset = offset_result.value;
     }
     expect_RParen();
     emit_bank(bankid, offset);
-    parse_statement_block();
+    parse_statement_block(NO_LABEL, NO_LABEL);
     inbank = 0;
 }
 
-void parse_conditional(uint8_t active) MYCC {
+void parse_conditional(uint8_t active, uint16_t brklbl, uint16_t contlbl) MYCC {
     uint8_t current_if_depth = hash_if_depth;
     if (active) {
         while (tok != tokHashElse && tok != tokHashEndif && tok != tokEOS) {
-            parse_statement();
+            parse_statement(brklbl, contlbl);
         }
     } else {
         while ((current_if_depth != hash_if_depth || (tok != tokHashElse && tok != tokHashEndif)) && tok != tokEOS) {
@@ -752,7 +742,7 @@ void parse_conditional(uint8_t active) MYCC {
     }
 }
 
-void parse_hashif(void) MYCC {
+void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC {
     TOKEN op = tok;
 
     get_token(); // skip '#if' or '#ifdef' or '#ifndef'
@@ -769,10 +759,10 @@ void parse_hashif(void) MYCC {
     }
 
     ++hash_if_depth;
-    parse_conditional(active);
+    parse_conditional(active, brklbl, contlbl);
     if (tok == tokHashElse) {
         get_token(); // skip '#else'
-        parse_conditional(!active);
+        parse_conditional(!active, brklbl, contlbl);
     }
     
     if (tok != tokHashEndif) error(errSyntax);

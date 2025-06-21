@@ -1,3 +1,7 @@
+2025/06/xx - Version 0.2c
+- ORG and BANK work with constants
+- Improved break/continue implementation
+
 2025/05/25 - Version 0.2b
 - Added: Allow return from top-level code to exit.
          - DOT Command return int for standard DOS error and string for custom error
