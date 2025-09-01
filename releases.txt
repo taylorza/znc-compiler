@@ -1,6 +1,11 @@
-2025/06/xx - Version 0.2c
+2025/09/01 - Version 0.2c
+- ZIDE updated to support assembling files directly
+
+2025/08/24 - Version 0.2c
 - ORG and BANK work with constants
 - Improved break/continue implementation
+- Improved performance for ZIDE screen rendering
+- Updated to latest version of ZED editor
 
 2025/05/25 - Version 0.2b
 - Added: Allow return from top-level code to exit.
