@@ -105,4 +105,63 @@ char* strcat(char *s1, char *s2) __asm__ {
   pop ix
   ret
 }
+
+char* strstr(char *s1, char *s2) __asm__ {
+  push ix
+  ld ix,0
+  add ix,sp
+
+  ld h,(ix+7)
+  ld l,(ix+6)
+  
+  ld d,(ix+5)
+  ld e,(ix+4)
+
+  ld a,(de)
+  or a
+  jr z,.ret
+
+.l1
+  ld a,(hl)
+  or a
+  jr z,.no
+
+  ld a,(de)
+  cp (hl)
+  jr nz,.next
+
+  push hl
+  push de
+  inc hl
+  inc de
+.l2
+  ld a,(de)
+  or a
+  jr z,.yes
+  
+  cp (hl)
+  jr nz,.rest
+   
+  inc hl
+  inc de
+  jr .l2
+.rest
+  pop de
+  pop hl
+.next
+  inc hl
+  jr .l1
+
+.no
+  ld hl,0
+  pop ix
+  ret
+
+.yes
+  pop de
+  pop hl
+.ret
+  pop ix
+  ret
+}
 #endif
