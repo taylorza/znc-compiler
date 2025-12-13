@@ -38,7 +38,6 @@ int main(unsigned int argc, unsigned char **argv) {
 void cleanup(void) MYCC {
     src_closeall();
     asm_close();
-
 #ifdef __ZXNEXT
     zx_border(old_border);
     ZXN_WRITE_REG(0x07, old_speed);

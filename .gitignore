@@ -1,7 +1,6 @@
 /output
 /znc.map
-/znc_CODE.bin
-/znc_MAIN.bin
+/*.bin
 znc
 
 znc.zip

@@ -129,7 +129,7 @@ EXPR_RESULT parse_indexer(const TYPEREC *elemtype) {
 }
 
 EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
-    SYMBOL* sym = NULL;
+    SYMBOL sym;
     EXPR_RESULT factor_result = { .type = int_type };
     uint8_t indexed = 0;
     uint8_t neg = 0;
@@ -215,16 +215,16 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             get_token(); // skip '&'
             if (tok != tokIdent) error(errNotlvalue);
             sym = lookupIdent(token);
-            if (!sym) error(errNotDefined_s, token);
+            if (not_defined(&sym)) error(errNotDefined_s, token);
                 
             get_token(); // skip identifier
-            factor_result.type = sym->type;
+            factor_result.type = sym.type;
 
             if (tok == tokLBrack) {
                 if (is_ptr(&factor_result.type)) {
-                    emit_ld_symval(sym);
-                } else if (is_array(&factor_result.type) || sym->klass == FUNCTION) {
-                    emit_ld_symaddr(sym);
+                    emit_ld_symval(&sym);
+                } else if (is_array(&factor_result.type) || sym.klass == FUNCTION) {
+                    emit_ld_symaddr(&sym);
                     make_ptr(&factor_result.type);
                 } else {
                     error(errSyntax);
@@ -234,7 +234,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 emit_pop();
                 emit_add16();
             } else {
-                emit_ld_symaddr(sym);                
+                emit_ld_symaddr(&sym);
             }            
             make_ptr(&factor_result.type);
             break;
@@ -269,16 +269,16 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                                
         case tokIdent:
             sym = lookupIdent(token);
-            if (!sym) {
+            if (not_defined(&sym)) {
                 error(errNotDefined_s, token);
                 return factor_result;
             }
 
             get_token(); // skip identifier
 
-            factor_result.type = sym->type;
-            if (is_const(&sym->type)) {
-                factor_result.value = sym->offset;
+            factor_result.type = sym.type;
+            if (is_const(&sym.type)) {
+                factor_result.value = sym.offset;
                 if (neg) factor_result.value = -factor_result.value;
                 if (not) factor_result.value = !factor_result.value;
                 if (cmpl) factor_result.value = ~factor_result.value;
@@ -287,7 +287,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             if (dereference) make_scalar(&factor_result.type);
 
             if (tok == tokLParen) {
-                parse_funccall(sym);   
+                parse_funccall(&sym);   
                 loadval = 0;
             }
             
@@ -302,14 +302,14 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             }
 
             if (tok == tokAssign) {
-                parse_assign(dereference, sym, indexed, factor_result.type);
+                parse_assign(dereference, &sym, indexed, factor_result.type);
             } else {
                 if (loadval) {
-                    if (is_func_or_proto(sym)) {
-                        emit_ld_immed(); emit_sname(sym->name); emit_nl();
+                    if (is_func_or_proto(&sym)) {
+                        emit_ld_immed(); emit_sname(sym.name); emit_nl();
                     }
                     else {
-                        emit_ld_symval(sym);
+                        emit_ld_symval(&sym);
                     }
                 }
                     

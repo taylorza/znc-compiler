@@ -1,10 +1,14 @@
 #include "znc.h"
 
-char strtbl[MAX_STRTBL_SIZE - 1]  = { 0 };
+#ifdef __ZXNEXT
+extern char strtbl[];
+#else
+char strtbl[MAX_STRTBL_SIZE];
+#endif
 
 size_t laststr = 0;
 
-int16_t lookupstr(const char* s) MYCC {
+int16_t far_lookupstr(const char* s) MYCC {
     for (size_t i = 0; i < laststr;) {
         const char* literal = &strtbl[i];
         if (strcmp(s, literal) == 0) {
@@ -21,15 +25,15 @@ int16_t lookupstr(const char* s) MYCC {
 }
 
 
-void dump_strings(void) MYCC {
+void far_dump_strings(void) MYCC {
     if (!laststr) return;
-    
     emit_str("str"); emit_nl();
     for (size_t i = 0; i < laststr;) {
         const char* literal = &strtbl[i];
         emit_str(" db ", i);
         uint8_t find_char_in_str = 0;
-        for (size_t j = 0; *literal; ++j, ++i) {
+        size_t j;
+        for (j = 0; *literal; ++j, ++i) {
             uint8_t ch = *literal++;
             if (ch == '"') emit_ch('"');
             if (!find_char_in_str && j > 0) emit_ch(',');
@@ -47,7 +51,7 @@ void dump_strings(void) MYCC {
         }
         ++i;
         if (find_char_in_str) emit_ch('\"');
-        if (i > 0) emit_ch(',');
+        if (j) emit_ch(',');
         emit_ch('0');
         emit_ch(NL);
     }

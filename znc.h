@@ -1,10 +1,10 @@
 #define MAX_FILENAME_LEN    64      // max filename length
 #define MAX_IDENT_LEN       14      // max identifier length
 #define MAX_NEST_DEPTH      5       // max nesting depth
-#define MAX_SYMBOLS         500     // max number of symbols
+#define MAX_SYMBOLS         700     // max number of symbols
 #define MAX_READ_BUF        16      // max file read buffer size
 #define MAX_WRITE_BUF       16      // max file write buffer size
-#define MAX_STRTBL_SIZE     2048    // max string table size
+#define MAX_STRTBL_SIZE     15360   // max string table size
 #define MAX_CASE            128     // max case statements per switch
 
 #ifdef __ZXNEXT
@@ -25,6 +25,8 @@
 #include <arch/zxn.h>
 #include <arch/zxn/esxdos.h>
 #include <errno.h>
+#else
+#include "zxn.h"
 #endif
 
 #ifdef __SDCC
@@ -38,7 +40,9 @@
 #include "tokens.h"
 #include "error.h"
 #include "strtbl.h"
+#include "type.h"
 #include "sym.h"
+#include "farcall.h"
 #include "scanner.h"
 #include "codegen.h"
 #include "rtl.h"

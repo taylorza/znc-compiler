@@ -24,8 +24,8 @@ uint16_t stack_size = 256;  // stack size
 
 uint8_t hash_if_depth = 0; // depth of #if/#ifdef statements
 
-SYMBOL* declglb(TYPEREC type, SYM_CLASS klass, const char* name, int16_t value);
-SYMBOL* declloc(TYPEREC type, SYM_CLASS klass, const char* name, int16_t offset);
+SYMBOL declglb(TYPEREC type, SYM_CLASS klass, const char* name, int16_t value);
+SYMBOL declloc(TYPEREC type, SYM_CLASS klass, const char* name, int16_t offset);
 
 void parse_type(TYPEREC* type) MYCC;
 void parse_funcdecl(TYPEREC rettype, const char* name) MYCC;
@@ -260,7 +260,7 @@ void parse_decl(void) MYCC {
         parse_funcdecl(type, name);
     }
     else {
-        SYMBOL* sym;
+        SYMBOL sym;
 
         if (is_void(&type) && !is_ptr(&type)) error(errSyntax);
 
@@ -268,19 +268,19 @@ void parse_decl(void) MYCC {
             if (infunc || is_scoped()) {
                 uint16_t size = type_size(&type); 
                 sym = findloc(name);
-                if (sym) error(errAlreadyDefined_s, name);
+                if (is_defined(&sym)) error(errAlreadyDefined_s, name);
                 sym = declloc(type, VARIABLE, name, bp_lastlocal);
                 bp_lastlocal += size;
                 if (localbytes < bp_lastlocal) localbytes = bp_lastlocal;
             } else {
                 sym = findglb(name);
-                if (sym) error(errAlreadyDefined_s, name);
+                if (is_defined(&sym)) error(errAlreadyDefined_s, name);
                 sym = declglb(type, VARIABLE, name, 0);
             }
                 
 
             if (tok == tokAssign) {
-                parse_assign(0, sym, 0, type);
+                parse_assign(0, &sym, 0, type);
             }
             else if (constdecl) error(errSyntax);
 
@@ -681,12 +681,12 @@ void parse_funcdecl(TYPEREC rettype, const char* name) MYCC {
     TYPEREC argtype;
     char argName[MAX_IDENT_LEN + 1];
 
-    SYMBOL* symfunc = lookupIdent(name);
+    SYMBOL symfunc = lookupIdent(name);
     uint8_t defined = 0;
 
-    if (!symfunc) {
+    if (not_defined(&symfunc)) {
         symfunc = declglb(rettype, FUNCTION, name, 0);
-    } else if (symfunc->klass != FUNCTION_PROTO) {
+    } else if (symfunc.klass != FUNCTION_PROTO) {
         defined = 1;
     }
 
@@ -704,17 +704,17 @@ void parse_funcdecl(TYPEREC rettype, const char* name) MYCC {
     }
     expect_RParen();
    
-    if (defined || symfunc->klass == FUNCTION_PROTO) {
-        if (func_argcount != symfunc->offset) error(errDeclMismatch);
+    if (defined || symfunc.klass == FUNCTION_PROTO) {
+        if (func_argcount != symfunc.offset) error(errDeclMismatch);
     }
 
-    symfunc->offset = func_argcount;
+    symfunc.offset = func_argcount;
     if (tok == tokSemi) {        
-        if (!defined) symfunc->klass = FUNCTION_PROTO;
+        if (!defined) symfunc.klass = FUNCTION_PROTO;
     } else {
         if (defined) error(errAlreadyDefined_s, name);
 
-        symfunc->klass = FUNCTION;
+        symfunc.klass = FUNCTION;
         infunc = 1;
         uint16_t skiplbl = newlbl();
         emit_jp(skiplbl);
@@ -747,6 +747,7 @@ void parse_funcdecl(TYPEREC rettype, const char* name) MYCC {
         infunc = 0;
         retlbl = oldretlbl;
     }
+    updatesym(&symfunc);
 }
 
 void parse_org(void) MYCC {
@@ -809,7 +810,8 @@ void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC {
     
     uint8_t active;
     if (op == tokHashIfDef || op == tokHashIfNDef) {
-        active = lookupIdent(token) != NULL;
+        SYMBOL sym = lookupIdent(token);
+        active = is_defined(&sym);
         if (op == tokHashIfNDef) active = !active;
         get_token(); // skip identifier
     } else {
@@ -830,12 +832,14 @@ void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC {
     get_token(); // skip '#endif'
 }
 
-SYMBOL* declglb(TYPEREC type, SYM_CLASS klass, const char* name, int16_t value) {
-    return addglb(name, klass, type, value);
+SYMBOL declglb(TYPEREC type, SYM_CLASS klass, const char* name, int16_t value) {
+    SYMBOL lsym = addglb(name, klass, type, value);
+    return lsym;
 }
 
-SYMBOL* declloc(TYPEREC type, SYM_CLASS klass, const char* name, int16_t offset) {
-    return addloc(name, klass, type, offset);
+SYMBOL declloc(TYPEREC type, SYM_CLASS klass, const char* name, int16_t offset) {
+    SYMBOL lsym = addloc(name, klass, type, offset);
+    return lsym;
 }
 
 void compile(const char *filename, const char *asmfilename) MYCC {

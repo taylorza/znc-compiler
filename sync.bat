@@ -13,6 +13,6 @@ rem %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/rnd.znc
 rem %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/sprite.znc /zdev/
 rem %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/string.znc /zdev/
 
-%1/../../emulator/hdfmonkey get %1/../../sdcard/tbblue-dev.sd /zdev/zncdemo.bas tests/zncdemo.bas
-%1/../../emulator/hdfmonkey get %1/../../sdcard/tbblue-dev.sd /zdev/zide.bas tests/zide.bas
+rem %1/../../emulator/hdfmonkey get %1/../../sdcard/tbblue-dev.sd /zdev/zncdemo.bas tests/zncdemo.bas
+rem %1/../../emulator/hdfmonkey get %1/../../sdcard/tbblue-dev.sd /zdev/zide.bas tests/zide.bas
 

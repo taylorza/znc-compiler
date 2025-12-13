@@ -38,7 +38,7 @@
         {
             "label": "Make",
             "type": "shell",
-            "command": "make clean all",
+            "command": "make",
             "args": [],
             "problemMatcher": {
                 "owner": "Make",

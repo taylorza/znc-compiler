@@ -1,20 +1,9 @@
 #ifndef SYM_H_
 #define SYM_H_
 
-typedef enum BASE_TYPE { VOID, CHAR, INT, STRING } BASE_TYPE;
-typedef enum MOD_TYPE {CONST=128} MOD_TYPE;
-typedef enum SYM_CLASS { VARIABLE, ARGUMENT, FUNCTION, FUNCTION_PROTO } SYM_CLASS;
-typedef enum SYM_SCOPE { GLOBAL, LOCAL } SYM_SCOPE;
 
-typedef struct  {
-    BASE_TYPE basetype;
-    int16_t dim; // 0-pointer, 1-scalar, <0-array
-} TYPEREC;
-
-extern TYPEREC const void_type;
-extern TYPEREC const char_type;
-extern TYPEREC const int_type;
-extern TYPEREC const string_type;
+typedef enum SYM_CLASS { CLASS_UNDEFINED, VARIABLE, ARGUMENT, FUNCTION, FUNCTION_PROTO } SYM_CLASS;
+typedef enum SYM_SCOPE { SCOPE_UNDEFINED, GLOBAL, LOCAL } SYM_SCOPE;
 
 typedef struct VALUE {
     TYPEREC type;
@@ -29,37 +18,21 @@ typedef struct SYMBOL {
     int16_t offset;
 } SYMBOL;
 
-uint16_t type_size(const TYPEREC* type) MYCC;
-uint8_t is_array(const TYPEREC* type) MYCC;
-uint8_t is_ptr(const TYPEREC* type) MYCC;
-uint8_t is_void(const TYPEREC* type) MYCC;
-uint8_t is_char(const TYPEREC* type) MYCC;
-uint8_t is_int(const TYPEREC* type) MYCC;
-uint8_t is_string(const TYPEREC* type) MYCC;
+SYMBOL* far_findglb(const char* name) MYCC;
+SYMBOL* far_findloc(const char* name) MYCC;
+SYMBOL* far_lookupIdent(const char* name) MYCC;
 
-uint8_t is_const(const TYPEREC* type) MYCC;
+SYMBOL* far_addglb(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC;
+SYMBOL* far_addloc(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC;
+void far_updatesym(SYMBOL* from) MYCC;
 
-uint8_t is_func_or_proto(const SYMBOL* sym) MYCC;
+uint16_t far_push_frame(void) MYCC;
+void far_pop_frame(uint16_t frame) MYCC;
+uint8_t far_is_scoped(void) MYCC;
 
-void make_ptr(TYPEREC* type) MYCC;
-void make_scalar(TYPEREC* type) MYCC;
-void make_array(TYPEREC* type, uint16_t size) MYCC;
-void make_const(TYPEREC* type) MYCC;
+void far_dump_globals(void) MYCC;
 
-BASE_TYPE base_type(TYPEREC* type) MYCC;
-
-
-SYMBOL* findglb(const char* name) MYCC;
-SYMBOL* findloc(const char* name) MYCC;
-SYMBOL* lookupIdent(const char* name) MYCC;
-
-SYMBOL* addglb(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC;
-SYMBOL* addloc(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC;
-
-uint16_t push_frame(void) MYCC;
-void pop_frame(uint16_t frame) MYCC;
-uint8_t is_scoped(void) MYCC;
-
-void dump_globals(void) MYCC;
-
+inline uint8_t is_func_or_proto(const SYMBOL* sym) MYCC { return sym->klass == FUNCTION || sym->klass == FUNCTION_PROTO; }
+inline uint8_t is_defined(const SYMBOL* sym) MYCC { return sym->klass != CLASS_UNDEFINED && sym->scope != SCOPE_UNDEFINED; }
+inline uint8_t not_defined(const SYMBOL* sym) MYCC { return sym->klass == CLASS_UNDEFINED || sym->scope == SCOPE_UNDEFINED; }
 #endif //SYM_H_
