@@ -48,6 +48,7 @@ void parse_asm(int asmcol) MYCC;
 void parse_org(void) MYCC;
 void parse_bank(void) MYCC;
 void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC;
+void parse_switch(uint16_t contlbl) MYCC;
 
 void parse_make(const char* outfilename) MYCC;
 
@@ -187,6 +188,7 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
             parse_statement_block(brklbl, contlbl);
             break;
         case tokIf: parse_if(brklbl, contlbl); break;
+        case tokSwitch: parse_switch(contlbl); break;
         case tokWhile: parse_while(); break;
         case tokFor: parse_for(); break;
         case tokBreak: parse_break(brklbl); break;
@@ -317,6 +319,64 @@ void parse_if(uint16_t brklbl, uint16_t contlbl) MYCC {
         }
     }
     lblEndIf = old_endif;
+}
+
+void parse_switch(uint16_t contlbl) MYCC {
+    uint16_t lblTbl = newlbl();
+    uint16_t lblDefault = NO_LABEL;
+    uint16_t lblDone = newlbl();
+    
+    uint16_t values[MAX_CASE];
+    uint16_t labels[MAX_CASE];
+    uint8_t case_count = 0;
+    uint8_t last_break = 0;
+
+    parse_onearg(); // (expr)
+    emit_jp(lblTbl);
+
+    expect_LBrace();
+    while (tok == tokCase || tok == tokDefault) {
+        last_break = 0;
+        if (tok == tokCase) {
+            get_token(); // skip 'case'
+            EXPR_RESULT expr_result = parse_expr_delayconst(0);
+            if (!is_const(&expr_result.type)) {
+                error_expect_const();
+            }
+            uint16_t lblCase = newlbl();
+            if (case_count == MAX_CASE) error(errTooManySymbols);
+            values[case_count] = expr_result.value;
+            labels[case_count++] = lblCase;
+            emit_lbl(lblCase);
+        } else if (tok == tokDefault) {
+            if (lblDefault != NO_LABEL) error(errAlreadyDefined_s, "default");
+            get_token(); // skip 'default'
+            lblDefault = newlbl();   
+            emit_lbl(lblDefault);
+        }
+        expect_colon();
+        if (tok == tokLBrace) 
+            parse_statement_block(lblDone, contlbl);
+        else
+            while (tok != tokEOS && tok != tokBreak && tok != tokCase && tok != tokRBrace) {
+                parse_statement(lblDone, contlbl);
+            }
+        if (tok == tokBreak) {
+            parse_break(lblDone);            
+            last_break = 1;          
+        }
+    }
+    if (!last_break) emit_jp(lblDone);
+    expect_RBrace();
+    emit_lbl(lblTbl);
+    emit_instrln("ld b,%d", case_count);
+    emit_rtl("ccswitch");
+    for(int i=0; i<case_count; ++i) {
+        emit_instr("dw %d,", values[i]); emit_lblref(labels[i]);
+        emit_nl();
+    }
+    if (lblDefault != NO_LABEL) emit_jp(lblDefault);
+    emit_lbl(lblDone);
 }
 
 void parse_while(void) MYCC {

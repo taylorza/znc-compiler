@@ -1,10 +1,11 @@
-#define MAX_FILENAME_LEN 64
-#define MAX_IDENT_LEN 14
-#define MAX_NEST_DEPTH 5
-#define MAX_SYMBOLS 500
-#define MAX_READ_BUF 16
-#define MAX_WRITE_BUF 16
-#define MAX_STRTBL_SIZE 2048
+#define MAX_FILENAME_LEN    64      // max filename length
+#define MAX_IDENT_LEN       14      // max identifier length
+#define MAX_NEST_DEPTH      5       // max nesting depth
+#define MAX_SYMBOLS         500     // max number of symbols
+#define MAX_READ_BUF        16      // max file read buffer size
+#define MAX_WRITE_BUF       16      // max file write buffer size
+#define MAX_STRTBL_SIZE     2048    // max string table size
+#define MAX_CASE            128     // max case statements per switch
 
 #ifdef __ZXNEXT
 #define NL '\r'

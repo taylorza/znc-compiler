@@ -243,8 +243,8 @@ RTLREC rtltbl[] = {
         FLAG_RTL_NONE
     },
     { "putc",
-        "  ld a,l"NLS
-        "  rst 16",
+        "  LD A,L"NLS
+        "  RST 16",
         NULL,
         FLAG_RTL_INLINE
     },
@@ -296,6 +296,34 @@ RTLREC rtltbl[] = {
         ".L2"NLS
         " XOR A"NLS
         " LD(DE), A",
+        NULL,
+        FLAG_RTL_NONE
+    },
+    {
+      "ccswitch",
+        " POP DE"NLS
+        " EX DE,HL"NLS
+        ".CASE"NLS
+        " LD A,(HL)"NLS
+        " INC HL"NLS
+        " CP E"NLS
+        " JR NZ,.SKIP3"NLS
+        " LD A,(HL)"NLS
+        " INC HL"NLS
+        " CP D"NLS        
+        " JR NZ,.SKIP2"NLS
+        " LD A,(HL)"NLS
+        " INC HL"NLS
+        " LD H,(HL)"NLS
+        " LD L,A"NLS
+        " JP (HL)"NLS
+        ".SKIP3"
+        " INC HL"NLS
+        ".SKIP2"
+        " INC HL"NLS
+        " INC HL"NLS
+        " DJNZ .CASE"NLS
+        " PUSH HL",
         NULL,
         FLAG_RTL_NONE
     }

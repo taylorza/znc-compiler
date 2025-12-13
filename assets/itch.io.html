@@ -86,142 +86,148 @@ while (1) {
   putc(&#39;*&#39;);
 }
 </code></pre>
-<h2 id="syntax-incomplete">Syntax (incomplete)</h2>
+<h2 id="syntax-incomplete">Syntax</h2>
 <pre><code class="language-EBNF">(* Program directives and top‐level items, where declarations and statements may appear. *)
-&lt;program&gt;         ::= [ &lt;make&gt; ]
-                      [ &lt;org&gt; ]
-                      { &lt;top_level_item&gt; }
+<program>         ::= [ <make> ]
+                      [ <org> ]
+                      { <top_level_item> }
 
-&lt;top_level_item&gt;  ::= &lt;decl&gt;
-                      | &lt;statement&gt;
+<top_level_item>  ::= <decl>
+                      | <statement>
 
-&lt;make&gt;            ::= &quot;make&quot; [ &quot;dot&quot; | &quot;nex&quot; | &quot;raw&quot; ] &quot;(&quot; &lt;string&gt; &quot;)&quot; &quot;;&quot;
+<make>            ::= "make" [ "dot" | "nex" | "raw" ] "(" <string> ")" ";"
 
-&lt;org&gt;             ::= &quot;org&quot; &lt;number&gt; &quot;;&quot;
+<org>             ::= "org" <number> ";"
 
-&lt;bank&gt;            ::= &quot;bank&quot; &quot;(&quot; &lt;number&gt; [ &quot;,&quot; &lt;number&gt; ] &quot;)&quot; &lt;stmnt_block&gt;
+<bank>            ::= "bank" "(" <number> [ "," <number> ] ")" <stmnt_block>
 
 (* Statements *)
-&lt;statement&gt;       ::= &lt;stmnt_block&gt;
-                      | &lt;decl&gt;
-                      | &lt;assignment&gt;                    
-                      | &lt;if&gt;
-                      | &lt;while&gt;
-                      | &lt;for&gt;
-                      | &lt;break&gt;
-                      | &lt;continue&gt;
-                      | &lt;return&gt;
-                      | &lt;putc&gt;
-                      | &lt;puts&gt;
-                      | &lt;asm&gt;
-                      | &lt;include&gt;
-                      | &lt;expr&gt;
-                      | &lt;org&gt;
-                      | &quot;;&quot;
+<statement>       ::= <stmnt_block>
+                      | <decl>
+                      | <assignment>                    
+                      | <if>
+                      | <switch>
+                      | <while>
+                      | <for>
+                      | <break>
+                      | <continue>
+                      | <return>
+                      | <putc>
+                      | <puts>
+                      | <asm>
+                      | <include>
+                      | <expr>
+                      | <org>
+                      | ";"
 
-&lt;stmnt_block&gt;     ::= &quot;{&quot; { &lt;statement&gt; } &quot;}&quot;
+<stmnt_block>     ::= "{" { <statement> } "}"
 
 (* Declarations: variable declarations, function definitions, and function prototypes *)
-&lt;decl&gt;            ::= &lt;vardecl&gt;
-                      | &lt;funcdecl&gt;
-                      | &lt;funcproto&gt;
+<decl>            ::= <vardecl>
+                      | <funcdecl>
+                      | <funcproto>
 
 (* Function prototype: note the trailing semicolon instead of a body *)
-&lt;funcproto&gt;       ::= &lt;rettype&gt; &lt;ident&gt; &quot;(&quot; &lt;arglist&gt; &quot;)&quot; &quot;;&quot;
+<funcproto>       ::= <rettype> <ident> "(" <arglist> ")" ";"
 
 (* Assignment expressions. Either a simple identifier or a more complex lvalue/expression on the left-hand side. *)
-&lt;assignment&gt;      ::= &lt;lvalue&gt; &quot;=&quot; &lt;expr&gt; &quot;;&quot;
-&lt;lvalue&gt;          ::= &lt;ident&gt;
-                    | &lt;ident&gt; &quot;[&quot; &lt;expr&gt; &quot;]&quot;
-                    | &quot;*&quot; &lt;lvalue&gt;
-                    | &quot;&amp;&quot; &lt;lvalue&gt;
+<assignment>      ::= <lvalue> "=" <expr> ";"
+<lvalue>          ::= <ident>
+                    | <ident> "[" <expr> "]"
+                    | "*" <lvalue>
+                    | "&" <lvalue>
 
 (* Control structures *)
-&lt;if&gt;              ::= &quot;if&quot; &quot;(&quot; &lt;expr&gt; &quot;)&quot; &lt;statement&gt; [ &quot;else&quot; &lt;statement&gt; ]
+<if>              ::= "if" "(" <expr> ")" <statement> [ "else" <statement> ]
 
-&lt;while&gt;           ::= &quot;while&quot; &quot;(&quot; &lt;expr&gt; &quot;)&quot; &lt;statement&gt;
+<switch>          ::= "switch" "(" <expr> ")" <switch_block>
+<switch_block>    ::= "{" { <case_section> } "}"
+<case_section>    ::= <case_header> { <statement> }
+<case_header>     ::= { "case" <expr> ":" } [ "default" ":" ]
 
-&lt;for&gt;             ::= &quot;for&quot; &quot;(&quot; [ &lt;decl&gt; | &lt;assignment&gt; ] &quot;;&quot; [ &lt;expr&gt; ] &quot;;&quot; [ &lt;expr&gt; ] &quot;)&quot; &lt;statement&gt;
+<while>           ::= "while" "(" <expr> ")" <statement>
 
-&lt;break&gt;           ::= &quot;break&quot; &quot;;&quot;
+<for>             ::= "for" "(" [ <decl> | <assignment> ] ";" [ <expr> ] ";" [ <expr> ] ")" <statement>
 
-&lt;continue&gt;        ::= &quot;continue&quot; &quot;;&quot;
+<break>           ::= "break" ";"
 
-&lt;return&gt;          ::= &quot;return&quot; [ &lt;expr&gt; ] &quot;;&quot;
+<continue>        ::= "continue" ";"
 
-&lt;putc&gt;            ::= &quot;putc&quot; &quot;(&quot; &lt;expr&gt; &quot;)&quot; &quot;;&quot;
+<return>          ::= "return" [ <expr> ] ";"
 
-&lt;puts&gt;            ::= &quot;puts&quot; &quot;(&quot; &lt;expr&gt; &quot;)&quot; &quot;;&quot;
+<putc>            ::= "putc" "(" <expr> ")" ";"
+
+<puts>            ::= "puts" "(" <expr> ")" ";"
 
 (* Inline assembly block (contents treated as raw Z80N Assembly). *)
-&lt;asm&gt;             ::= &quot;__asm__&quot; &quot;{&quot; Z80N_Assembly &quot;}&quot;
+<asm>             ::= "__asm__" "{" Z80N_Assembly "}"
 
-&lt;include&gt;         ::= &quot;include&quot; &lt;string&gt;
+<include>         ::= "include" <string>
 
 (* String literal: content details omitted here *)
-&lt;string&gt;          ::= &quot;\&quot;&quot; { &lt;character&gt; } &quot;\&quot;&quot;
+<string>          ::= "\"" { <character> } "\""
 
 (* Variable declaration: type, identifier, and optional initializer.
    Multiple variables may be declared in one statement. *)
-&lt;vardecl&gt;         ::= &lt;type&gt; &lt;ident&gt; [ &quot;=&quot; &lt;expr&gt; ] { &quot;,&quot; &lt;ident&gt; [ &quot;=&quot; &lt;expr&gt; ] } &quot;;&quot;
+<vardecl>         ::= [const] <type> <ident> [ "=" <expr> ] { "," <ident> [ "=" <expr> ] } ";"
 
 (* Function definition: includes return type, name, parameter list,
    either an assembly block, or a function body. *)
-&lt;funcdecl&gt;        ::= &lt;rettype&gt; &lt;ident&gt; &quot;(&quot; &lt;arglist&gt; &quot;)&quot;  &lt;asm&gt; | &lt;stmnt_block&gt;
+<funcdecl>        ::= <rettype> <ident> "(" <arglist> ")"  <asm> | <stmnt_block>
 
 (* Function call used as an expression; when used as a statement, a semicolon is appended. *)
-&lt;call_expr&gt;       ::= &lt;ident&gt; &quot;(&quot; [ &lt;exprlist&gt; ] &quot;)&quot;
-&lt;funccall_stmt&gt;   ::= &lt;call_expr&gt; &quot;;&quot;
+<call_expr>       ::= <ident> "(" [ <exprlist> ] ")"
+<funccall_stmt>   ::= <call_expr> ";"
 
-&lt;rettype&gt;         ::= &quot;void&quot; | &lt;type&gt;
+<rettype>         ::= "void" | <type>
 
 (* Type definitions include scalar types, arrays, and pointers. *)
-&lt;type&gt;            ::= &lt;scalartype&gt;
-                      | &lt;arraytype&gt;
-                      | &lt;pointertype&gt;
+<type>            ::= <scalartype>
+                      | <arraytype>
+                      | <pointertype>
 
-&lt;scalartype&gt;      ::= &quot;char&quot; | &quot;byte&quot; | &quot;int&quot;
+<scalartype>      ::= "char" | "byte" | "int"
 
-&lt;arraytype&gt;       ::= &lt;scalartype&gt; &quot;[&quot; &lt;number&gt; &quot;]&quot;
+<arraytype>       ::= <scalartype> "[" <number> "]"
 
-&lt;pointertype&gt;     ::= &lt;scalartype&gt; &quot;*&quot;
+<pointertype>     ::= <scalartype> "*"
 
-&lt;arglist&gt;         ::= &lt;arg&gt; { &quot;,&quot; &lt;arg&gt; }
+<arglist>         ::= <arg> { "," <arg> }
 
-&lt;arg&gt;             ::= &lt;type&gt; &lt;ident&gt;
+<arg>             ::= <type> <ident>
 
 (* Expressions are parsed using a precedence-climbing algorithm.
    The production below is schematic. *)
-&lt;expr&gt;            ::= &quot;(&quot; &lt;expr&gt; &quot;)&quot; 
-                      | &lt;factor&gt; { &lt;op&gt; &lt;factor&gt; }
+<expr>            ::= "(" <expr> ")" 
+                      | <factor> { <op> <factor> }
 
-&lt;factor&gt;          ::= &lt;number&gt;
-                      | &lt;string&gt;
-                      | &lt;call_expr&gt;
-                      | ( &quot;*&quot; | &quot;&amp;&quot; ) &lt;var&gt; [ &quot;[&quot; &lt;expr&gt; &quot;]&quot; ]
+<factor>          ::= <number>
+                      | <string>
+                      | <call_expr>
+                      | ( "*" | "&" ) <var> [ "[" <expr> "]" ]
 
-&lt;var&gt;             ::= &lt;ident&gt;
+<var>             ::= <ident>
 
 (* Operators available (similar to C, but with ++/-- excluded) *)
-&lt;op&gt;              ::= &quot;+&quot; | &quot;-&quot; | &quot;*&quot; | &quot;/&quot; | &quot;%&quot; 
-                      | &quot;==&quot; | &quot;!=&quot; | &quot;&lt;&quot; | &quot;&gt;&quot; | &quot;&lt;=&quot; | &quot;&gt;=&quot; 
-                      | &quot;&amp;&amp;&quot; | &quot;||&quot; | &quot;^&quot; | &quot;|&quot; | &quot;&amp;&quot; | &quot;&lt;&lt;&quot; | &quot;&gt;&gt;&quot;
+<op>              ::= "+" | "-" | "*" | "/" | "%" 
+                      | "==" | "!=" | "<" | ">" | "<=" | ">=" 
+                      | "&&" | "||" | "^" | "|" | "&" | "<<" | ">>"
 
 (* Identifiers, letters, and digits *)
-&lt;ident&gt;           ::= &lt;letter&gt; { &lt;letter&gt; | &lt;digit&gt; | &quot;_&quot; }
+<ident>           ::= <letter> { <letter> | <digit> | "_" }
 
-&lt;letter&gt;          ::= &quot;A&quot; | &quot;B&quot; | &quot;C&quot; | &quot;D&quot; | &quot;E&quot; | &quot;F&quot; | &quot;G&quot; | &quot;H&quot; | &quot;I&quot; | &quot;J&quot;
-                      | &quot;K&quot; | &quot;L&quot; | &quot;M&quot; | &quot;N&quot; | &quot;O&quot; | &quot;P&quot; | &quot;Q&quot; | &quot;R&quot; | &quot;S&quot; | &quot;T&quot;
-                      | &quot;U&quot; | &quot;V&quot; | &quot;W&quot; | &quot;X&quot; | &quot;Y&quot; | &quot;Z&quot;
-                      | &quot;a&quot; | &quot;b&quot; | &quot;c&quot; | &quot;d&quot; | &quot;e&quot; | &quot;f&quot; | &quot;g&quot; | &quot;h&quot; | &quot;i&quot; | &quot;j&quot;
-                      | &quot;k&quot; | &quot;l&quot; | &quot;m&quot; | &quot;n&quot; | &quot;o&quot; | &quot;p&quot; | &quot;q&quot; | &quot;r&quot; | &quot;s&quot; | &quot;t&quot;
-                      | &quot;u&quot; | &quot;v&quot; | &quot;w&quot; | &quot;x&quot; | &quot;y&quot; | &quot;z&quot;
+<letter>          ::= "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J"
+                      | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T"
+                      | "U" | "V" | "W" | "X" | "Y" | "Z"
+                      | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j"
+                      | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t"
+                      | "u" | "v" | "w" | "x" | "y" | "z"
 
-&lt;digit&gt;           ::= &quot;0&quot; | &quot;1&quot; | &quot;2&quot; | &quot;3&quot; | &quot;4&quot; | &quot;5&quot; | &quot;6&quot; | &quot;7&quot; | &quot;8&quot; | &quot;9&quot;
+<digit>           ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
 
-&lt;number&gt;          ::= &lt;digit&gt; { &lt;digit&gt; }
+<number>          ::= <digit> { <digit> }
 
-&lt;character&gt;       ::= /* any character except the double quote &quot; */  
+<character>       ::= /* any character except the double quote " */  
                      
 
 (* The nonterminal Z80N_Assembly is assumed to represent a block of valid Z80N assembly code. *)

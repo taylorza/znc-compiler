@@ -1,3 +1,6 @@
+2025/12/12 - Version 0.2d
+- Added support for switch statements to the compiler
+
 2025/09/01 - Version 0.2c
 - ZIDE updated to support assembling files directly
 

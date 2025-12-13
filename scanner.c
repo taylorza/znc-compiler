@@ -25,6 +25,9 @@ KEYWORD keywords[] = {
     {"int", tokInt},
     {"if", tokIf},
     {"else", tokElse},
+    {"switch", tokSwitch},
+    {"case", tokCase},
+    {"default", tokDefault},
     {"while", tokWhile},
     {"for", tokFor},
     {"break", tokBreak},
@@ -441,6 +444,10 @@ void expect(TOKEN t, char ch) {
     } else {
         error(errExpected_c, ch);
     }
+}
+
+void expect_colon(void) MYCC {
+    expect(tokColon, ':');
 }
 
 void expect_semi(void) MYCC {

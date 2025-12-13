@@ -292,6 +292,7 @@ Variables can be declared at any point in the code
                       | <decl>
                       | <assignment>                    
                       | <if>
+                      | <switch>
                       | <while>
                       | <for>
                       | <break>
@@ -324,6 +325,11 @@ Variables can be declared at any point in the code
 
 (* Control structures *)
 <if>              ::= "if" "(" <expr> ")" <statement> [ "else" <statement> ]
+
+<switch>          ::= "switch" "(" <expr> ")" <switch_block>
+<switch_block>    ::= "{" { <case_section> } "}"
+<case_section>    ::= <case_header> { <statement> }
+<case_header>     ::= { "case" <expr> ":" } [ "default" ":" ]
 
 <while>           ::= "while" "(" <expr> ")" <statement>
 

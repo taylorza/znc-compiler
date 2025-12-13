@@ -9,6 +9,7 @@ typedef enum TOKEN {
     tokNone, tokConst,
     tokHashIf, tokHashIfDef, tokHashIfNDef, tokHashElse, tokHashEndif,
     tokArg, tokVoid, tokChar, tokInt, tokIf, tokElse, tokFor, tokWhile,
+    tokSwitch, tokCase, tokDefault,
     tokReturn, tokBreak, tokContinue, tokExit,
     tokIn, tokOut, tokNextReg, tokReadReg,
     tokPutc, tokPuts,

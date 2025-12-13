@@ -46,7 +46,7 @@ void cleanup(void) MYCC {
 }
 
 void show_banner(void) MYCC {
-    printf("ZNC Compiler v0.2c (c)2025\n\n");
+    printf("ZNC Compiler v0.2d (c)2025\n\n");
 }
 
 void show_help(const char *msg) MYCC {    
