@@ -11,7 +11,7 @@ CFLAGS = -m -c -clib=sdcc_iy -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLO
 AFLAGS =
 LFLAGS = -m -startup=30 -clib=sdcc_iy -subtype=dotn -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLOCS) -pragma-include:zpragma.inc -create-app
 
-SOURCES = strtbl_stub.c sym_stub.c rtl_stub.c type.c strtbl.c strtbl_s.asm codegen.c compiler.c dataarea.c error.c expr.c main.c rtl.c scanner.c sym.c sym_s.asm util.c 
+SOURCES = strtbl_stub.c sym_stub.c rtl_stub.c type.c strtbl.c codegen.c compiler.c dataarea.c error.c expr.c main.c rtl.c scanner.c sym.c sym_s.asm util.c 
 
 OBJFILES = $(patsubst %.c,$(OUTPUT_DIR)/%.o,$(SOURCES))
 
@@ -40,15 +40,15 @@ $(RTL_DIR)/%.inc: RTL/%.asm tools/rtlgenerate.py
 
 $(OUTPUT_DIR)/strtbl.o: strtbl.c | $(OUTPUT_DIR)
 	@echo "Compiling BANK 40"
-	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_40 --codesegBANK_40 --constsegBANK_40
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_40 --codesegBANK_40 --constsegBANK_40 --bsssegBANK_40
 
 $(OUTPUT_DIR)/sym.o: sym.c | $(OUTPUT_DIR)
 	@echo "Compiling BANK 41"
-	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_41 --codesegBANK_41 --constsegBANK_41
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_41 --codesegBANK_41 --constsegBANK_41 --bsssegBANK_41
 
 $(OUTPUT_DIR)/rtl.o: rtl.c $(RTL_INCS) | $(OUTPUT_DIR)
 	@echo "Compiling BANK 42"
-	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_42 --codesegBANK_42 --constsegBANK_42
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_42 --codesegBANK_42 --constsegBANK_42 --bsssegBANK_42
 	@echo "-> Generated $@"
 
 $(OUTPUT_DIR)/dataarea.o: dataarea.c | $(OUTPUT_DIR)

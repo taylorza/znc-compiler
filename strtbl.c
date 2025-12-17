@@ -1,10 +1,6 @@
 #include "znc.h"
 
-#ifdef __ZXNEXT
-extern char strtbl[];
-#else
 char strtbl[MAX_STRTBL_SIZE];
-#endif
 
 size_t laststr = 0;
 
