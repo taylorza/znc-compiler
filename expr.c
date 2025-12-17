@@ -118,12 +118,18 @@ EXPR_RESULT parse_indexer(const TYPEREC *elemtype) {
     EXPR_RESULT index_result = parse_expr_delayconst(0);   // index expression
     expect(tokRBrack, ']'); // skip ']'
 
-    uint8_t scaleidx = is_int(elemtype);
+    uint16_t scale = is_int(elemtype) ? 2 : 1;
+
     if (is_const(&index_result.type)) {
-        emit_ld_const(index_result.value + (scaleidx * index_result.value));
+        emit_ld_const((uint16_t)(index_result.value * scale));
     }
-    else if (scaleidx) {
-        emit_mul2();
+    else {
+        if (scale == 2) {
+            emit_mul2();
+        }
+        /* fall through; implement
+         * general multiplication here when needed.
+         */
     }
     return index_result;
 }
