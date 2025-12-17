@@ -1,41 +1,8 @@
 #include "znc.h"
+#include "farcall.h"
+#include "sym.h"
 
-#define PROLOG(BANK) \
-    { \
-        uint8_t page0 = ZXN_READ_MMU6(); \
-        uint8_t page1 = ZXN_READ_MMU7(); \
-        ZXN_WRITE_MMU6(_z_page_table[BANK<<1]); \
-        ZXN_WRITE_MMU7(_z_page_table[(BANK<<1)+1]);
-
-#define EPILOG \
-        ZXN_WRITE_MMU6(page0); \
-        ZXN_WRITE_MMU7(page1); \
-    }
-
-#define EPILOG_RETURN(EXPR) \
-        ZXN_WRITE_MMU6(page0); \
-        ZXN_WRITE_MMU7(page1); \
-        return EXPR; \
-    }
-
-extern unsigned char _z_page_table[];
-
-// strtbl - BANK 40
-int16_t lookupstr(const char* s) MYCC {
-    PROLOG(40)
-    int16_t i = far_lookupstr(s);
-    EPILOG_RETURN(i);
-}
-
-void dump_strings(void) MYCC {
-    PROLOG(40)
-    far_dump_strings();
-    EPILOG
-}
-
-// sym - BANK 41
-SYMBOL undefined_sym = {.scope = SCOPE_UNDEFINED, .klass = CLASS_UNDEFINED};
-
+// Wrappers for symbol table banked calls (BANK 41)
 SYMBOL findglb(const char* name) MYCC {
     PROLOG(41)
     SYMBOL *sym = far_findglb(name);

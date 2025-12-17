@@ -10,6 +10,8 @@ uint16_t lastgbl = 0;
 uint16_t lastloc = MAX_SYMBOLS;
 uint16_t scopecount = 0; // nested scopes
 
+SYMBOL undefined_sym = {.scope = SCOPE_UNDEFINED, .klass = CLASS_UNDEFINED};
+
 SYMBOL* far_findglb(const char *name) MYCC {
     for (uint16_t i=0; i < lastgbl; i++) {
         if (strcmp(name, symtab[i].name) == 0) {

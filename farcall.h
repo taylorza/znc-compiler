@@ -1,23 +1,27 @@
 #ifndef FARCALL_H__
 #define FARCALL_H__
+// Banking helper macros and far-call wrappers
+#include "znc.h"
 
-// strtbl - BANK 40
-int16_t lookupstr(const char* s) MYCC;
-void dump_strings(void) MYCC;
+extern unsigned char _z_page_table[];
 
-// sym - BANK 41
-SYMBOL findglb(const char* name) MYCC;
-SYMBOL findloc(const char* name) MYCC;
-SYMBOL lookupIdent(const char* name) MYCC;
-void updatesym(SYMBOL* from) MYCC;
+// Bank switch prolog/epilog for wrappers. Stubs should include znc.h first.
+#define PROLOG(BANK) \
+	{ \
+		uint8_t page0 = ZXN_READ_MMU6(); \
+		uint8_t page1 = ZXN_READ_MMU7(); \
+		ZXN_WRITE_MMU6(_z_page_table[(BANK)<<1]); \
+		ZXN_WRITE_MMU7(_z_page_table[((BANK)<<1)+1]);
 
-SYMBOL addglb(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC;
-SYMBOL addloc(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC;
+#define EPILOG \
+		ZXN_WRITE_MMU6(page0); \
+		ZXN_WRITE_MMU7(page1); \
+	}
 
-uint16_t push_frame(void) MYCC;
-void pop_frame(uint16_t frame) MYCC;
-uint8_t is_scoped(void) MYCC;
-
-void dump_globals(void) MYCC;
+#define EPILOG_RETURN(EXPR) \
+		ZXN_WRITE_MMU6(page0); \
+		ZXN_WRITE_MMU7(page1); \
+		return (EXPR); \
+	}
 
 #endif //FARCALL_H__
