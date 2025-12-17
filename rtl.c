@@ -16,323 +16,166 @@ typedef struct RTLREC {
 RTLREC rtltbl[] = {
     // Sign extend A
     {"ccsxt",
-        " LD L,A"NLS
-        " RLCA"NLS
-        " SBC A,A"NLS
-        " LD H,A",
+#include "RTL/generated/ccsxt.inc"
     NULL,
     FLAG_RTL_NONE
     },
     // Bitwise OR
     {"ccor",
-        " LD A,L"NLS
-        " OR E"NLS
-        " LD L,A"NLS
-        " LD A,H"NLS
-        " OR D"NLS
-        " LD H,A",
+#include "RTL/generated/ccor.inc"
     NULL,
     FLAG_RTL_NONE
     },
     // Bitwise XOR
     {"ccxor",
-        " LD A,L"NLS
-        " XOR E"NLS
-        " LD L,A"NLS
-        " LD A,H"NLS
-        " XOR D"NLS
-        " LD H,A",
+#include "RTL/generated/ccxor.inc"
     NULL,
     FLAG_RTL_NONE
     },
     // Bitwise AND
 {"ccand",
-        " LD A,L"NLS
-        " AND E"NLS
-        " LD L,A"NLS
-        " LD A,H"NLS
-        " AND D"NLS
-        " LD H,A",
+#include "RTL/generated/ccand.inc"
     NULL,
     FLAG_RTL_NONE
     },
     // Equality test
     {"cceq",
-        " CALL cccmp"NLS
-        " RET Z"NLS
-        " DEC HL",
+#include "RTL/generated/cceq.inc"
     "cccmp",
     FLAG_RTL_NONE
     },
     // Not equal test
     {"ccne",
-        " CALL cccmp"NLS
-        " RET NZ"NLS
-        " DEC HL",
+#include "RTL/generated/ccne.inc"
     "cccmp",
      FLAG_RTL_NONE
     },
     // Greater than
     {"ccgt",
-        " EX DE,HL"NLS
-        " JP cclt",
+#include "RTL/generated/ccgt.inc"
     "cclt",
     FLAG_RTL_NONE
     },
     // Less than equal
     {"ccle",
-        " CALL cccmp"NLS
-        " RET Z"NLS
-        " RET C"NLS
-        " DEC HL",
+#include "RTL/generated/ccle.inc"
     "cccmp",
     FLAG_RTL_NONE
     },
     // Greater than equal
     {"ccge",
-        " CALL cccmp"NLS
-        " RET NC"NLS
-        " DEC HL",
+#include "RTL/generated/ccge.inc"
     "cccmp",
     FLAG_RTL_NONE
     },
 
     // DE < HL
     {"cclt",
-        " CALL cccmp"NLS
-        " RET C"NLS
-        " DEC HL",
+#include "RTL/generated/cclt.inc"
     "cccmp",
     FLAG_RTL_NONE
     },
 
     // Compare HL, DE
     {"cccmp",
-        " LD A,E"NLS
-        " SUB L"NLS
-        " LD E,A"NLS
-        " LD A,D"NLS
-        " SBC A,H"NLS
-        " LD HL,1"NLS
-        " JP M,cccmp1"NLS
-        " OR E"NLS
-        " RET"NLS
-        "cccmp1"NLS
-        " OR E"NLS
-        " SCF",        
+#include "RTL/generated/cccmp.inc"
     NULL,
     FLAG_RTL_NONE
     },
     // Unsigned HL>=DE
     {"ccuge",
-        " CALL ccucmp"NLS
-        " RET NC"NLS
-        " DEC HL",
+#include "RTL/generated/ccuge.inc"
     "ccucmp",
     FLAG_RTL_NONE
     },
     // Unsigned HL<DE
     {"ccult",
-        " CALL ccucmp"NLS
-        " RET C"NLS
-        " DEC HL",
+#include "RTL/generated/ccult.inc"
     "ccucmp",
     FLAG_RTL_NONE
     },
     // Unsigned HL>DE
     {"ccugt",
-        " EX DE,HL"NLS
-        " JP ccult"NLS
+#include "RTL/generated/ccugt.inc"
     "ccult",
     FLAG_RTL_NONE
     },    
     // Unsigned HL<=DE
     {"ccule",
-        " CALL ccucmp"NLS
-        " RET Z"NLS
-        " RET C"NLS
-        " DEC HL",
+#include "RTL/generated/ccule.inc"
     "ccucmp",
     FLAG_RTL_NONE
     },
     // Unsigned compare HL, DE
     {"ccucmp",
-        " LD A,D"NLS
-        " CP H"NLS
-        " JP NZ,ccucmp1"NLS
-        " LD A,E"NLS
-        " CP L"NLS
-        "ccucmp1"NLS
-        " LD HL,1",
+#include "RTL/generated/ccucmp.inc"
     NULL,
     FLAG_RTL_NONE
     },
     // HL = -HL
     {"ccneg",
-        " CALL cccom"NLS
-        " INC HL",
+#include "RTL/generated/ccneg.inc"
     "cccom",
     FLAG_RTL_INLINE
     },
     // HL = ~HL
     {"cccom",
-        " LD A,H"NLS
-        " CPL"NLS
-        " LD H,A"NLS
-        " LD A,L"NLS
-        " CPL"NLS
-        " LD L,A",
+#include "RTL/generated/cccom.inc"
     NULL,
     FLAG_RTL_NONE
     },
     // HL = !HL
     { "ccnot",
-        " LD A,H"NLS
-        " OR L"NLS
-        " JR Z,.0"NLS
-        " LD HL,0"NLS
-        " RET"NLS
-        ".0"NLS
-        " INC L",
+#include "RTL/generated/ccnot.inc"
     NULL,
     FLAG_RTL_NONE
     },
     // HL = HL * DE
     {"ccmult",
-        " LD C,E"NLS
-        " LD E,L"NLS
-        " MUL D,E"NLS
-        " LD A,E"NLS
-        " LD E,C"NLS
-        " LD D,H"NLS
-        " MUL D,E"NLS
-        " ADD A,E"NLS
-        " LD E,C"NLS
-        " LD D,L"NLS
-        " MUL D,E"NLS
-        " ADD A,D"NLS
-        " LD H,A"NLS
-        " LD L,E",
+#include "RTL/generated/ccmult.inc"
     NULL,
     FLAG_RTL_NONE
     },
     // HL = HL / DE
     // DE = HL % DE
     {"ccdiv",
-        " EX DE, HL"NLS
-        " LD A, H"NLS
-        " LD C, L"NLS
-        " LD HL, 0"NLS
-        " LD B, 16"NLS
-        ".LOOP"NLS
-        " RL C"NLS
-        " RLA"NLS
-        " ADC HL, HL"NLS
-        " SBC HL, DE"NLS
-        " JP NC, .NORESTR"NLS
-        " ADD HL, DE"NLS
-        ".NORESTR"NLS
-        " CCF"NLS
-        " DJNZ .LOOP"NLS
-        " RL C"NLS
-        " RLA"NLS
-        " EX DE, HL"NLS
-        " LD H, A"NLS
-        " LD L, C",
+#include "RTL/generated/ccdiv.inc"
         NULL,
         FLAG_RTL_NONE
     },
     { "putc",
-        "  LD A,L"NLS
-        "  RST 16",
+#include "RTL/generated/putc.inc"
         NULL,
         FLAG_RTL_INLINE
     },
     { "puts",
-        " LD A, (HL)"NLS
-        " OR A"NLS
-        " JR Z, .DONE"NLS
-        " RST $10"NLS
-        " INC HL"NLS
-        " JR PUTS"NLS
-        ".DONE",
+#include "RTL/generated/puts.inc"
         NULL,
         FLAG_RTL_NONE
     },
     { "ccpstr",
-        " PUSH HL"NLS
-        " LD BC,0"NLS
-        " XOR A"NLS
-        " CPIR"NLS
-        " JR NZ,.L2"NLS
-        " DEC HL"NLS
-        " DEC HL"NLS
-        " LD A,(HL)"NLS
-        " OR $80"NLS
-        " LD (HL),A"NLS
-        ".L2"NLS
-        " POP HL",
+#include "RTL/generated/ccpstr.inc"
         NULL,
         FLAG_RTL_NONE
     },
     { "ldcmdln",
-        " LD DE,_ARGS"NLS
-        " LD BC,79"NLS
-        ".L1"NLS
-        " LD A,(HL)"NLS
-        " OR A"NLS
-        " JR Z,.L2"NLS
-        " CP \":\""NLS
-        " JR Z,.L2"NLS
-        " CP 13"NLS
-        " JR Z,.L2"NLS
-        " LD(DE),A"NLS
-        " INC HL"NLS
-        " INC DE"NLS
-        " DEC BC"NLS
-        " LD A,B"NLS
-        " OR C"NLS
-        " JR NZ,.L1"NLS
-        ".L2"NLS
-        " XOR A"NLS
-        " LD(DE), A",
+#include "RTL/generated/ldcmdln.inc"
         NULL,
         FLAG_RTL_NONE
     },
-    {
-      "ccswitch",
-        " POP DE"NLS
-        " EX DE,HL"NLS
-        ".CASE"NLS
-        " LD A,(HL)"NLS
-        " INC HL"NLS
-        " CP E"NLS
-        " JR NZ,.SKIP3"NLS
-        " LD A,(HL)"NLS
-        " INC HL"NLS
-        " CP D"NLS        
-        " JR NZ,.SKIP2"NLS
-        " LD A,(HL)"NLS
-        " INC HL"NLS
-        " LD H,(HL)"NLS
-        " LD L,A"NLS
-        " JP (HL)"NLS
-        ".SKIP3"
-        " INC HL"NLS
-        ".SKIP2"
-        " INC HL"NLS
-        " INC HL"NLS
-        " DJNZ .CASE"NLS
-        " PUSH HL",
-        NULL,
-        FLAG_RTL_NONE
-    }
+        {
+            "ccswitch",
+#include "RTL/generated/ccswitch.inc"
+                NULL,
+                FLAG_RTL_NONE
+        }
 };
 
 void emit_code(const char* code) MYCC {
     const char* p = code;
     while (*p) {
-        emit_ch(*p++);
+        if (*p == '\n') { ++p; emit_nl(); }
+        else emit_ch(*p++);
     }
     emit_nl();
 }

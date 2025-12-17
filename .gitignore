@@ -4,3 +4,6 @@
 znc
 
 znc.zip
+
+# Ignore legacy/generated RTL includes in RTL/ root
+RTL/generated

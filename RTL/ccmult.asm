@@ -1,0 +1,14 @@
+ ld c,e
+ ld e,l
+ mul d,e
+ ld a,e
+ ld e,c
+ ld d,h
+ mul d,e
+ add a,e
+ ld e,c
+ ld d,l
+ mul d,e
+ add a,d
+ ld h,a
+ ld l,e
