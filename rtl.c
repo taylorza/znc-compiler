@@ -171,7 +171,7 @@ RTLREC rtltbl[] = {
         }
 };
 
-void emit_code(const char* code) MYCC {
+void emit_code(const char* code) {
     const char* p = code;
     while (*p) {
         if (*p == '\n') { ++p; emit_nl(); }
@@ -180,7 +180,7 @@ void emit_code(const char* code) MYCC {
     emit_nl();
 }
 
-uint8_t far_inc_rtl(const char* fn) MYCC{
+uint8_t far_inc_rtl(const char* fn) {
     char depname[16] = { 0 };
     for (uint8_t i = 0; i < sizeof(rtltbl) / sizeof(RTLREC); ++i) {
         RTLREC *const rtl = &rtltbl[i];
@@ -202,7 +202,7 @@ uint8_t far_inc_rtl(const char* fn) MYCC{
                 emit_code(rtl->code);
             } else {
                 rtl->flags |= FLAG_RTL_INCLUDE;                
-            }  
+            }              
             return rtl->flags;
         }
     }
@@ -215,7 +215,8 @@ void far_dump_rtl(void) MYCC {
     //printf("\nGen RTL - %d", sizeof(rtltbl) / sizeof(RTLREC));
 #endif
     for (uint8_t i = 0; i < sizeof(rtltbl) / sizeof(RTLREC); ++i) {
-        RTLREC *rtl = &rtltbl[i];                
+        RTLREC *rtl = &rtltbl[i];    
+        //printf("\n  %s (%s) (%d)", rtl->name, rtl->deps, rtl->flags);            
         if (rtl->flags & FLAG_RTL_INCLUDE) {
 #if __ZXNEXT
             //printf("\n  %s", rtl->name);

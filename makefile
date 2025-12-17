@@ -79,7 +79,6 @@ link: $(TARGET_BIN)
 
 clean:
 	@echo "Cleaning generated files..."
-	rm -rf RTL/generated
 	rm -rf $(OUTPUT_DIR) $(TARGET_BIN)
 	rm -rf *.bin
 	@echo "Clean complete."

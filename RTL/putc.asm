@@ -1,2 +1,2 @@
-	ld a,l
-	rst 16
+ ld a,l
+ rst 16
