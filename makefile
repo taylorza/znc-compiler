@@ -53,12 +53,12 @@ $(OUTPUT_DIR)/rtl.o: rtl.c $(RTL_INCS) | $(OUTPUT_DIR)
 
 $(OUTPUT_DIR)/dataarea.o: dataarea.c | $(OUTPUT_DIR)
 	@echo "Compiling (YES) $<"
-	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegcode_l --codesegcode_l --constsegcode_l
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegcode_l --codesegcode_l --constsegcode_l --bsssegcode_l
 	@echo "-> Generated $@"
 
 $(OUTPUT_DIR)/error.o: error.c | $(OUTPUT_DIR)
 	@echo "Compiling (YES) $<"
-	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegcode_l --codesegcode_l --constsegcode_l
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegcode_l --codesegcode_l --constsegcode_l --bsssegcode_l
 	@echo "-> Generated $@"
 
 $(OUTPUT_DIR)/%.o: %.c | $(OUTPUT_DIR)
