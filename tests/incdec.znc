@@ -10,3 +10,11 @@ z = ++x;
 x = 10;
 y = x--;
 z = --x;
+
+// indexed tests
+int a[4];
+a[0] = 1;
+int i;
+i = 0;
+y = a[i++];
+a[i] = a[i]++;

@@ -316,26 +316,59 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 make_scalar(&factor_result.type);
             }
 
-            /* handle prefix ++/-- for identifiers */
+            /* handle prefix ++/-- for identifiers (supports indexed lvalues)
+             * For indexed lvalues the parse_indexer already pushed the index on the stack.
+             */
             if ((prefix_inc || prefix_dec)) {
                 if (is_const(&sym.type)) error(errSyntax);
                 uint16_t step = 1;
-                if (is_ptr(&sym.type)) {
-                    step = is_int(&sym.type) ? 2 : 1;
-                }
-                /* load current value */
-                emit_ld_symval(&sym);
-                /* add/subtract step */
-                if (prefix_dec) {
-                    emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
+                if (indexed) {
+                    /* incrementing the element value -> numeric step = 1 */
+                    step = 1;
                 } else {
-                    emit_instrln("ld de,%d", step);
+                    /* simple identifier: if it's a pointer, step is element size */
+                    if (is_ptr(&sym.type)) {
+                        step = is_int(&sym.type) ? 2 : 1;
+                    } else {
+                        step = 1;
+                    }
                 }
-                emit_add16();
-                /* store new value */
-                emit_store_sym(&sym);
-                /* HL already contains new value for expression */
-                loadval = 0;
+                if (indexed) {
+                    /* compute effective address into HL */
+                    if (is_ptr(&sym.type)) {
+                        emit_ld_symval(&sym); /* pointer value = base */
+                    } else {
+                        emit_ld_symaddr(&sym); /* array base address */
+                    }
+                    emit_pop(); /* pop index into DE */
+                    emit_add16(); /* HL = base + index */
+
+                    emit_push(); /* push address for store */
+                    emit_load(factor_result.type); /* HL = original value */
+
+                    if (prefix_dec) {
+                        emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
+                    } else {
+                        emit_instrln("ld de,%d", step);
+                    }
+                    emit_add16(); /* HL = new value */
+
+                    emit_store(factor_result.type); /* pop address and store HL */
+                    loadval = 0;
+                    indexed = 0;
+                    dereference = 0;
+                } else {
+                    /* simple identifier */
+                    emit_ld_symval(&sym);
+                    if (prefix_dec) {
+                        emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
+                    } else {
+                        emit_instrln("ld de,%d", step);
+                    }
+                    emit_add16();
+                    emit_store_sym(&sym);
+                    loadval = 0;
+                }
             }
             if (tok == tokAssign) {
                 parse_assign(dereference, &sym, indexed, factor_result.type);
@@ -346,31 +379,76 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                     get_token();
                     if (is_const(&sym.type)) error(errSyntax);
                     uint16_t step = 1;
-                    if (is_ptr(&sym.type)) {
-                        step = is_int(&sym.type) ? 2 : 1;
-                    }
-                    /* HL = original value */
-                    if (loadval) {
-                        if (is_func_or_proto(&sym)) {
-                            emit_ld_immed(); emit_sname(sym.name); emit_nl();
-                        }
-                        else {
-                            emit_ld_symval(&sym);
-                        }
-                    }
-                    /* save original, compute new, store, restore original */
-                    emit_push();
-                    if (isdec) {
-                        emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
+                    if (indexed) {
+                        /* element value increment */
+                        step = 1;
                     } else {
-                        emit_instrln("ld de,%d", step);
+                        if (is_ptr(&sym.type)) {
+                            step = is_int(&sym.type) ? 2 : 1;
+                        } else {
+                            step = 1;
+                        }
                     }
-                    emit_add16();
-                    emit_store_sym(&sym);
-                    emit_pop();
-                    emit_swap();
-                    /* now HL contains original value for postfix expression */
-                    loadval = 0;
+                    if (indexed) {
+                        /* compute effective address */
+                        if (is_ptr(&sym.type)) {
+                            emit_ld_symval(&sym);
+                        } else {
+                            emit_ld_symaddr(&sym);
+                        }
+                        emit_pop(); /* pop index into DE */
+                        emit_add16(); /* HL = address */
+
+                        emit_push(); /* push address */
+                        emit_load(factor_result.type); /* HL = original value */
+
+                        /* save original in BC */
+                        emit_instrln("ld b,h");
+                        emit_instrln("ld c,l");
+
+                        /* compute new value */
+                        if (isdec) {
+                            emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
+                            emit_add16();
+                        } else {
+                            emit_instrln("ld de,%d", step);
+                            emit_add16();
+                        }
+
+                        emit_store(factor_result.type); /* pop address and store new value */
+
+                        /* restore original from BC */
+                        emit_instrln("ld h,b");
+                        emit_instrln("ld l,c");
+
+                        loadval = 0;
+                        indexed = 0;
+                        dereference = 0;
+                    } else {
+                        /* simple identifier postfix */
+                        if (loadval) {
+                            if (is_func_or_proto(&sym)) {
+                                emit_ld_immed(); emit_sname(sym.name); emit_nl();
+                            }
+                            else {
+                                emit_ld_symval(&sym);
+                            }
+                        }
+
+                        /* save original, compute new, store, restore original */
+                        emit_push();
+                        if (isdec) {
+                            emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
+                        } else {
+                            emit_instrln("ld de,%d", step);
+                        }
+                        emit_add16();
+                        emit_store_sym(&sym);
+                        emit_pop();
+                        emit_swap();
+                        /* now HL contains original value for postfix expression */
+                        loadval = 0;
+                    }
                 }
                 
                 if (loadval) {
