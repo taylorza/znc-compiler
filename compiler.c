@@ -434,7 +434,7 @@ void parse_for(void) MYCC {
         lblPost = contlbl = newlbl();
         emit_lbl(lblPost);
         parse_expr(0);
-        if (lblCond != 65535) emit_jp(lblCond);
+        if (lblCond != NO_LABEL) emit_jp(lblCond);
     } else {
         contlbl = lblBody;
     }
