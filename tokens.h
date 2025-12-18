@@ -33,6 +33,9 @@ typedef enum TOKEN {
 
     tokAssign,      // =
 
+    tokInc,         // ++
+    tokDec,         // --
+
     tokPlus,        // +
     tokMinus,       // -
     tokStar,        // *

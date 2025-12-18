@@ -1,0 +1,12 @@
+int x;
+int y;
+int z;
+
+x = 1;
+y = x++;
+z = ++x;
+
+// test decrement
+x = 10;
+y = x--;
+z = --x;

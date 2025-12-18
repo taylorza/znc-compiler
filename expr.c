@@ -138,6 +138,8 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
     SYMBOL sym;
     EXPR_RESULT factor_result = { .type = int_type };
     uint8_t indexed = 0;
+    uint8_t prefix_inc = 0;
+    uint8_t prefix_dec = 0;
     uint8_t neg = 0;
     uint8_t not = 0;
     uint8_t cmpl = 0;
@@ -146,6 +148,13 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
     uint16_t tmplbl;
     uint16_t counter = 0;
     
+    /* handle prefix ++/-- */
+    while (tok == tokInc || tok == tokDec) {
+        if (tok == tokInc) prefix_inc = 1;
+        if (tok == tokDec) prefix_dec = 1;
+        get_token();
+    }
+
     while (tok == tokPlus || tok == tokMinus || tok == tokNot || tok == tokBitNot) {
         if (tok == tokMinus) neg ^= 1;
         if (tok == tokNot) not ^= 1;
@@ -307,9 +316,63 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 make_scalar(&factor_result.type);
             }
 
+            /* handle prefix ++/-- for identifiers */
+            if ((prefix_inc || prefix_dec)) {
+                if (is_const(&sym.type)) error(errSyntax);
+                uint16_t step = 1;
+                if (is_ptr(&sym.type)) {
+                    step = is_int(&sym.type) ? 2 : 1;
+                }
+                /* load current value */
+                emit_ld_symval(&sym);
+                /* add/subtract step */
+                if (prefix_dec) {
+                    emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
+                } else {
+                    emit_instrln("ld de,%d", step);
+                }
+                emit_add16();
+                /* store new value */
+                emit_store_sym(&sym);
+                /* HL already contains new value for expression */
+                loadval = 0;
+            }
             if (tok == tokAssign) {
                 parse_assign(dereference, &sym, indexed, factor_result.type);
             } else {
+                /* handle postfix ++/-- */
+                if (tok == tokInc || tok == tokDec) {
+                    uint8_t isdec = (tok == tokDec);
+                    get_token();
+                    if (is_const(&sym.type)) error(errSyntax);
+                    uint16_t step = 1;
+                    if (is_ptr(&sym.type)) {
+                        step = is_int(&sym.type) ? 2 : 1;
+                    }
+                    /* HL = original value */
+                    if (loadval) {
+                        if (is_func_or_proto(&sym)) {
+                            emit_ld_immed(); emit_sname(sym.name); emit_nl();
+                        }
+                        else {
+                            emit_ld_symval(&sym);
+                        }
+                    }
+                    /* save original, compute new, store, restore original */
+                    emit_push();
+                    if (isdec) {
+                        emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
+                    } else {
+                        emit_instrln("ld de,%d", step);
+                    }
+                    emit_add16();
+                    emit_store_sym(&sym);
+                    emit_pop();
+                    emit_swap();
+                    /* now HL contains original value for postfix expression */
+                    loadval = 0;
+                }
+                
                 if (loadval) {
                     if (is_func_or_proto(&sym)) {
                         emit_ld_immed(); emit_sname(sym.name); emit_nl();

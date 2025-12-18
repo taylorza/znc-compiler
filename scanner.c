@@ -219,10 +219,26 @@ get_token_start:
     }
     
     // Handle potential double char tokens
-    if (find_char_in_str("=!<>|&/", c)) {
+    if (find_char_in_str("+-=!<>|&/", c)) {
         switch(c) {
+            case '+':
+                *temp++ = gnc(); // skip '+' 
+                tok = tokPlus;
+                if (ch() == '+') {
+                    *temp++ = gnc();
+                    tok = tokInc;
+                }                
+                break;
+            case '-':
+                *temp++ = gnc(); // skip '-' 
+                tok = tokMinus;
+                if (ch() == '-') {
+                    *temp++ = gnc();
+                    tok = tokDec;
+                }                
+                break;
             case '/':
-                *temp++ = gnc(); // skip '=' 
+                *temp++ = gnc(); // skip '/' 
                 tok = tokDiv; 
                 if (ch() == '/') {
                     while ((c = ch()) && c != '\r' && c != '\n') 
@@ -299,13 +315,11 @@ get_token_start:
     }
 
     // Handle single char tokens
-    if (find_char_in_str("+-*%~^;,(){}[]?:", c)) {
+    if (find_char_in_str("*%~^;,(){}[]?:", c)) {
         *temp++ = gnc();
         *temp = '\0';
         token_type = ttDelimiter;
         switch(c) {
-            case '+': tok = tokPlus; break;
-            case '-': tok = tokMinus; break;
             case '*': tok = tokStar; break;            
             case '%': tok = tokMod; break;
             case '~': tok = tokBitNot; break;
