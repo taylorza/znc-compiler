@@ -394,10 +394,11 @@ Variables can be declared at any point in the code
 
 <var>             ::= <ident>
 
-(* Operators available (similar to C, but with ++/-- excluded) *)
+(* Operators available (similar to C, ++/-- can be prefix or postfix) *)
 <op>              ::= "+" | "-" | "*" | "/" | "%" 
                       | "==" | "!=" | "<" | ">" | "<=" | ">=" 
                       | "&&" | "||" | "^" | "|" | "&" | "<<" | ">>"
+                      | "++" | "--"
 
 (* Identifiers, letters, and digits *)
 <ident>           ::= <letter> { <letter> | <digit> | "_" }

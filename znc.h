@@ -7,6 +7,8 @@
 #define MAX_STRTBL_SIZE     15360   // max string table size
 #define MAX_CASE            128     // max case statements per switch
 
+#define NO_LABEL            0xFFFF  // no label defined
+
 #ifdef __ZXNEXT
 #define NL '\r'
 #else

@@ -1,7 +1,5 @@
 #include "znc.h"
 
-#define NO_LABEL 0xFFFF     // no label defined
-
 uint16_t retlbl = 0;        // function exit label
 
 TOKEN tokMakeType = tokRaw; // type of make command
@@ -277,8 +275,7 @@ void parse_decl(void) MYCC {
                 if (is_defined(&sym)) error(errAlreadyDefined_s, name);
                 sym = declglb(type, VARIABLE, name, 0);
             }
-                
-
+               
             if (tok == tokAssign) {
                 parse_assign(0, &sym, 0, type);
             }

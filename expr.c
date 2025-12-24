@@ -263,7 +263,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 make_ptr(&factor_result.type);
             }
             if (tok == tokAssign) {
-                parse_assign(0, NULL, 0, factor_result.type);
+                parse_assign(is_ptr(&factor_result.type), NULL, 0, factor_result.type);
             }
             break;
 
@@ -277,9 +277,16 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 not = 0;
             }
             get_token();
-            factor_result.type = int_type;
-            factor_result.value = intval;
-            make_const(&factor_result.type);
+            if (dereference) {
+                emit_ld_const(intval);
+                emit_load(int_type);
+                factor_result.type = int_type;                
+            } 
+            else {
+                factor_result.type = int_type;
+                factor_result.value = intval;
+                make_const(&factor_result.type);
+            }
             break;
                                
         case tokIdent:
@@ -486,31 +493,64 @@ void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ
         EXPR_RESULT r = parse_expr_delayconst(0);
         if (!is_const(&r.type)) error_expect_const();
         sym->offset = r.value;
+        updatesym(sym);
         return;
     }
 
     /* If assigning a brace-initializer to a global symbol, emit data
      * directly for that symbol using the correct directive width.
      */
-    if (sym && tok == tokLBrace) {
+    if (tok == tokLBrace) {
         get_token(); // skip '{'
         uint16_t counter = 0;
+        uint16_t elementcount = 0;
         BASE_TYPE bt = base_type(&typ);
         uint16_t skiplbl = newlbl();
         uint16_t datalbl = newlbl();
+        uint16_t datalen = NO_LABEL;
 
+        if (!sym && !dereference) error(errSyntax);
+        
+        if (!dereference) {            
+            emit_ld_immed(); emit_lblref(datalbl); emit_nl();
+            if (sym) {
+                emit_store_sym(sym);
+            }
+            else {
+                emit_store(typ);
+            }
+        }
+        else {     
+            datalen = newlbl();
+
+            if (sym) {
+                emit_ld_symval(sym);                
+            }
+            else {
+                emit_load(typ);
+            }
+            if (indexed) {
+                emit_pop();
+                emit_add16();
+            }
+            
+            emit_ldde_immed(); emit_lblref(datalbl); emit_nl();
+            emit_swap();
+            emit_ldbc_immed(); emit_lblref(datalen); emit_nl();
+            emit_instrln("ldir");
+        }
+        
         /* Jump over the data so CPU doesn't execute it at runtime */
-        emit_instr("ld hl,"); emit_lblref(datalbl); emit_nl();
-        emit_store_sym(sym);
         emit_jp(skiplbl);
         /* Emit label + data for the global variable */
         emit_lbl(datalbl);
         emit_ch(' ');
-
+        
         while (tok != tokRBrace && tok != tokEOS) {
             EXPR_RESULT element = parse_expr_delayconst(0);
             if (!is_const(&element.type)) error_expect_const();
 
+            ++elementcount;
             if (counter++ > 0) emit_ch(','); else emit_instr(bt == INT ? "dw " : "db ");
 
             if (bt == INT) {
@@ -527,6 +567,9 @@ void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ
             }
         }
         if (counter) emit_nl();
+        if (datalen != NO_LABEL) {
+            emit_lblequ16(datalen, elementcount * (bt == INT ? 2 : 1));
+        }
         expect_RBrace();
 
         /* place the skip label here so code continues after the data */
@@ -549,38 +592,7 @@ void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ
             emit_add16();
         }
 
-        if (tok == tokLBrace) {
-            get_token(); // skip '{'
-            for (;tok != tokEOS && tok != tokRBrace;) {
-                emit_zopt();
-                emit_push();
-                EXPR_RESULT element = parse_expr_delayconst(0);
-                emit_pop();
-                emit_swap();
-                if (is_const(&element.type)) {                    
-                    emit_instrln("ld (hl),%d", element.value & 0xff);
-                    if (typ.basetype == INT){
-                        emit_instrln("inc hl");
-                        emit_instrln("ld (hl),%d", (element.value>>8) & 0xff);
-                    }
-                } else {
-                    
-                    emit_instrln("ld (hl),e");
-                    if (typ.basetype == INT) {
-                        emit_instrln("inc hl");
-                        emit_instrln("ld (hl), d");
-                    }
-                }
-                if (tok != tokComma) break;
-                emit_instrln("inc hl");
-                get_token(); // skip ','
-            }
-            expect_RBrace();
-
-            return;
-        } else {
-            emit_push();
-        }
+        emit_push();        
     }
     parse_expr(0);
 

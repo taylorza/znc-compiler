@@ -1,3 +1,10 @@
+2025/12/26 - Version 0.2e
+- Support larger programs, more symbols and much larger stringpool
+- ++/-- prefix and postfix operator
+- int array initializers (previously only byte arrays were supported)
+- improved code generation for memory copies using pointer syntax (as used in udg.znc)
+- more symetric support for raw numbers as lvalue and rvalue pointers
+
 2025/12/12 - Version 0.2d
 - Added support for switch statements to the compiler
 
