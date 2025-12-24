@@ -16,7 +16,6 @@ uint16_t bp_lastlocal;      // base pointer of the last local
 uint16_t localbytes;        // total bytes for locals
 uint16_t exit_lbl;          // label for the global exit (return to BASIC for DOT commands)
 uint16_t start_lbl;         // label for the start of the code
-uint16_t stack_addr;        // stack pointer address
 uint16_t stack_lbl;         // label for nex stack
 uint16_t stack_size = 256;  // stack size
 
@@ -247,10 +246,11 @@ void parse_decl(void) MYCC {
         make_const(&type);
     }
 
+    if (tok != tokIdent) error(errSyntax);
+
     char name[MAX_IDENT_LEN + 1];
     strncpy(name, token, MAX_IDENT_LEN);
-
-    if (tok != tokIdent) error(errSyntax);
+    
     get_token(); // skip name
 
     if (tok == tokLParen) {
@@ -291,11 +291,9 @@ void parse_decl(void) MYCC {
 }
 
 void parse_if(uint16_t brklbl, uint16_t contlbl) MYCC {
-    static uint16_t lblEndIf = 0;
+    uint16_t lblEndIf = 0;
     uint16_t lblFalse = newlbl();
-    
-    uint16_t old_endif = lblEndIf;
-    lblEndIf = 0;
+        
     parse_onearg(); // (expr)
     emit_jp_false(lblFalse);
     parse_statement(brklbl, contlbl);
@@ -314,8 +312,7 @@ void parse_if(uint16_t brklbl, uint16_t contlbl) MYCC {
             emit_lbl(lblEndIf);
             lblEndIf = 0;
         }
-    }
-    lblEndIf = old_endif;
+    }    
 }
 
 void parse_switch(uint16_t contlbl) MYCC {
@@ -525,8 +522,7 @@ void parse_asm(int asmcol) MYCC {
             emit_str("  %s ", token);
         }
         TOKEN lasttok = tok; 
-        TOKEN_TYPE lasttoken_type = token_type;
-
+       
         get_token();
         while (token_line == last_token_line && tok != tokRBrace && tok != tokEOS) {
             lasttok = tok; 

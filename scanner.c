@@ -157,7 +157,7 @@ static char ch(void) MYCC {
 static void skipws(void) MYCC {
     char c;
     uint8_t nl_seen = 0;
-    while ((c = ch()) && c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+    while ((c = ch()) && (c == ' ' || c == '\t' || c == '\r' || c == '\n')) {
         nl_seen = 0;
         gnc();
         if (c == '\r') {

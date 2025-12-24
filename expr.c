@@ -21,7 +21,7 @@ typedef struct OP_PREC {
 OP_PREC prectbl[] = {
     {tokCond,   COND_PREC},
 
-    {tokAssign, ASSIGN_PREC},
+    //{tokAssign, ASSIGN_PREC},
     
     {tokOr,     OR_PREC},
     {tokAnd,    AND_PREC},
@@ -770,15 +770,6 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
             emit_rtl("ccdiv");
             emit_swap();
             break;
-
-        case tokOr:
-            emit_rtl("ccor");
-            break;
-
-        case tokAnd:
-            emit_rtl("ccand");
-            break;
-
         case tokShl:
             emit_instrln("ld b,l");  // B  = shift count
             emit_instrln("bsla de,b");
