@@ -171,8 +171,8 @@ static void parse_statement_block(uint16_t brklbl, uint16_t contlbl) MYCC {
     if (maxlocalcount < localcount) maxlocalcount = localcount;
     bp_lastlocal = old_bp;
     localcount = old_localcount;
-    pop_frame(blockframe);
     expect(tokRBrace, '}');
+    pop_frame(blockframe);    
 }
 
 void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {

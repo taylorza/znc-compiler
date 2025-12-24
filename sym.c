@@ -1,10 +1,6 @@
 #include "znc.h"
 
-#ifdef __ZXNEXT
-extern SYMBOL symtab[];
-#else
-    SYMBOL symtab[MAX_SYMBOLS];
-#endif
+SYMBOL symtab[MAX_SYMBOLS];
 
 uint16_t lastgbl = 0;
 uint16_t lastloc = MAX_SYMBOLS;
@@ -67,6 +63,7 @@ SYMBOL* far_addglb(const char* name, SYM_CLASS klass, TYPEREC type, int16_t valu
     sym->type = type;
     sym->scope = GLOBAL;
     sym->offset = value;
+    sym->flags = 0;
     ++lastgbl;
     return sym;
 }
@@ -107,7 +104,11 @@ void far_dump_globals(void) MYCC {
     for (uint16_t i = 0; i < lastgbl; ++i) {
         SYMBOL* sym = &symtab[i];
         if (sym->klass == FUNCTION_PROTO) error(errNotDefined_s, sym->name);
-        if (sym->klass == FUNCTION || is_const(&sym->type)) continue; // skip functions and consts
+        /* If symbol was emitted with an initializer earlier (marked via
+         * `SYM_FLAG_INITIALIZED`), skip auto allocation here. Also skip
+         * functions and consts as before.
+         */
+        if (sym->klass == FUNCTION || is_const(&sym->type) || (sym->flags & SYM_FLAG_INITIALIZED)) continue; // skip functions, consts, inited
         TYPEREC* ptype = &sym->type;
         emit_sname(sym->name);
         emit_ch(' ');
@@ -115,7 +116,8 @@ void far_dump_globals(void) MYCC {
         uint16_t size = is_int(ptype) || is_ptr(ptype) ? 2 : 1;
         if (is_array(ptype)) size *= -ptype->dim;
         emit_n(size);
-        emit_nl();        
+        emit_nl();   
+        sym->flags |= SYM_FLAG_INITIALIZED; // mark as initialized
     }
 }
 

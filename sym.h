@@ -16,7 +16,11 @@ typedef struct SYMBOL {
     SYM_CLASS klass;
     SYM_SCOPE scope;
     int16_t offset;
+    uint8_t flags;
 } SYMBOL;
+
+/* Symbol flags */
+#define SYM_FLAG_INITIALIZED 0x01
 
 extern SYMBOL undefined_sym;
 

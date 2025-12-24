@@ -11,7 +11,7 @@ CFLAGS = -m -c -clib=sdcc_iy -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLO
 AFLAGS =
 LFLAGS = -m -startup=30 -clib=sdcc_iy -subtype=dotn -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLOCS) -pragma-include:zpragma.inc -create-app
 
-SOURCES = strtbl_stub.c sym_stub.c rtl_stub.c type.c strtbl.c codegen.c compiler.c dataarea.c error.c expr.c main.c rtl.c scanner.c sym.c sym_s.asm util.c 
+SOURCES = strtbl_stub.c sym_stub.c rtl_stub.c type.c strtbl.c codegen.c compiler.c dataarea.c error.c expr.c main.c rtl.c scanner.c sym.c util.c 
 
 OBJFILES = $(patsubst %.c,$(OUTPUT_DIR)/%.o,$(SOURCES))
 

@@ -1,7 +1,7 @@
 #define MAX_FILENAME_LEN    64      // max filename length
 #define MAX_IDENT_LEN       14      // max identifier length
 #define MAX_NEST_DEPTH      5       // max nesting depth
-#define MAX_SYMBOLS         700     // max number of symbols
+#define MAX_SYMBOLS         650     // max number of symbols
 #define MAX_READ_BUF        16      // max file read buffer size
 #define MAX_WRITE_BUF       16      // max file write buffer size
 #define MAX_STRTBL_SIZE     15360   // max string table size
