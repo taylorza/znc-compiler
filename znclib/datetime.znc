@@ -1,0 +1,162 @@
+// datetime.znc
+// ------------------------
+// v 0.0.2      11-Oct-2025
+// (C)2025  by nuntis/spayz
+// ------------------------
+// The code and libraries within are distributed under the terms of the 
+// Lesser GNU General Public License.
+// Specific permission is granted to Chris Taylor (aka taylorza on itcho.io)
+// to use any of this code as he sees fit.
+// https://github.com/Nuntis-Spayz/sev-znc-libs
+
+#ifndef DATETIME__
+const byte DATETIME__=0x01;
+
+const byte DT_YEAR  = 0;
+const byte DT_MONTH = 1;
+const byte DT_DAY   = 2;
+const byte DT_HOUR  = 3;
+const byte DT_MINS  = 4;
+const byte DT_SECS  = 5;
+
+
+// ***************************************************************************
+// * M_GETDATE ($8e)                                                         *
+// ***************************************************************************
+// m_getdate          ; $8e (142)    get current date/time
+// Get the current date/time.
+// Entry:
+// Exit:Fc=0 if RTC present and providing valid date/time, and:
+//      BC=date, in MS-DOS format
+//      DE=time, in MS-DOS format
+//      H=secs to 1-second precision
+//        (time in DE only provides 2-sec precision)
+//      L=100ths of second (or $ff if not supported by RTC module)
+//      Fc=1 if no RTC, or invalid date/time, and:
+//      BC=0, DE=0, HL undefined
+
+int getDateTime(int dt) __asm__ {
+  
+  push ix
+  ld ix,0
+  add ix,sp
+  // not 0,1,2,3
+  ld l,(ix+4)
+  ld h,(ix+5)
+  push hl
+  
+  rst 0x08
+  db $8e // * M_GETDATE
+  
+  pop ix
+  
+  // store h & l directly 
+  //secs
+  ld (ix+10),h
+  ld (ix+11),0
+  
+  //hundredths
+  //ld (ix+12),l 
+  //ld (ix+13),0
+  
+  //return secs  
+  ld l,h
+  ld h,0
+  push hl
+  // now hl is available for calculations
+
+  ; Input : BC = DOS date
+  ;         IX = pointer to destination buffer
+  ; Output: (IX+0) = low byte of year
+  ;         (IX+1) = high byte of year
+  ;         (IX+2) = month
+  ;         (IX+3) = 0          ; (optional padding)
+  ;         (IX+4) = day
+  ;         (IX+5) = 0          ; (optional padding)
+  ; Clobbers: A, H, L
+  ; Preserves: DE
+
+  ; --- Day (bits 0..4) ---
+  ld   a, c
+  and  0x1F
+  ld   (ix+4), a
+  ld   (ix+5), 0
+
+  ; --- Month (bits 5..8) ---
+  ld   a, c
+  srl  a
+  srl  a
+  srl  a
+  srl  a
+  srl  a        ; A = C >> 5  (bits 5..7 → bits 0..2)
+  ld   l, a
+
+  ld   a, b
+  sla  a
+  sla  a
+  sla  a        ; A = B << 3  (B bit0 → bit3)
+  and  0x08     ; isolate that bit (now in bit3)
+  or   l        ; combine with C>>5
+  and  0x0F     ; mask to 4 bits (month)
+  ld   (ix+2), a
+  ld   (ix+3), 0
+
+  ; --- Year offset (bits 9..15) ---
+  ld   a, b
+  srl  a        ; A = B >> 1  -> year offset (0..127)
+  and  0x7F
+  ld   l, a
+  ld   h, 0
+
+  ; --- Add 1980 (0x07BC) ---
+  ld a, l
+  add a, 0xBC
+  ld l, a
+  ld a, h
+  adc a, 0x07
+  ld h, a
+
+  ; --- Store Year (little-endian) ---
+  ld (ix+0), l
+  ld (ix+1), h
+
+  ; Input : DE = DOS time (2s resolution)
+  ;         IX = base pointer
+  ; Output: (IX+6) = hour (0...23)
+  ;         (IX+8) = minute (0...59)
+  ; Clobbers: A, H, L
+  
+  ; --- Extract Minutes (bits 5...10) ---
+  ld a, e
+  srl a          ; >>1
+  srl a          ; >>2
+  srl a          ; >>3
+  srl a          ; >>4
+  srl a          ; >>5  -> A = bits 5...7 now in bits 0...2
+  ld l, a        ; L = low part of minutes (bits 5...7)
+  
+  ld a, d        ; high byte: bits 8...15
+  sla a          ; <<1 (bit 7 becomes bit 0)
+  sla a          ; <<2
+  sla a          ; <<3
+  and 0x38       ; isolate bits 8...10 (now in bits 3...5)
+  or l           ; combine with low bits from E>>5
+  and 0x3F       ; keep only 6 bits = 0...59
+  ld (ix+8), a   ; store minutes
+  ld (ix+9),0
+ 
+  ; --- Extract Hours (bits 11...15) ---
+  ld a, d
+  srl a          ; >>1
+  srl a          ; >>2
+  srl a          ; >>3
+  and 0x1F       ; keep 5 bits = 0...23
+  ld (ix+6), a   ; store hours
+  ld (ix+7),0
+  
+  pop hl  
+  pop ix
+  ret
+}
+
+#endif

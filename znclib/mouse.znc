@@ -1,0 +1,49 @@
+// mouse.znc
+// ------------------------
+// v 0.0.2      29-Sep-2025
+// (C)2025  by nuntis/spayz
+// ------------------------
+// The code and libraries within are distributed under the terms of the 
+// Lesser GNU General Public License.
+// Specific permission is granted to Chris Taylor (aka taylorza on itcho.io)
+// to use any of this code as he sees fit.
+// https://github.com/Nuntis-Spayz/sev-znc-libs
+
+#ifndef MOUSE__
+const byte MOUSE__=0x01;
+
+byte readMouseX() __asm__ {
+  ld bc,0xFBDF
+  in l,(c)
+  ld h,0
+  ret
+}
+
+byte readMouseY() __asm__ {
+  ld bc,0xFFDF
+  in l,(c)
+  ld h,0
+  ret
+}
+
+byte readMouseB() __asm__ {
+  ld bc,0xFADF
+  in a,(c)
+  and 0x07
+  ld l,a
+  ld h,0
+  ret
+}
+
+byte readMouseW() __asm__ {
+  ld bc,0xFADF
+  in a,(c)
+  and 0xF8
+  rra
+  rra
+  rra
+  ld h,0
+  ld l,a 
+  ret
+}
+#endif

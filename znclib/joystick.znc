@@ -1,0 +1,84 @@
+// joystick.znc
+// ------------------------
+// v 0.0.6      25-Oct-2025
+// (C)2025  by nuntis/spayz
+// ------------------------
+// The code and libraries within are distributed under the terms of the 
+// Lesser GNU General Public License.
+// Specific permission is granted to Chris Taylor (aka taylorza on itcho.io)
+// to use any of this code as he sees fit.
+// https://github.com/Nuntis-Spayz/sev-znc-libs
+
+#ifndef JOYSTICK__
+const byte JOYSTICK__=0x01;
+
+const int JOYSTK_RIGHT =0x0001;
+const int JOYSTK_LEFT  =0x0002;
+const int JOYSTK_DOWN  =0x0004;
+const int JOYSTK_UP    =0x0008;
+
+const int JOYSTK_B     =0x0010;
+const int JOYSTK_C     =0x0020;
+const int JOYSTK_A     =0x0040;
+
+const int JOYSTK_START =0x0080;
+const int JOYSTK_SELECT=0x0100;
+
+const int JOYSTK_Y     =0x0200;
+const int JOYSTK_Z     =0x0400;
+const int JOYSTK_X     =0x0800;
+
+// reset peripheral 1 to be MD/Sega Joysticks
+byte initJoystick() __asm__ {
+  ld a, $05
+  ld bc, $243b
+  out (c),a
+  inc b
+  in a,(c)
+
+  and a, 0b00000101
+  or a,  0b01101010
+  nextreg 0x05,a
+  ld h,0
+  ld l,a
+  ret
+}
+
+// read kempston joystick 1
+int readJoy1()__asm__ {
+  ld a, $b2
+  ld bc, $243b
+  out (c),a
+  inc b
+  in a,(c)
+  and $0F
+  ld h,a
+  ld bc, $1f
+  in l, (c)
+  ret
+}
+
+// read kempston joystick 2
+int readJoy2() __asm__ {
+  ld a, $b2
+  ld bc, $243b
+  out (c),a
+  inc b
+  in a,(c)
+  and $F0
+  rra
+  rra
+  rra
+  rra
+  ld h,a
+  ld bc, $37
+  in l, (c)
+  ret
+}
+
+// test a specific button
+byte buttonJoy(byte n, int mask) {
+  int j = (n < 2) ? readJoy1() : readJoy2();
+  return (j & mask) != 0;
+}
+#endif

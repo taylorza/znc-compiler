@@ -1,0 +1,44 @@
+// strcontains.znc
+// ------------------------
+// v 0.0.1      07-Dec-2025
+// (C)2025  by nuntis/spayz
+// ------------------------
+// The code and libraries within are distributed under the terms of the 
+// Lesser GNU General Public License.
+// Specific permission is granted to Chris Taylor (aka taylorza on itcho.io)
+// to use any of this code as he sees fit.
+// https://github.com/Nuntis-Spayz/sev-znc-libs
+
+#ifndef STRCTNS__
+const byte STRCTNS__=0x01;
+
+byte strcontains(char *haystack, char *search) {
+
+    byte h_len = strlen(haystack);
+    byte s_len = strlen(search);
+
+    // If the search string is longer than the haystack, it can't be contained
+    if (s_len > h_len) {
+        return 0; // false
+    }
+
+    // Loop through each position in the haystack
+    for (byte i = 0; i <= h_len - s_len; i = i + 1) {
+        byte j;
+        // Check if the substring matches
+        for (j = 0; j < s_len; j = j + 1) {
+            if (haystack[i + j] != search[j]) {
+                break; // Mismatch found
+            }
+        }
+        
+        // If we fully matched the search string
+        if (j == s_len) {
+            return 1; // true
+        }
+    }
+    
+    return 0; // false
+}
+
+#endif

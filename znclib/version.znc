@@ -1,0 +1,34 @@
+// version.znc
+// ------------------------
+// v 0.0.1      23-Sep-2025
+// (C)2025  by nuntis/spayz
+// ------------------------
+// The code and libraries within are distributed under the terms of the 
+// Lesser GNU General Public License.
+// Specific permission is granted to Chris Taylor (aka taylorza on itcho.io)
+// to use any of this code as he sees fit.
+// https://github.com/Nuntis-Spayz/sev-znc-libs
+
+#ifndef VERSION__
+const byte VERSION__=0x01;
+
+// get the exdos version number as BCD
+// BCD = Binary Coded Decimal
+// each 4 bits of the rturned 16 bit integer
+// is a decimal digit eg. 2.0.9 => 0x0209
+int exdosVersion () __asm__ {
+  rst 8
+  db  0x88 ; M_DOSVERSION
+  ld h,d
+  ld l,e
+  ret
+}
+
+// get the core version number as BCD
+// each 4 bits of the returned 16 bit integer
+// is a decimal digit eg. 3.2.0.1 => 0x3201
+int coreVersion ()
+{
+  return (readreg(1)<<8) | readreg(14);
+}
+#endif

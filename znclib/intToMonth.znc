@@ -1,0 +1,52 @@
+// iToMonth.znc
+// ------------------------
+// v 0.0.1      14-Dec-2025
+// (C)2025  by nuntis/spayz
+// ------------------------
+// The code and libraries within are distributed under the terms of the 
+// Lesser GNU General Public License.
+// Specific permission is granted to Chris Taylor (aka taylorza on itcho.io)
+// to use any of this code as he sees fit.
+// https://github.com/Nuntis-Spayz/sev-znc-libs
+
+#ifndef ITOMONTH__
+
+include "/zdev/string.znc";
+
+// Declare constant for module
+const byte ITOMONTH__ = 0x01;
+
+// Function to convert integer month to full month name
+char* intToMonth(int month) {
+    switch( month ) {
+      case 1 : return "January";
+      case 2 : return "February";
+      case 3 : return "March";
+      case 4 : return "April";
+      case 5 : return "May";
+      case 6 : return "June";
+      case 7 : return "July";
+      case 8 : return "August";
+      case 9 : return "September";
+      case 10: return "October";
+      case 11: return "November";
+      case 12: return "December";
+    }
+    return "---";
+}
+
+// Function to convert integer month to short month abbreviation
+char* intToShMonth(int month) {
+    
+    // Retrieve the long month name
+    char* shortMonth = "123";
+    
+    char* longMonth = intToMonth(month);
+    shortMonth[0] = longMonth[0];
+    shortMonth[1] = longMonth[1];
+    shortMonth[2] = longMonth[2];
+    
+    return shortMonth;
+}
+
+#endif

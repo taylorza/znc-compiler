@@ -1,0 +1,41 @@
+// strtoint.znc
+// ------------------------
+// v 0.0.1      07-Dec-2025
+// (C)2025  by nuntis/spayz
+// ------------------------
+// The code and libraries within are distributed under the terms of the 
+// Lesser GNU General Public License.
+// Specific permission is granted to Chris Taylor (aka taylorza on itcho.io)
+// to use any of this code as he sees fit.
+// https://github.com/Nuntis-Spayz/sev-znc-libs
+
+#ifndef STRTOINT__
+const byte STRTOINT__=0x01;
+
+int strtoint(char *astring) {
+    int sign = 1;
+    int result = 0; // 16-bit signed integer
+
+    // Ignore leading whitespace and other control characters (ASCII <= 32)
+    while (*astring <= 32) {
+        astring = astring + 1;
+    }
+
+    // Check for sign
+    if (*astring == 45) {  // 45 = -
+        sign = -1;
+        astring = astring + 1;
+    } else if (*astring == 43) { // 43 = +  
+        astring = astring + 1;
+    }
+
+    // Convert numeric characters to integer
+    while (*astring >= 48 && *astring <= 57) {
+        result = (result * 10) + (*astring - 48);
+        astring = astring + 1;
+    }
+
+    return sign * result; // Return the signed result
+}
+
+#endif
