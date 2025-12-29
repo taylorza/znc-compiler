@@ -291,21 +291,21 @@ void parse_decl(void) MYCC {
 }
 
 void parse_if(uint16_t brklbl, uint16_t contlbl) MYCC {
-    uint16_t lblEndIf = 0;
+    uint16_t lblEndIf = NO_LABEL;
     uint16_t lblFalse = newlbl();
-        
+                
     parse_onearg(); // (expr)
     emit_jp_false(lblFalse);
     parse_statement(brklbl, contlbl);
 
     if (tok == tokElse) {
         get_token(); // skip 'else'
-        if (lblEndIf == 0) lblEndIf = newlbl();
+        if (lblEndIf == NO_LABEL) lblEndIf = newlbl();
         emit_jp(lblEndIf);
     }        
     emit_lbl(lblFalse);
     
-    if (lblEndIf)
+    if (lblEndIf != NO_LABEL)
     {
         parse_statement(brklbl, contlbl);
         if (lblEndIf) {
