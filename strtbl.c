@@ -4,18 +4,18 @@ char strtbl[MAX_STRTBL_SIZE];
 
 size_t laststr = 0;
 
-int16_t far_lookupstr(const char* s) MYCC {
+int16_t far_lookupstr(const char* s, uint8_t len) MYCC {
     for (size_t i = 0; i < laststr;) {
         const char* literal = &strtbl[i];
-        if (strcmp(s, literal) == 0) {
+        if (memcmp(s, literal, len) == 0) {
             return (uint16_t)i;
         }
         i += strlen(literal)+1;
     }
-    size_t len = strlen(s);
     if (laststr + len >= MAX_STRTBL_SIZE) error(errTooManySymbols);
 
-    strcpy(strtbl + laststr, s);
+    memcpy(&strtbl[laststr], s, len);
+    strtbl[laststr + len] = '\0';
     laststr += len+1;
     return (uint16_t)(laststr - len - 1);
 }

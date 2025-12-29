@@ -26,6 +26,7 @@ extern char token[MAX_STR_LEN+1];
 extern uint16_t token_line;
 extern uint8_t token_col;
 extern TOKEN_TYPE token_type;
+extern uint8_t token_length;
 extern TOKEN tok;
 extern int16_t intval;
 

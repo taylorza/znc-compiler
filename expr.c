@@ -219,12 +219,21 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             factor_result.type = char_type;
             break;
 
-        case tokString:
+        case tokString: {
             factor_result.type = string_type;
-            intval = lookupstr(token);
+            char str[MAX_STR_LEN << 1];
+            char* p = str;
+            while (tok == tokString) {
+                memcpy(p, token, token_length);
+                p += token_length;
+                get_token();
+            }                
+            *p = '\0';
+            intval = lookupstr(str, p - str);
             emit_ld_immed(); emit_strref(intval); emit_nl();
-            get_token(); // skip string
+
             break;
+        }
 
         case tokAmp:
             get_token(); // skip '&'

@@ -9,6 +9,7 @@ uint16_t token_line;
 uint8_t token_col;
 TOKEN_TYPE token_type;
 TOKEN tok;
+uint8_t token_length;
 
 int16_t intval;
 
@@ -177,6 +178,7 @@ static void skipws(void) MYCC {
 
 static uint8_t escape(void) MYCC {
     char c = 0;
+    token_col = loc[fileid].col;
     gnc(); // skip '\'
     switch (ch()) {
         case '\\':
@@ -192,6 +194,19 @@ static uint8_t escape(void) MYCC {
         case 'n':
             c = '\n';
             break;
+        case '0':
+            gnc();
+            c = '\0';
+            break;
+        case 'x': {
+            gnc(); // skip 'x'
+            uint8_t hi = is_base_digit(ch(), 16);
+            gnc();
+            uint8_t lo = is_base_digit(ch(), 16);
+            if (hi == 255 || lo == 255) error(errSyntax);
+            c = (char)((hi << 4) | lo);
+            break;
+        }
         default:
             error(errSyntax);
             break;
@@ -207,6 +222,7 @@ get_token_start:
     *temp = '\0';
     
     skipws();
+    token_length = 0;
     token_line = loc[fileid].line;
     token_col = loc[fileid].col;
     
@@ -214,7 +230,7 @@ get_token_start:
 
     if (c == '\0') {
         *temp = '\0';
-        tok = tokEOS;        
+        tok = tokEOS;       
         return (token_type = ttDelimiter);
     }
     
@@ -310,6 +326,7 @@ get_token_start:
         }
         if (token[0]) {
             *temp = '\0';
+            token_length = (uint8_t)(temp - &token[0]);
             return (token_type = ttDelimiter);
         }
     }
@@ -338,6 +355,7 @@ get_token_start:
                 error(errSyntax);
                 break;
         }
+        token_length = (uint8_t)(temp - &token[0]);
         return token_type;
     }
 
@@ -366,30 +384,7 @@ get_token_start:
         gnc(); // skip '"'
         while (--l && (c = ch()) && c != '"' && c != '\r' && c != '\n') {
             if (c == '\\') {
-                gnc();  // skip '\'
-                switch(c = ch()) {
-                    case '\\':
-                    case '"': 
-                        gnc(); 
-                        *temp++ = c;
-                        break;
-                    case 't':
-                        gnc();
-                        *temp++ = '\t';
-                        break;
-                    case 'r':
-                        gnc();
-                        *temp++ = '\r';
-                        break;
-                    case 'n':
-                        gnc();
-                        *temp++ = '\n';
-                        break;
-                    default:
-                        token_col = loc[fileid].col;
-                        error(errSyntax);
-                        break;
-                }                
+                *temp++ = escape();
             } else *temp++ = gnc();
         }
         *temp = '\0';
@@ -398,6 +393,7 @@ get_token_start:
         else if (c != '"') error(errExpected_c, '"');
         else gnc();
         tok = tokString;
+        token_length = (uint8_t)(temp - &token[0]);
         return (token_type = ttString);
     }
 
@@ -449,6 +445,7 @@ get_token_start:
     *temp++ = gnc();
     *temp = '\0';
     tok = tokNone;
+    token_length = (uint8_t)(temp - &token[0]);
     return (token_type = ttError);
 }
 
