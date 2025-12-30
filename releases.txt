@@ -1,3 +1,8 @@
+2025/12/30 - Version 0.2f
+- Support concatenation of sequencial string literals
+- Support hex character code escape sequences
+- Code generation enhancements
+
 2025/12/28 - Version 0.2e
 - Support larger programs, more symbols and much larger stringpool
 - ++/-- prefix and postfix operator
