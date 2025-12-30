@@ -150,6 +150,54 @@ void emit_ldde_immed(void) MYCC {
     emit_instr("ld de,");
 }
 
+void emit_ld_immed_n(uint16_t n) MYCC {
+    emit_ld_immed();
+    emit_n(n);
+    emit_nl();
+}
+
+void emit_ldbc_immed_n(uint16_t n) MYCC {
+    emit_ldbc_immed();
+    emit_n(n);
+    emit_nl();
+}
+
+void emit_ldde_immed_n(uint16_t n) MYCC {
+    emit_ldde_immed();
+    emit_n(n);
+    emit_nl();
+}
+
+void emit_load_word_from_hl(void) MYCC {
+    emit_instrln("ld a,(hl)");
+    emit_instrln("inc hl");
+    emit_instrln("ld h,(hl)");
+    emit_instrln("ld l,a");
+}
+
+void emit_store_word_at_de(void) MYCC {
+    emit_instrln("ld a,l");
+    emit_instrln("ld (de),a");
+    emit_instrln("inc de");
+    emit_instrln("ld a,h");
+    emit_instrln("ld (de),a");
+}
+
+void emit_store_byte_at_de(void) MYCC {
+    emit_instrln("ld a,l");
+    emit_instrln("ld (de),a");
+}
+
+void emit_copy_hl_to_bc(void) MYCC {
+    emit_instrln("ld b,h");
+    emit_instrln("ld c,l");
+}
+
+void emit_copy_bc_to_hl(void) MYCC {
+    emit_instrln("ld h,b");
+    emit_instrln("ld l,c");
+}
+
 void emit_push(void) MYCC {
     emit_instrln("push hl");
 }
@@ -305,7 +353,7 @@ void emit_ld_symaddr(SYMBOL* sym) MYCC {
 }
 
 void emit_ld_const(uint16_t value) MYCC {
-    emit_instrln("ld hl,%d", value);
+    emit_ld_immed_n(value);
 }
 
 void emit_store_sym(SYMBOL* sym) MYCC {
@@ -338,27 +386,18 @@ void emit_store_sym(SYMBOL* sym) MYCC {
 void emit_store(TYPEREC type) MYCC {
     emit_pop();         // target address
     if (is_void(&type) || is_char(&type)) {
-        emit_instrln("ld a,l");
-        emit_instrln("ld (de),a");
+        emit_store_byte_at_de();
     } else {
-        emit_instrln("ld a,l");
-        emit_instrln("ld (de),a");
-        emit_instrln("inc de");
-        emit_instrln("ld a,h");
-        emit_instrln("ld (de),a");
+        emit_store_word_at_de();
     }
-}
+} 
 
 void emit_load(TYPEREC type) MYCC {
     if (!is_ptr(&type) && is_char(&type)) {
         emit_instrln("ld a,(hl)");
         emit_rtl("ccsxt");
-    }
-    else {
-        emit_instrln("ld a,(hl)");
-        emit_instrln("inc hl");
-        emit_instrln("ld h,(hl)");
-        emit_instrln("ld l,a");
+    } else {
+        emit_load_word_from_hl();
     }
 }
 

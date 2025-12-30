@@ -482,8 +482,7 @@ void parse_out(void) MYCC {
     expect_LParen();
    
     parse_expr(0);
-    emit_instrln("ld b,h");
-    emit_instrln("ld c,l");    
+    emit_copy_hl_to_bc();
     expect_comma();
     parse_expr(0);
     emit_instrln("out (c),l");
@@ -639,8 +638,7 @@ void do_exit(EXPR_RESULT exit_expr) {
                 emit_instrln("ld b,a");
                 emit_instrln("ld c,a");
             } else {
-                emit_instrln("ld b,h");
-                emit_instrln("ld c,l");
+                emit_copy_hl_to_bc();
             }
             break;
     }

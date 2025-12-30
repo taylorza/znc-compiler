@@ -199,11 +199,10 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             expect_LParen();
             parse_expr(0);
             expect_RParen();
-            emit_instrln("ld b,h");
-            emit_instrln("ld c,l");
+            emit_copy_hl_to_bc();
             emit_instrln("in a,(c)");
             emit_rtl("ccsxt");
-            factor_result.type = char_type;
+            factor_result.type = char_type; 
             break;
 
         case tokReadReg:
@@ -419,23 +418,21 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                         emit_load(factor_result.type); /* HL = original value */
 
                         /* save original in BC */
-                        emit_instrln("ld b,h");
-                        emit_instrln("ld c,l");
+                        emit_copy_hl_to_bc();
 
                         /* compute new value */
                         if (isdec) {
                             emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
                             emit_add16();
                         } else {
-                            emit_instrln("ld de,%d", step);
+                            emit_ldde_immed_n(step);
                             emit_add16();
                         }
 
                         emit_store(factor_result.type); /* pop address and store new value */
 
                         /* restore original from BC */
-                        emit_instrln("ld h,b");
-                        emit_instrln("ld l,c");
+                        emit_copy_bc_to_hl(); 
 
                         loadval = 0;
                         indexed = 0;
@@ -456,7 +453,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                         if (isdec) {
                             emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
                         } else {
-                            emit_instrln("ld de,%d", step);
+                            emit_ldde_immed_n(step);
                         }
                         emit_add16();
                         emit_store_sym(&sym);

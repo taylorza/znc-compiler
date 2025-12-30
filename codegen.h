@@ -29,6 +29,16 @@ void emit_ld_immed(void) MYCC;
 void emit_ldbc_immed(void) MYCC;
 void emit_ldde_immed(void) MYCC;
 
+void emit_ld_immed_n(uint16_t n) MYCC;
+void emit_ldbc_immed_n(uint16_t n) MYCC;
+void emit_ldde_immed_n(uint16_t n) MYCC;
+
+void emit_load_word_from_hl(void) MYCC;
+void emit_store_word_at_de(void) MYCC;
+void emit_store_byte_at_de(void) MYCC;
+void emit_copy_hl_to_bc(void) MYCC;
+void emit_copy_bc_to_hl(void) MYCC;
+
 void emit_push(void) MYCC;
 
 void emit_pop(void) MYCC;
