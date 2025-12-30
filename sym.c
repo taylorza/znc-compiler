@@ -112,10 +112,20 @@ void far_dump_globals(void) MYCC {
         TYPEREC* ptype = &sym->type;
         emit_sname(sym->name);
         emit_ch(' ');
-        emit_str("ds ");
         uint16_t size = is_int(ptype) || is_ptr(ptype) ? 2 : 1;
         if (is_array(ptype)) size *= -ptype->dim;
-        emit_n(size);
+        switch(size) {
+            case 1:
+                emit_str("db 0");
+                break;
+            case 2:
+                emit_str("dw 0");
+                break;
+            default:
+                emit_str("ds ");
+                emit_n(size);
+                break;
+        }
         emit_nl();   
         sym->flags |= SYM_FLAG_INITIALIZED; // mark as initialized
     }
