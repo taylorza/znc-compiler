@@ -221,8 +221,16 @@ void emit_sub16(void) MYCC {
 }
 
 void emit_rtl(const char* name) MYCC {
-    if ((inc_rtl(name) & FLAG_RTL_INLINE) == 0) {
-        emit_call(name);
+    /* Copy name into a small main-bank buffer so callers from other banks
+     * can pass string literals that live in their bank without causing
+     * device MMU deref issues when inc_rtl switches bank.
+     */
+    char tmp[32];
+    strncpy(tmp, name, sizeof(tmp) - 1);
+    tmp[sizeof(tmp) - 1] = '\0';
+
+    if ((inc_rtl(tmp) & FLAG_RTL_INLINE) == 0) {
+        emit_call(tmp);
     }
 }
 

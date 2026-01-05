@@ -1,4 +1,5 @@
 #include "znc.h"
+#include "shared.h"
 
 #define ASSIGN_PREC 1
 #define OR_PREC 5
@@ -61,10 +62,12 @@ int8_t prec(TOKEN op) MYCC {
 EXPR_RESULT parse_ternary(EXPR_RESULT expr_result, uint8_t prec) MYCC;
 EXPR_RESULT parse_factor(uint8_t dereference) MYCC;
 EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT ltyp, uint8_t prec) MYCC;
-EXPR_RESULT parse_expr_delayconst(uint8_t minprec) MYCC;
+EXPR_RESULT far_parse_expr(uint8_t minprec) MYCC;
+EXPR_RESULT far_parse_expr_delayconst(uint8_t minprec) MYCC;
+void far_parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ) MYCC;
 
-EXPR_RESULT parse_expr(uint8_t minprec) MYCC {
-    EXPR_RESULT expr_result = parse_expr_delayconst(minprec);
+EXPR_RESULT far_parse_expr(uint8_t minprec) MYCC {
+    EXPR_RESULT expr_result = far_parse_expr_delayconst(minprec);
     
     if (is_const(&expr_result.type)) {
         emit_ld_const(expr_result.value);
@@ -73,7 +76,7 @@ EXPR_RESULT parse_expr(uint8_t minprec) MYCC {
     return expr_result;
 }
 
-EXPR_RESULT parse_expr_delayconst(uint8_t minprec) MYCC {
+EXPR_RESULT far_parse_expr_delayconst(uint8_t minprec) MYCC {
     EXPR_RESULT expr_result = parse_factor(0);
 
     uint8_t p;
@@ -99,11 +102,11 @@ EXPR_RESULT parse_ternary(EXPR_RESULT expr_result, uint8_t prec) MYCC {
         emit_ld_const(expr_result.value);
     }
     emit_jp_false(altlbl);
-    EXPR_RESULT ptyp = parse_expr(0);  // primary expression
+    EXPR_RESULT ptyp = far_parse_expr(0);  // primary expression
     emit_jp(donelbl);
     expect(tokColon, ':');
     emit_lbl(altlbl);
-    EXPR_RESULT atyp = parse_expr(prec); // alternate expresion
+    EXPR_RESULT atyp = far_parse_expr(prec); // alternate expresion
     emit_lbl(donelbl);
 
     if (base_type(&ptyp.type) != base_type(&atyp.type)) error(errTypeError);
@@ -115,7 +118,7 @@ EXPR_RESULT parse_ternary(EXPR_RESULT expr_result, uint8_t prec) MYCC {
 
 EXPR_RESULT parse_indexer(const TYPEREC *elemtype) {
     get_token();    // skip '['
-    EXPR_RESULT index_result = parse_expr_delayconst(0);   // index expression
+    EXPR_RESULT index_result = far_parse_expr_delayconst(0);   // index expression
     expect(tokRBrack, ']'); // skip ']'
 
     uint16_t scale = is_int(elemtype) ? 2 : 1;
@@ -170,7 +173,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             tmplbl = newlbl();
             emit_lbl(tmplbl);
             while (tok != tokRBrace) {
-                EXPR_RESULT element = parse_expr_delayconst(0);
+                EXPR_RESULT element = far_parse_expr_delayconst(0);
                 if (!is_const(&element.type)) error_expect_const();
                 if (counter++ > 0) emit_ch(','); else emit_instr("db ");
                 emit_n(element.value);
@@ -190,14 +193,14 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             break;
         case tokLParen:
             get_token(); // skip '('
-            factor_result = parse_expr_delayconst(0);
+            factor_result = far_parse_expr_delayconst(0);
             expect_RParen();
             break;
 
         case tokIn:
             get_token(); // skip 'in'
             expect_LParen();
-            parse_expr(0);
+            far_parse_expr(0);
             expect_RParen();
             emit_copy_hl_to_bc();
             emit_instrln("in a,(c)");
@@ -208,7 +211,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
         case tokReadReg:
             get_token(); // skip 'readreg'
             expect_LParen();
-            parse_expr(0);
+            far_parse_expr(0);
             emit_instrln("ld bc,9275");
             emit_instrln("out (c),l");
             emit_instrln("inc b");
@@ -220,17 +223,22 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
 
         case tokString: {
             factor_result.type = string_type;
-            char str[MAX_STR_LEN << 1];
-            char* p = str;
+            ARENA_MARKER _am = arena_get_marker();
+            char *sbuf = NULL;
+            size_t slen = 0;
+            
             while (tok == tokString) {
-                memcpy(p, token, token_length);
-                p += token_length;
+                sbuf = arena_strappend(sbuf, slen, token, token_length);
+                if (!sbuf) error(errTooManySymbols);
+                slen += token_length;
                 get_token();
-            }                
-            *p = '\0';
-            intval = lookupstr(str, p - str);
+            }
+
+            if (!sbuf) sbuf = arena_strdup("", 0);
+            intval = lookupstr(sbuf, (uint8_t)slen);
             emit_ld_immed(); emit_strref(intval); emit_nl();
 
+            arena_free_to_marker(_am);
             break;
         }
 
@@ -238,7 +246,9 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             get_token(); // skip '&'
             if (tok != tokIdent) error(errNotlvalue);
             sym = lookupIdent(token);
-            if (not_defined(&sym)) error(errNotDefined_s, token);
+            if (not_defined(&sym)) {
+                error(errNotDefined_s, token);
+            }
                 
             get_token(); // skip identifier
             factor_result.type = sym.type;
@@ -271,7 +281,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 make_ptr(&factor_result.type);
             }
             if (tok == tokAssign) {
-                parse_assign(is_ptr(&factor_result.type), NULL, 0, factor_result.type);
+                far_parse_assign(is_ptr(&factor_result.type), NULL, 0, factor_result.type);
             }
             break;
 
@@ -386,7 +396,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 }
             }
             if (tok == tokAssign) {
-                parse_assign(dereference, &sym, indexed, factor_result.type);
+                far_parse_assign(dereference, &sym, indexed, factor_result.type);
             } else {
                 /* handle postfix ++/-- */
                 if (tok == tokInc || tok == tokDec) {
@@ -492,11 +502,11 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
     return factor_result;
 }
 
-void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ) MYCC {
+void far_parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ) MYCC {
     get_token(); // skip '='
 
     if (sym && is_const(&sym->type)) {
-        EXPR_RESULT r = parse_expr_delayconst(0);
+        EXPR_RESULT r = far_parse_expr_delayconst(0);
         if (!is_const(&r.type)) error_expect_const();
         sym->offset = r.value;
         updatesym(sym);
@@ -553,7 +563,7 @@ void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ
         emit_ch(' ');
         
         while (tok != tokRBrace && tok != tokEOS) {
-            EXPR_RESULT element = parse_expr_delayconst(0);
+            EXPR_RESULT element = far_parse_expr_delayconst(0);
             if (!is_const(&element.type)) error_expect_const();
 
             ++elementcount;
@@ -586,7 +596,7 @@ void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ
     if (!sym) {
         // HL contains address to write to
         emit_push();
-        parse_expr(0);
+        far_parse_expr(0);
         emit_store(typ);
         return;
     }
@@ -600,7 +610,7 @@ void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ
 
         emit_push();        
     }
-    parse_expr(0);
+    far_parse_expr(0);
 
     if (dereference) {
         emit_store(typ);
@@ -642,7 +652,7 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
         } else {
             emit_jp(short_circuit_lbl);
         }
-        l_result = parse_expr(opprec + 1);
+        l_result = far_parse_expr(opprec + 1);
         emit_lbl(short_circuit_lbl);
 
         return short_circuit_result;
@@ -652,7 +662,7 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
         emit_push();        
     }
 
-    r_result = parse_expr_delayconst(opprec + 1);
+    r_result = far_parse_expr_delayconst(opprec + 1);
 
     scaleR = (is_ptr(&l_result.type) && is_int(&l_result.type));
     scaleL = (is_ptr(&r_result.type) && is_int(&r_result.type));

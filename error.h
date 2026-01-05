@@ -15,6 +15,7 @@ typedef enum ERROR {
     errDeclMismatch,
     errInvalid_s,
     errExpected_s,
+    errArenaOutOfMemory,
 } ERROR;
 
 extern int errcnt;

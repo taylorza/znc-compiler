@@ -18,6 +18,7 @@ void error(ERROR err, ...) {
         "Definition mismatch",
         "Invalid %s",
         "Expected %s",
+        "Out of memory in arena",
     };
     
     char buf[64];

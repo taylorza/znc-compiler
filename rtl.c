@@ -195,7 +195,7 @@ uint8_t far_inc_rtl(const char* fn) {
                     }
                     if (*curr == ',') ++curr;
                     *p = '\0';
-                    inc_rtl(depname);
+                    far_inc_rtl(depname);
                 }
             }
             if (rtl->flags & FLAG_RTL_INLINE) {

@@ -103,7 +103,14 @@ uint8_t far_is_scoped(void) MYCC {
 void far_dump_globals(void) MYCC {
     for (uint16_t i = 0; i < lastgbl; ++i) {
         SYMBOL* sym = &symtab[i];
-        if (sym->klass == FUNCTION_PROTO) error(errNotDefined_s, sym->name);
+        if (sym->klass == FUNCTION_PROTO) {
+            /* Copy banked symbol name into main-bank token buffer so printf/error can print it
+             * without allocating on the stack.
+             */
+            strncpy(token, sym->name, MAX_STR_LEN);
+            token[MAX_STR_LEN] = '\0';
+            error(errNotDefined_s, token);
+        }
         /* If symbol was emitted with an initializer earlier (marked via
          * `SYM_FLAG_INITIALIZED`), skip auto allocation here. Also skip
          * functions and consts as before.

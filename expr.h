@@ -10,8 +10,6 @@ typedef struct EXPR_RESULT {
     uint16_t value;
 } EXPR_RESULT;
 
-int8_t prec(TOKEN op) MYCC;
-
 EXPR_RESULT parse_expr(uint8_t minprec) MYCC;
 EXPR_RESULT parse_expr_delayconst(uint8_t minprec) MYCC;
 
