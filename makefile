@@ -11,7 +11,7 @@ CFLAGS = -m -c -clib=sdcc_iy -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLO
 AFLAGS =
 LFLAGS = -m -startup=30 -clib=sdcc_iy -subtype=dotn -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLOCS) -pragma-include:zpragma.inc -create-app
 
-SOURCES = strtbl_stub.c sym_stub.c rtl_stub.c expr_stub.c shared.c type.c strtbl.c codegen.c compiler.c dataarea.c error.c expr.c main.c rtl.c scanner.c sym.c util.c 
+SOURCES = strtbl_stub.c sym_stub.c rtl_stub.c expr_stub.c shared.c type.c struct_stub.c struct.c strtbl.c codegen.c compiler.c dataarea.c error.c expr.c main.c rtl.c scanner.c sym.c util.c 
 
 OBJFILES = $(patsubst %.c,$(OUTPUT_DIR)/%.o,$(SOURCES))
 
@@ -60,9 +60,14 @@ $(OUTPUT_DIR)/dataarea.o: dataarea.c | $(OUTPUT_DIR)
 	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegcode_l --codesegcode_l --constsegcode_l --bsssegcode_l
 	@echo "-> Generated $@"
 
-$(OUTPUT_DIR)/error.o: error.c | $(OUTPUT_DIR)
+$(OUTPUT_DIR)/struct_stub.o: struct_stub.c | $(OUTPUT_DIR)
 	@echo "Compiling: $<"
-	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegcode_l --codesegcode_l --constsegcode_l --bsssegcode_l
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@
+	@echo "-> Generated $@"
+
+$(OUTPUT_DIR)/struct.o: struct.c | $(OUTPUT_DIR)
+	@echo "Compiling BANK 44"
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_44 --codesegBANK_44 --constsegBANK_44 --bsssegBANK_44
 	@echo "-> Generated $@"
 
 $(OUTPUT_DIR)/shared.o: shared.c | $(OUTPUT_DIR)

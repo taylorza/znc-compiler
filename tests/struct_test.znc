@@ -1,0 +1,15 @@
+struct Point {
+	int x;
+	int y;
+};
+
+Point p;
+
+void f(Point p) {
+	return;
+}
+
+void main() {
+	Point q;
+	f(q);
+}

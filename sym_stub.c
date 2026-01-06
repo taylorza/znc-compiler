@@ -53,8 +53,13 @@ SYMBOL lookupIdent(const char* name) MYCC {
 }
 
 void updatesym(SYMBOL* from) MYCC {
+    /* Copy the SYMBOL into a local stack variable (in main bank) before switching
+     * banks. Passing the structure by value is cheaper and avoids arena overhead.
+     */
+    SYMBOL copy = *from;
+
     PROLOG(41)
-    far_updatesym(from);
+    far_updatesym(copy);
     EPILOG;
 }
 

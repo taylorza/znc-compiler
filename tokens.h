@@ -19,6 +19,8 @@ typedef enum TOKEN {
     
     tokNumber,      // number
     tokString,      // string
+    tokStruct,      // 'struct' keyword
+    tokMember,      // '.' member operator
 
     tokSemi,        // ;
     tokLParen,      // (

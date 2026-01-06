@@ -46,6 +46,7 @@ KEYWORD keywords[] = {
 
     {"__asm__", tokAsm},
     {"include", tokInclude},
+    {"struct", tokStruct},
 
     {"make", tokMake},
     {"raw", tokRaw},
@@ -332,7 +333,7 @@ get_token_start:
     }
 
     // Handle single char tokens
-    if (find_char_in_str("*%~^;,(){}[]?:", c)) {
+    if (find_char_in_str("*%~^;,(){}[]?:.", c)) {
         *temp++ = gnc();
         *temp = '\0';
         token_type = ttDelimiter;
@@ -351,6 +352,7 @@ get_token_start:
             case ']': tok = tokRBrack; break;
             case '?': tok = tokCond; break;
             case ':': tok = tokColon; break;
+            case '.': tok = tokMember; break;
             default:
                 error(errSyntax);
                 break;

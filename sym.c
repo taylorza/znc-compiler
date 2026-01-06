@@ -38,14 +38,14 @@ SYMBOL* far_lookupIdent(const char* name) MYCC {
     return NULL;
 }
 
-void far_updatesym(SYMBOL* from) MYCC {
+void far_updatesym(SYMBOL from) MYCC {
     SYMBOL* sym;
-    if (from->scope == LOCAL)
-        sym = far_findloc(from->name);
+    if (from.scope == LOCAL)
+        sym = far_findloc(from.name);
     else
-        sym = far_findglb(from->name);
+        sym = far_findglb(from.name);
 
-    if (sym) *sym = *from;
+    if (sym) *sym = from;
 }
 
 SYMBOL* far_addglb(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC {
@@ -119,8 +119,7 @@ void far_dump_globals(void) MYCC {
         TYPEREC* ptype = &sym->type;
         emit_sname(sym->name);
         emit_ch(' ');
-        uint16_t size = is_int(ptype) || is_ptr(ptype) ? 2 : 1;
-        if (is_array(ptype)) size *= -ptype->dim;
+        uint16_t size = type_size(ptype);
         switch(size) {
             case 1:
                 emit_str("db 0");

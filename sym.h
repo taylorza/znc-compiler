@@ -31,7 +31,7 @@ SYMBOL* far_lookupIdent(const char* name) MYCC;
 
 SYMBOL* far_addglb(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC;
 SYMBOL* far_addloc(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC;
-void far_updatesym(SYMBOL* from) MYCC;
+void far_updatesym(SYMBOL from) MYCC;
 
 uint16_t far_push_frame(void) MYCC;
 void far_pop_frame(uint16_t frame) MYCC;

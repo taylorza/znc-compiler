@@ -8,6 +8,8 @@
 typedef struct EXPR_RESULT {
     TYPEREC type;
     uint16_t value;
+    SYMBOL sym;    /* copy of symbol when expression is a simple identifier */
+    uint8_t has_sym; /* whether sym is valid */
 } EXPR_RESULT;
 
 EXPR_RESULT parse_expr(uint8_t minprec) MYCC;

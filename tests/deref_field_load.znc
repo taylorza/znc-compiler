@@ -1,0 +1,11 @@
+make dot "/dot/test-deref";
+
+/* Array-field case */
+struct Point { char name[4]; };
+Point p;
+*p.name = 'A';
+
+/* Pointer-field case */
+struct P2 { char *name; };
+P2 q;
+*q.name = 'B';

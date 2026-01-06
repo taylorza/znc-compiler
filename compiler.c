@@ -1,4 +1,5 @@
 #include "znc.h"
+#include "struct.h"
 
 uint16_t retlbl = 0;        // function exit label
 
@@ -46,6 +47,9 @@ void parse_org(void) MYCC;
 void parse_bank(void) MYCC;
 void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC;
 void parse_switch(uint16_t contlbl) MYCC;
+
+/* Forward declaration for struct parser (defined later) */
+void parse_struct_def(void) MYCC;
 
 void parse_make(const char* outfilename) MYCC;
 
@@ -173,12 +177,27 @@ static void parse_statement_block(uint16_t brklbl, uint16_t contlbl) MYCC {
 }
 
 void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
+    /* If the current token is an identifier that is a known struct type, treat this
+     * as a declaration (e.g. `Point p;`). This must be checked before falling back
+     * to expression parsing so type names can be used like in C++.
+     */
+    if (tok == tokIdent) {
+        int sid = find_struct(token);
+        if (sid >= 0) {
+            parse_decl();
+            return;
+        }
+    }
+
     switch (tok) {
         case tokConst:
         case tokVoid:
         case tokChar:
         case tokInt:
             parse_decl();
+            break;
+        case tokStruct:
+            parse_struct_def();
             break;
 
         case tokLBrace:
@@ -290,6 +309,65 @@ void parse_decl(void) MYCC {
     }
 }
 
+void parse_struct_def(void) MYCC {
+    /* parse: struct Name { <field-decls> } ; */
+    get_token(); // skip 'struct'
+    if (tok != tokIdent) {
+        error(errSyntax);
+        return;
+    }
+    char sname[MAX_IDENT_LEN+1];
+    strncpy(sname, token, MAX_IDENT_LEN);
+
+    if (find_struct(sname) != -1) {
+        error(errAlreadyDefined_s, sname);
+        return;
+    }
+
+    int sid = add_struct(sname);
+
+    get_token(); // skip name
+    expect_LBrace();
+
+    while (tok != tokRBrace && tok != tokEOS) {
+        TYPEREC ftype;
+        parse_type(&ftype);
+
+        for (;;) {
+            if (tok != tokIdent) error(errSyntax);
+            char fname[MAX_IDENT_LEN+1];
+            strncpy(fname, token, MAX_IDENT_LEN);
+            get_token(); // skip field name
+
+            /* optional array suffix */
+            if (tok == tokLBrack) {
+                get_token(); // skip '['
+                if (tok == tokRBrack) {
+                    make_ptr(&ftype); /* treat [] as pointer */
+                } else {
+                    EXPR_RESULT dim = parse_expr_delayconst(0);
+                    if (!is_const(&dim.type)) error_expect_const();
+                    if (dim.value > 0) make_array(&ftype, dim.value);
+                    else make_ptr(&ftype);
+                }
+                expect(tokRBrack, errSyntax);
+            }
+
+            add_struct_field(sid, fname, ftype);
+
+            if (tok == tokComma) {
+                get_token(); // skip ',' and continue
+                continue;
+            }
+            break;
+        }
+        expect_semi();
+    }
+
+    expect_RBrace();
+    if (tok == tokSemi) get_token(); // optional semicolon
+}
+
 void parse_if(uint16_t brklbl, uint16_t contlbl) MYCC {
     uint16_t lblEndIf = NO_LABEL;
     uint16_t lblFalse = newlbl();
@@ -300,19 +378,17 @@ void parse_if(uint16_t brklbl, uint16_t contlbl) MYCC {
 
     if (tok == tokElse) {
         get_token(); // skip 'else'
-        if (lblEndIf == NO_LABEL) lblEndIf = newlbl();
+        lblEndIf = newlbl();
         emit_jp(lblEndIf);
-    }        
+    }
     emit_lbl(lblFalse);
-    
-    if (lblEndIf != NO_LABEL)
-    {
+
+    if (lblEndIf != NO_LABEL) {
         parse_statement(brklbl, contlbl);
-        if (lblEndIf) {
-            emit_lbl(lblEndIf);
-            lblEndIf = 0;
-        }
-    }    
+        emit_lbl(lblEndIf);
+        lblEndIf = NO_LABEL;
+    }
+    
 }
 
 void parse_switch(uint16_t contlbl) MYCC {
@@ -543,24 +619,41 @@ void parse_asm(int asmcol) MYCC {
 }
 
 void parse_type(TYPEREC *type) MYCC {
+    /* Initialize type */
+    /* clear any struct id in case caller reused a type record */
+    type->struct_id = 0;
+
     switch (tok) {
         case tokVoid: type->basetype = VOID; break;
         case tokChar: type->basetype = CHAR; break;
         case tokInt: type->basetype = INT; break;
-        default: 
-            error(errSyntax); 
+        case tokIdent: {
+            /* Ident could be a struct type name */
+            int sid = find_struct(token);
+            if (sid >= 0) {
+                type->basetype = STRUCT;
+                type->struct_id = sid + 1; /* 1-based id */
+            } else {
+                error(errSyntax);
+                tok = tokInt;
+            }
+            break;
+        }
+        default:
+            error(errSyntax);
             tok = tokInt;
             break;
-    }    
-    make_scalar(type);
-    
-    get_token(); // skip type
+    }
 
+    make_scalar(type);
+
+    get_token(); // skip base type or identifier
+
+    /* Handle single pointer/array suffix (keep it simple) */
     if (tok == tokStar) {
         get_token(); // skip '*'
         make_ptr(type); // set as pointer
-    }
-    else if (tok == tokLBrack) {
+    } else if (tok == tokLBrack) {
         get_token(); // skip '['
         if (tok == tokRBrack) {
             make_ptr(type);
@@ -570,10 +663,9 @@ void parse_type(TYPEREC *type) MYCC {
             if (dim.value > 0) {
                 if (is_void(type)) error(errSyntax);
                 make_array(type, dim.value);
-            }
-            else make_ptr(type); // 0 size array is a pointer
+            } else make_ptr(type); // zero means pointer
         }
-        expect(tokRBrack, errSyntax);       
+        expect(tokRBrack, errSyntax);
     }
 }
 
@@ -604,6 +696,20 @@ void parse_funccall(SYMBOL* sym) MYCC {
     uint8_t argcount = 0;
     while (tok != tokRParen) {
         ++argcount;
+        /* Special-case simple struct lvalue arguments (pass address) */
+        if (tok == tokIdent) {
+            SYMBOL s = lookupIdent(token);
+            if (!not_defined(&s) && is_struct(&s.type) && !is_ptr(&s.type)) {
+                /* consume identifier and push its address */
+                get_token(); // skip identifier
+                emit_ld_symaddr(&s);
+                emit_push();
+                if (tok != tokComma) break;
+                get_token(); // skip ','
+                continue;
+            }
+        }
+
         parse_expr(0);
         emit_push();        
         if (tok != tokComma) break;
@@ -687,7 +793,9 @@ void parse_funcdecl(TYPEREC rettype, const char* name) MYCC {
     func_argcount = 0;
     while (tok != tokRParen) {
         parse_type(&argtype);
-        if (is_array(&argtype)) make_ptr(&argtype);        
+        if (is_array(&argtype)) make_ptr(&argtype);
+        /* Struct parameters are passed by pointer (no by-value structs) */
+        if (is_struct(&argtype) && !is_ptr(&argtype)) make_ptr(&argtype);
         strncpy(argName, token, MAX_IDENT_LEN);           
         declloc(argtype, ARGUMENT, argName, func_argcount++);
         get_token(); // skip arg name

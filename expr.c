@@ -1,4 +1,5 @@
 #include "znc.h"
+#include "struct.h"
 #include "shared.h"
 
 #define ASSIGN_PREC 1
@@ -124,29 +125,81 @@ EXPR_RESULT parse_indexer(const TYPEREC *elemtype) {
     uint16_t scale = is_int(elemtype) ? 2 : 1;
 
     if (is_const(&index_result.type)) {
-        emit_ld_const((uint16_t)(index_result.value * scale));
+        /* Do not emit code here for constant index; caller will decide when to
+         * apply the constant (after computing base) so the optimizer can see the
+         * addition together with other address computations.
+         */
+        index_result.value = (uint16_t)(index_result.value * scale);
     }
     else {
         if (scale == 2) {
             emit_mul2();
         }
-        /* fall through; implement
-         * general multiplication here when needed.
-         */
+        /* Non-constant index left in HL (possibly scaled by mul2) */
     }
     return index_result;
 }
 
+/* Helper: apply indexing to a symbol's base address.
+ * Computes the address of the element (base+offset + index) into HL.
+ * - sym: symbol for base
+ * - offset: byte offset of the field within the struct (0 for plain arrays)
+ * - ftype: the type of the field (array or element type)
+ * On return HL points to the element and the caller should call
+ * make_scalar(out_type) to set the element type.
+ */
+static void emit_indexed_sym_address(SYMBOL *sym, uint16_t offset, const TYPEREC *ftype, TYPEREC *out_type, uint8_t base_is_pointer) {
+    EXPR_RESULT idx = parse_indexer(ftype);
+    if (is_const(&idx.type)) {
+        /* Constant index: compute base then add immediate */
+        if (base_is_pointer) {
+            /* base is a pointer stored at the field address: load pointer value */
+            if (is_ptr(&sym->type)) emit_ld_symval(sym); else emit_ld_symaddr(sym);
+            if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
+            emit_load_word_from_hl(); /* HL = *(base+offset) */
+        } else {
+            if (is_ptr(&sym->type)) emit_ld_symval(sym); else emit_ld_symaddr(sym);
+            if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
+        }
+        if (idx.value) { emit_ldde_immed(); emit_n(idx.value); emit_nl(); emit_add16(); }
+
+        *out_type = *ftype;
+        make_scalar(out_type);
+    } else {
+        /* Non-constant index: parse_indexer already left scaled index in HL.
+         * Save index, compute base, restore index and add so the final add
+         * happens at the end (better for optimizers and correctness).
+         */
+        emit_push(); /* push index (HL) */
+
+        if (base_is_pointer) {
+            if (is_ptr(&sym->type)) emit_ld_symval(sym); else emit_ld_symaddr(sym);
+            if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
+            emit_load_word_from_hl(); /* HL = *(base+offset) */
+        } else {
+            if (is_ptr(&sym->type)) emit_ld_symval(sym); else emit_ld_symaddr(sym);
+            if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
+        }
+
+        emit_pop(); /* pop index into DE */
+        emit_add16();
+
+        *out_type = *ftype;
+        make_scalar(out_type);
+    }
+}
+
 EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
     SYMBOL sym;
-    EXPR_RESULT factor_result = { .type = int_type };
-    uint8_t indexed = 0;
+    EXPR_RESULT factor_result = { .type = int_type, .has_sym = 0 };
     uint8_t prefix_inc = 0;
     uint8_t prefix_dec = 0;
     uint8_t neg = 0;
     uint8_t not = 0;
     uint8_t cmpl = 0;
     uint8_t loadval = 1;
+    uint8_t addr_in_hl = 0; /* set when we computed field address into HL */
+    uint8_t initial_deref = dereference; /* snapshot of caller intent to prevent inner consumption */
     uint16_t skiplbl;
     uint16_t tmplbl;
     uint16_t counter = 0;
@@ -274,6 +327,10 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
 
         case tokStar:
             get_token();    // skip '*'
+            /* Parse inner expression with dereference set so inner postfix behavior
+             * (like s++ or ++s) computes and returns the pointer value correctly
+             * and inner assignment handling will write to the dereferenced location.
+             */
             factor_result = parse_factor(1);
             if (is_const(&factor_result.type)) {
                 emit_ld_const(factor_result.value);
@@ -281,7 +338,11 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 make_ptr(&factor_result.type);
             }
             if (tok == tokAssign) {
+                /* Assignment to dereferenced value: HL must contain address to write to */
                 far_parse_assign(is_ptr(&factor_result.type), NULL, 0, factor_result.type);
+            } else {
+                /* Non-assignment: load the value pointed to by HL */
+                emit_load(factor_result.type);
             }
             break;
 
@@ -316,6 +377,31 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
 
             get_token(); // skip identifier
 
+            /* record simple identifier snapshot so callers (like unary '*') can
+             * handle writes to the address without triggering inner-assignment
+             * code that may cause extra loads. If later we process a member or
+             * indexer, clear the has_sym flag as the effective address is no
+             * longer represented by the simple symbol copy.
+             */
+            factor_result.sym = sym;
+            factor_result.has_sym = 1;
+
+            /* If this identifier is immediately indexed (e.g. s[i]), handle it
+             * now using the unified helper so we compute base first (for const)
+             * or otherwise save and restore the index so the final add is last.
+             */
+            if (tok == tokLBrack) {
+                factor_result.has_sym = 0;
+                if (!is_ptr(&sym.type) && !is_array(&sym.type)) error(errSyntax);
+                /* Compute element type for the indexer: build a scalar element type
+                 * from the base type for arrays/pointers (TYPEREC doesn't have elem).
+                 */
+                TYPEREC elemtype = { .basetype = sym.type.basetype, .dim = 1 };
+                emit_indexed_sym_address(&sym, 0, &elemtype, &factor_result.type, (sym.type.dim == 0));
+                dereference = 1;
+                addr_in_hl = 1;
+            }
+
             factor_result.type = sym.type;
             if (is_const(&sym.type)) {
                 factor_result.value = sym.offset;
@@ -326,167 +412,204 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             }
             if (dereference) make_scalar(&factor_result.type);
 
-            if (tok == tokLParen) {
-                parse_funccall(&sym);   
-                loadval = 0;
-            }
-            
-            if (tok == tokLBrack) {
-                if (!is_ptr(&factor_result.type) && !is_array(&factor_result.type)) error(errSyntax);
-                parse_indexer(&factor_result.type);
-
-                dereference = 1;
-                indexed = 1;
-                emit_push(); // save index
-                make_scalar(&factor_result.type);
-            }
-
-            /* handle prefix ++/-- for identifiers (supports indexed lvalues)
-             * For indexed lvalues the parse_indexer already pushed the index on the stack.
-             */
-            if ((prefix_inc || prefix_dec)) {
-                if (is_const(&sym.type)) error(errSyntax);
-                uint16_t step = 1;
-                if (indexed) {
-                    /* incrementing the element value -> numeric step = 1 */
-                    step = 1;
-                } else {
-                    /* simple identifier: if it's a pointer, step is element size */
-                    if (is_ptr(&sym.type)) {
-                        step = is_int(&sym.type) ? 2 : 1;
-                    } else {
-                        step = 1;
-                    }
+            /* Support struct member access: "ident . field" */
+            while (tok == tokMember) {
+                factor_result.has_sym = 0;
+                get_token(); // skip '.'
+                if (!is_struct(&factor_result.type)) {
+                    error(errSyntax);
+                    return factor_result;
                 }
-                if (indexed) {
-                    /* compute effective address into HL */
+                if (tok != tokIdent) { error(errSyntax); return factor_result; }
+                char fname[MAX_IDENT_LEN+1];
+                strncpy(fname, token, MAX_IDENT_LEN);
+                int sid = (int)factor_result.type.struct_id - 1;
+                int fid = find_struct_field(sid, fname);
+                if (fid < 0) error(errNotDefined_s, fname);
+
+                FIELDINFO fi = get_struct_field(sid, fid);
+                uint16_t offset = fi.offset;
+
+                /* Advance past the field name so we can detect an indexer following the
+                 * member access (e.g. p.name[1]). If there is an indexer, parse it first
+                 * so we can push the index and then compute the base+offset without
+                 * clobbering the index value.
+                 */
+                get_token(); // skip field name
+
+                if (tok == tokLBrack) {
+                    /* Use helper that handles both constant and non-constant indexes
+                     * and ensures the final addition happens after the base computation.
+                     */
+                    /* Determine the element type for the field (arrays/pointers). Build
+                     * a scalar element type from the base type since TYPEREC has no elem
+                     * pointer in this simpler representation.
+                     */
+                    TYPEREC elemtype = { .basetype = fi.type.basetype, .dim = 1 };
+
+                    emit_indexed_sym_address(&sym, offset, &elemtype, &factor_result.type, (fi.type.dim == 0));
+                    dereference = 1;
+                    addr_in_hl = 1;
+                }
+                else {
+                    /* No indexer: compute field address now */
                     if (is_ptr(&sym.type)) {
                         emit_ld_symval(&sym); /* pointer value = base */
                     } else {
-                        emit_ld_symaddr(&sym); /* array base address */
+                        emit_ld_symaddr(&sym); /* base address */
                     }
-                    emit_pop(); /* pop index into DE */
-                    emit_add16(); /* HL = base + index */
+                    if (offset) {
+                        emit_ldde_immed(); emit_n(offset); emit_nl();
+                        emit_add16();
+                    }
 
-                    emit_push(); /* push address for store */
-                    emit_load(factor_result.type); /* HL = original value */
-
-                    if (prefix_dec) {
-                        emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
+                    /* now HL points at field */
+                    factor_result.type = fi.type;
+                    if (is_array(&factor_result.type)) {
+                        make_ptr(&factor_result.type);
+                        dereference = 0;
                     } else {
-                        emit_instrln("ld de,%d", step);
+                        dereference = 1;
                     }
-                    emit_add16(); /* HL = new value */
+                    addr_in_hl = 1;
+                }
+            }
 
-                    emit_store(factor_result.type); /* pop address and store HL */
-                    loadval = 0;
-                    indexed = 0;
-                    dereference = 0;
+            /* If address is already in HL (member access), don't load the symbol.
+             * Keep HL as the address (arrays decay to pointer) and avoid emitting
+             * a second symbol load which would clobber HL.
+             */
+            if (addr_in_hl) loadval = 0;
+
+            if (tok == tokLParen) {
+                factor_result.has_sym = 0;
+                parse_funccall(&sym);   
+                loadval = 0;
+            }
+
+            /* handle prefix ++/-- for identifiers (supports indexed lvalues)
+             * Capture whether we have an address in HL now so later modifications don't
+             * confuse the optimizer. For indexed lvalues the parse_indexer already
+             * pushed the index on the stack.
+             */
+            uint8_t had_addr_in_hl = addr_in_hl;
+            if ((prefix_inc || prefix_dec)) {
+                if (is_const(&sym.type)) {
+                    error(errSyntax);
                 } else {
-                    /* simple identifier */
-                    emit_ld_symval(&sym);
-                    if (prefix_dec) {
-                        emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
+                    /* step size: pointer element size is 2 for int pointers, otherwise 1 */
+                    uint16_t step = (is_ptr(&sym.type) && is_int(&sym.type)) ? 2 : 1;
+                    if (had_addr_in_hl) {
+                        /* Address already computed into HL (member or indexed access). */
+                        emit_push(); /* push address for store */
+                        emit_load(factor_result.type); /* HL = original value */
+
+                        if (prefix_dec) {
+                            emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
+                        } else {
+                            emit_instrln("ld de,%d", step);
+                        }
+                        emit_add16(); /* HL = new value */
+
+                        emit_store(factor_result.type); /* pop address and store HL */
+                        loadval = 0;
+                        dereference = 0;
                     } else {
-                        emit_instrln("ld de,%d", step);
+                        /* simple identifier */
+                        emit_ld_symval(&sym);
+                        if (prefix_dec) {
+                            emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
+                        } else {
+                            emit_instrln("ld de,%d", step);
+                        }
+                        emit_add16();
+                        emit_store_sym(&sym);
+                        loadval = 0;
                     }
-                    emit_add16();
-                    emit_store_sym(&sym);
-                    loadval = 0;
                 }
             }
             if (tok == tokAssign) {
-                far_parse_assign(dereference, &sym, indexed, factor_result.type);
+                /* If this parse was invoked within a unary dereference (e.g., parsing
+                 * the inner expression of '*inner'), do NOT consume the assignment here;
+                 * let the outer dereference handle assignment to the location. This
+                 * avoids extra loads/stores and preserves HL for the outer handler.
+                 */
+                if (!initial_deref) {
+                    if (had_addr_in_hl) {
+                        /* HL already contains address of field, so pass sym==NULL to indicate that */
+                        far_parse_assign(1, NULL, 0, factor_result.type);
+                    } else {
+                        far_parse_assign(dereference, &sym, 0, factor_result.type);
+                    }
+                }
             } else {
                 /* handle postfix ++/-- */
                 if (tok == tokInc || tok == tokDec) {
                     uint8_t isdec = (tok == tokDec);
                     get_token();
-                    if (is_const(&sym.type)) error(errSyntax);
-                    uint16_t step = 1;
-                    if (indexed) {
-                        /* element value increment */
-                        step = 1;
+                    if (is_const(&sym.type)) {
+                        error(errSyntax);
                     } else {
-                        if (is_ptr(&sym.type)) {
-                            step = is_int(&sym.type) ? 2 : 1;
-                        } else {
-                            step = 1;
-                        }
-                    }
-                    if (indexed) {
-                        /* compute effective address */
-                        if (is_ptr(&sym.type)) {
-                            emit_ld_symval(&sym);
-                        } else {
-                            emit_ld_symaddr(&sym);
-                        }
-                        emit_pop(); /* pop index into DE */
-                        emit_add16(); /* HL = address */
+                        uint16_t step = (is_ptr(&sym.type) && is_int(&sym.type)) ? 2 : 1;
+                        if (had_addr_in_hl) {
+                            /* Address already computed into HL (member or indexed access). */
+                            emit_push(); /* push address */
+                            emit_load(factor_result.type); /* HL = original value */
 
-                        emit_push(); /* push address */
-                        emit_load(factor_result.type); /* HL = original value */
+                            /* save original in BC */
+                            emit_copy_hl_to_bc();
 
-                        /* save original in BC */
-                        emit_copy_hl_to_bc();
-
-                        /* compute new value */
-                        if (isdec) {
-                            emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
-                            emit_add16();
-                        } else {
-                            emit_ldde_immed_n(step);
-                            emit_add16();
-                        }
-
-                        emit_store(factor_result.type); /* pop address and store new value */
-
-                        /* restore original from BC */
-                        emit_copy_bc_to_hl(); 
-
-                        loadval = 0;
-                        indexed = 0;
-                        dereference = 0;
-                    } else {
-                        /* simple identifier postfix */
-                        if (loadval) {
-                            if (is_func_or_proto(&sym)) {
-                                emit_ld_immed(); emit_sname(sym.name); emit_nl();
+                            /* compute new value */
+                            if (isdec) {
+                                emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
+                                emit_add16();
+                            } else {
+                                emit_ldde_immed_n(step);
+                                emit_add16();
                             }
-                            else {
-                                emit_ld_symval(&sym);
-                            }
-                        }
 
-                        /* save original, compute new, store, restore original */
-                        emit_push();
-                        if (isdec) {
-                            emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
+                            emit_store(factor_result.type); /* pop address and store new value */
+
+                            /* restore original from BC */
+                            emit_copy_bc_to_hl(); 
+
+                            loadval = 0;
+                            dereference = 0;
                         } else {
-                            emit_ldde_immed_n(step);
+                            /* simple identifier postfix */
+                            if (loadval) {
+                                if (is_func_or_proto(&sym)) {
+                                    emit_ld_immed(); emit_sname(sym.name); emit_nl();
+                                } else {
+                                    emit_ld_symval(&sym);
+                                }
+                            }
+
+                            /* save original, compute new, store, restore original */
+                            emit_push();
+                            if (isdec) {
+                                emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
+                            } else {
+                                emit_ldde_immed_n(step);
+                            }
+                            emit_add16();
+                            emit_store_sym(&sym);
+                            emit_pop();
+                            emit_swap();
+                            /* now HL contains original value for postfix expression */
+                            loadval = 0;
                         }
-                        emit_add16();
-                        emit_store_sym(&sym);
-                        emit_pop();
-                        emit_swap();
-                        /* now HL contains original value for postfix expression */
-                        loadval = 0;
                     }
                 }
-                
+
                 if (loadval) {
                     if (is_func_or_proto(&sym)) {
                         emit_ld_immed(); emit_sname(sym.name); emit_nl();
-                    }
-                    else {
+                    } else {
                         emit_ld_symval(&sym);
                     }
                 }
-                    
-                if (indexed) {
-                    emit_pop();
-                    emit_add16();
-                }
+
                 if (dereference) {
                     emit_load(factor_result.type);
                 }

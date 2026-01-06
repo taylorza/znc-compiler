@@ -401,7 +401,11 @@ void emit_store(TYPEREC type) MYCC {
 } 
 
 void emit_load(TYPEREC type) MYCC {
-    if (!is_ptr(&type) && is_char(&type)) {
+    /* Load the value pointed to by HL. If the base type is char (including
+     * pointers to char), load a byte and sign-extend. Otherwise load a 16-bit
+     * value (word) from memory.
+     */
+    if (is_char(&type)) {
         emit_instrln("ld a,(hl)");
         emit_rtl("ccsxt");
     } else {
