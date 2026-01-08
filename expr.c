@@ -122,20 +122,33 @@ EXPR_RESULT parse_indexer(const TYPEREC *elemtype) {
     EXPR_RESULT index_result = far_parse_expr_delayconst(0);   // index expression
     expect(tokRBrack, ']'); // skip ']'
 
-    uint16_t scale = is_int(elemtype) ? 2 : 1;
+    /* Scale index by element size in bytes (handles scalars, pointers, and structs) */
+    uint16_t scale = (uint16_t)type_size(elemtype);
 
     if (is_const(&index_result.type)) {
-        /* Do not emit code here for constant index; caller will decide when to
-         * apply the constant (after computing base) so the optimizer can see the
-         * addition together with other address computations.
-         */
+        /* Constant index: multiply at compile time so callers can fold immediates */
         index_result.value = (uint16_t)(index_result.value * scale);
     }
     else {
-        if (scale == 2) {
+        /* Non-constant index: scale HL in-place. Optimize common cases. */
+        if (scale == 1) {
+            /* no scaling required */
+        }
+        else if (scale == 2) {
             emit_mul2();
         }
-        /* Non-constant index left in HL (possibly scaled by mul2) */
+        else {
+            /* If scale is power of two, apply repeated doubling */
+            uint16_t s = scale;
+            if ((s & (s - 1)) == 0) {
+                while (s > 1) { emit_mul2(); s >>= 1; }
+            } else {
+                /* Use runtime RTL multiply HL = HL * DE to handle arbitrary scales. */
+                emit_ldde_immed_n(scale);
+                emit_rtl("ccmult");
+            }
+        }
+        /* Non-constant index left in HL (now scaled) */
     }
     return index_result;
 }
@@ -396,13 +409,13 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 /* Compute element type for the indexer: build a scalar element type
                  * from the base type for arrays/pointers (TYPEREC doesn't have elem).
                  */
-                TYPEREC elemtype = { .basetype = sym.type.basetype, .dim = 1 };
+                TYPEREC elemtype = { .basetype = sym.type.basetype, .dim = 1, .struct_id = sym.type.struct_id };
                 emit_indexed_sym_address(&sym, 0, &elemtype, &factor_result.type, (sym.type.dim == 0));
                 dereference = 1;
                 addr_in_hl = 1;
             }
 
-            factor_result.type = sym.type;
+            if (!addr_in_hl) factor_result.type = sym.type;
             if (is_const(&sym.type)) {
                 factor_result.value = sym.offset;
                 if (neg) factor_result.value = -factor_result.value;
@@ -445,22 +458,32 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                      * a scalar element type from the base type since TYPEREC has no elem
                      * pointer in this simpler representation.
                      */
-                    TYPEREC elemtype = { .basetype = fi.type.basetype, .dim = 1 };
+                    TYPEREC elemtype = { .basetype = fi.type.basetype, .dim = 1, .struct_id = fi.type.struct_id };
 
                     emit_indexed_sym_address(&sym, offset, &elemtype, &factor_result.type, (fi.type.dim == 0));
                     dereference = 1;
                     addr_in_hl = 1;
                 }
                 else {
-                    /* No indexer: compute field address now */
-                    if (is_ptr(&sym.type)) {
-                        emit_ld_symval(&sym); /* pointer value = base */
+                    /* No indexer: compute field address now. If we already computed the
+                     * element address into HL (addr_in_hl), do not reload the symbol;
+                     * simply add the field offset if needed.
+                     */
+                    if (!addr_in_hl) {
+                        if (is_ptr(&sym.type)) {
+                            emit_ld_symval(&sym); /* pointer value = base */
+                        } else {
+                            emit_ld_symaddr(&sym); /* base address */
+                        }
+                        if (offset) {
+                            emit_ldde_immed(); emit_n(offset); emit_nl();
+                            emit_add16();
+                        }
                     } else {
-                        emit_ld_symaddr(&sym); /* base address */
-                    }
-                    if (offset) {
-                        emit_ldde_immed(); emit_n(offset); emit_nl();
-                        emit_add16();
+                        if (offset) {
+                            emit_ldde_immed(); emit_n(offset); emit_nl();
+                            emit_add16();
+                        }
                     }
 
                     /* now HL points at field */

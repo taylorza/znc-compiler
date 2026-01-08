@@ -14,6 +14,9 @@ uint16_t type_size(const TYPEREC* type) MYCC {
         }
         return (-type->dim) * (type->basetype == INT ? 2 : 1);
     }
+    /* Pointers are always 2 bytes regardless of what they point to */
+    if (is_ptr(type)) return 2;
+
     if (type->basetype == STRUCT && type->struct_id) {
         return get_struct_size(type->struct_id - 1);
     }
