@@ -584,8 +584,15 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 if (is_const(&sym.type)) {
                     error(errSyntax);
                 } else {
-                    /* step size: pointer element size is 2 for int pointers, otherwise 1 */
-                    uint16_t step = (is_ptr(&sym.type) && is_int(&sym.type)) ? 2 : 1;
+                    /* step size: pointer element size for pointer types, otherwise scalar step */
+                    uint16_t step;
+                    if (is_ptr(&sym.type)) {
+                        TYPEREC elem = { .basetype = sym.type.basetype, .dim = 1, .struct_id = sym.type.struct_id };
+                        step = type_size(&elem);
+                    } else {
+                        /* Scalar increment/decrement always adjust by 1 (not by sizeof(int)). */
+                        step = 1;
+                    }
                     if (had_addr_in_hl) {
                         /* Address already computed into HL (member or indexed access). */
                         emit_push(); /* push address for store */
@@ -637,7 +644,14 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                     if (is_const(&sym.type)) {
                         error(errSyntax);
                     } else {
-                        uint16_t step = (is_ptr(&sym.type) && is_int(&sym.type)) ? 2 : 1;
+                        uint16_t step;
+                        if (is_ptr(&sym.type)) {
+                            TYPEREC elem = { .basetype = sym.type.basetype, .dim = 1, .struct_id = sym.type.struct_id };
+                            step = type_size(&elem);
+                        } else {
+                            /* Scalar increment/decrement always adjust by 1 (not by sizeof(int)). */
+                            step = 1;
+                        }
                         if (had_addr_in_hl) {
                             /* Address already computed into HL (member or indexed access). */
                             emit_push(); /* push address */
@@ -831,13 +845,18 @@ void far_parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC
 }
 
 EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
-    uint8_t scaleL = 0;
-    uint8_t scaleR = 0;
+    uint16_t scaleL = 0;
+    uint16_t scaleR = 0;
     
     EXPR_RESULT r_result = { .type = void_type};
     EXPR_RESULT short_circuit_result = { .type = int_type };
 
-    if (op == tokOr || op == tokAnd) {   
+    /* Determine element scale when one operand is a pointer and the other is an integer.
+     * scaleR is the byte-scale to apply to the right operand (HL) when the left
+     * operand is a pointer. scaleL is the byte-scale to apply to the left operand
+     * (DE) when the right operand is a pointer.
+     */
+    if (op == tokOr || op == tokAnd) {
         uint16_t short_circuit_lbl = newlbl();
         uint8_t short_circuit = 0;
         if (is_const(&l_result.type)) {
@@ -874,8 +893,19 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
 
     r_result = far_parse_expr_delayconst(opprec + 1);
 
-    scaleR = (is_ptr(&l_result.type) && is_int(&l_result.type));
-    scaleL = (is_ptr(&r_result.type) && is_int(&r_result.type));
+    /* Treat arrays as decaying to pointers for arithmetic. Compute element
+     * size for pointer+int arithmetic so we can scale the integer operand by
+     * the pointed-to element size (handles int pointers and struct pointers).
+     */
+    if ((is_ptr(&l_result.type) || is_array(&l_result.type)) && base_type(&r_result.type) == INT) {
+        TYPEREC elem = { .basetype = l_result.type.basetype, .dim = 1, .struct_id = l_result.type.struct_id };
+        scaleR = type_size(&elem);
+    }
+    if ((is_ptr(&r_result.type) || is_array(&r_result.type)) && base_type(&l_result.type) == INT) {
+        TYPEREC elem = { .basetype = r_result.type.basetype, .dim = 1, .struct_id = r_result.type.struct_id };
+        scaleL = type_size(&elem);
+    }
+
     if (scaleL && scaleR) error(errSyntax);
 
     uint8_t pointer = is_ptr(&l_result.type) || is_ptr(&r_result.type);
@@ -914,8 +944,16 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
                 break;
             case tokEq: l_result.value = l_result.value == r_result.value; break;
             case tokNeq: l_result.value = l_result.value != r_result.value; break;
-            case tokPlus: l_result.value = (l_result.value + (l_result.value * scaleL)) + (r_result.value + (r_result.value * scaleR)); break;
-            case tokMinus: l_result.value = (l_result.value + (l_result.value * scaleL)) - (r_result.value + (r_result.value * scaleR)); break;
+            case tokPlus:
+                if (scaleR) l_result.value = l_result.value + (r_result.value * scaleR);
+                else if (scaleL) l_result.value = (l_result.value * scaleL) + r_result.value;
+                else l_result.value = l_result.value + r_result.value;
+                break;
+            case tokMinus:
+                if (scaleR) l_result.value = l_result.value - (r_result.value * scaleR);
+                else if (scaleL) l_result.value = (l_result.value * scaleL) - r_result.value;
+                else l_result.value = l_result.value - r_result.value;
+                break;
             case tokStar: l_result.value = l_result.value * r_result.value; break;
             case tokDiv: l_result.value = l_result.value / r_result.value; break;
             case tokMod: l_result.value = l_result.value % r_result.value; break;
@@ -934,16 +972,20 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
     } 
     
     if (is_const(&l_result.type)) {
+        uint16_t val = l_result.value;
+        if (scaleL) val = val * scaleL; /* pre-scale left constant when right is a pointer */
         emit_ldde_immed();
-        emit_n(l_result.value + (l_result.value * scaleL));
+        emit_n(val);
         scaleL = 0;
         emit_nl();
         l_result.type.basetype = base_type(&l_result.type);
     }
     else if (is_const(&r_result.type)) {
+        uint16_t val = r_result.value;
+        if (scaleR) val = val * scaleR; /* pre-scale right constant when left is a pointer */
         emit_ld_immed();
-        emit_n((r_result.value + (r_result.value * scaleR)));
-        scaleR = 0;
+        emit_n(val);
+        scaleR = 0; /* constant already scaled */
         emit_nl();
         r_result.type.basetype = base_type(&r_result.type);
         emit_pop();
@@ -977,13 +1019,84 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
             break;
 
         case tokPlus:
-            if (scaleR) emit_mul2();
-            if (scaleL) emit_mulDE2();
+            /* If the right operand is a constant and we computed a scale earlier,
+             * apply scaling directly to HL (the constant). For non-constant RHS
+             * the index is already left in HL and scaleR will be applied the same way.
+             */
+            if (scaleR) {
+                if (scaleR == 2) {
+                    emit_mul2();
+                } else {
+                    uint16_t s = scaleR;
+                    if ((s & (s - 1)) == 0) {
+                        while (s > 1) { emit_mul2(); s >>= 1; }
+                    } else {
+                        emit_ldde_immed_n(scaleR);
+                        emit_rtl("ccmult");
+                    }
+                }
+            }
+
+            if (scaleL) {
+                if (scaleL == 2) {
+                    emit_mulDE2();
+                } else {
+                    uint16_t s = scaleL;
+                    if ((s & (s - 1)) == 0) {
+                        while (s > 1) { emit_mulDE2(); s >>= 1; }
+                    } else {
+                        /* General case: multiply DE (left) by scaleL while preserving HL (right).
+                         * Sequence:
+                         *  - copy right (HL) to BC
+                         *  - swap so HL=left
+                         *  - load DE with scaleL and ccmult (HL = left * scaleL)
+                         *  - swap back and restore right from BC so HL=right and DE=scaled_left
+                         */
+                        emit_copy_hl_to_bc();
+                        emit_swap(); /* HL = left */
+                        emit_ldde_immed_n(scaleL);
+                        emit_rtl("ccmult"); /* HL = left * scaleL */
+                        emit_swap(); /* HL = scale, DE = left*scale */
+                        emit_copy_bc_to_hl(); /* restore right into HL */
+                    }
+                }
+            }
+
             emit_add16();
             break;
         case tokMinus:
-            if (scaleR) emit_mul2();
-            if (scaleL) emit_mulDE2();
+            if (scaleR) {
+                if (scaleR == 2) {
+                    emit_mul2();
+                } else {
+                    uint16_t s = scaleR;
+                    if ((s & (s - 1)) == 0) {
+                        while (s > 1) { emit_mul2(); s >>= 1; }
+                    } else {
+                        emit_ldde_immed_n(scaleR);
+                        emit_rtl("ccmult");
+                    }
+                }
+            }
+
+            if (scaleL) {
+                if (scaleL == 2) {
+                    emit_mulDE2();
+                } else {
+                    uint16_t s = scaleL;
+                    if ((s & (s - 1)) == 0) {
+                        while (s > 1) { emit_mulDE2(); s >>= 1; }
+                    } else {
+                        emit_copy_hl_to_bc();
+                        emit_swap(); /* HL = left */
+                        emit_ldde_immed_n(scaleL);
+                        emit_rtl("ccmult"); /* HL = left * scaleL */
+                        emit_swap(); /* HL = scale, DE = left*scale */
+                        emit_copy_bc_to_hl(); /* restore right into HL */
+                    }
+                }
+            }
+
             emit_sub16();
             break;
         case tokStar:
