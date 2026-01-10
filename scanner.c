@@ -177,6 +177,10 @@ static void skipws(void) MYCC {
     }
 }
 
+char peek_char(void) MYCC {
+    return ch();
+}
+
 static uint8_t escape(void) MYCC {
     char c = 0;
     token_col = loc[fileid].col;
@@ -228,6 +232,7 @@ get_token_start:
     token_col = loc[fileid].col;
     
     char c = ch();
+
 
     if (c == '\0') {
         *temp = '\0';

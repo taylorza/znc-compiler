@@ -1,0 +1,31 @@
+make dot "bounce2.dot";
+include "io.znc"
+
+struct Obj {
+  int x;
+  int y;
+  int dx;
+  int dy;
+};
+
+Obj obj;
+
+while(1) {
+  __asm__ {
+    halt;
+  }
+  gotoxy(obj.x, obj.y);
+  putc(' ');
+
+  obj.x = obj.x + obj.dx;
+  obj.y = obj.y + obj.dy;
+  
+  if (obj.x == 0 || obj.x == 31) {
+	obj.dx = -obj.dx;
+  }
+  if (obj.y == 0 || obj.y == 21) {
+	obj.dy = -obj.dy;
+  }
+  gotoxy(obj.x, obj.y);
+  putc('*');
+}

@@ -35,6 +35,7 @@ void src_close(void) MYCC;
 void src_closeall(void) MYCC; 
 
 TOKEN_TYPE get_token(void) MYCC;
+char peek_char(void) MYCC;
 void expect(TOKEN t, char ch);
 
 void expect_colon(void) MYCC;
