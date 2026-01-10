@@ -61,6 +61,7 @@ void emit_sname(const char* name) MYCC;
 
 void emit_ld_symval(SYMBOL* sym) MYCC;
 void emit_ld_symaddr(SYMBOL* sym) MYCC;
+void emit_ld_symaddr_offset(SYMBOL* sym, uint16_t offset) MYCC;
 void emit_store_sym(SYMBOL* sym) MYCC;
 void emit_store(TYPEREC typ) MYCC;
 void emit_load(TYPEREC typ) MYCC;

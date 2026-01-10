@@ -334,11 +334,17 @@ void emit_ld_symval(SYMBOL* sym) MYCC {
 }
 
 void emit_ld_symaddr(SYMBOL* sym) MYCC {
+    emit_ld_symaddr_offset(sym, 0);
+}
+
+void emit_ld_symaddr_offset(SYMBOL* sym, uint16_t offset) MYCC {
     TYPEREC* ptype = &sym->type;
 
     if (sym->scope == GLOBAL) {
         emit_ld_immed();
-        emit_sname(sym->name); emit_nl();
+        emit_sname(sym->name);
+        if (offset) { emit_ch('+'); emit_n(offset); }
+        emit_nl();
     }
     else if (sym->scope == LOCAL) {
         int8_t bp_offset = 0;
@@ -353,10 +359,11 @@ void emit_ld_symaddr(SYMBOL* sym) MYCC {
         else if (sym->klass == ARGUMENT) {
             bp_offset = 2 + (func_argcount - sym->offset) * 2;            
         }
-        emit_instrln("ld hl,%d", bp_offset);  
+        emit_instrln("ld hl,%d", bp_offset);
         emit_instrln("ld d,ixh");
         emit_instrln("ld e,ixl");
         emit_instrln("add hl,de");
+        if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
     }
 }
 

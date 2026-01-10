@@ -164,17 +164,25 @@ EXPR_RESULT parse_indexer(const TYPEREC *elemtype) {
 static void emit_indexed_sym_address(SYMBOL *sym, uint16_t offset, const TYPEREC *ftype, TYPEREC *out_type, uint8_t base_is_pointer) {
     EXPR_RESULT idx = parse_indexer(ftype);
     if (is_const(&idx.type)) {
-        /* Constant index: compute base then add immediate */
+        /* Constant index: compute base then add immediate. Try to fold constant
+         * offsets when the base is a global symbol so we can emit _sym+imm.
+         */
         if (base_is_pointer) {
             /* base is a pointer stored at the field address: load pointer value */
             if (is_ptr(&sym->type)) emit_ld_symval(sym); else emit_ld_symaddr(sym);
             if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
+            if (idx.value) { emit_ldde_immed(); emit_n(idx.value); emit_nl(); emit_add16(); }
             emit_load_word_from_hl(); /* HL = *(base+offset) */
         } else {
-            if (is_ptr(&sym->type)) emit_ld_symval(sym); else emit_ld_symaddr(sym);
-            if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
+            /* For non-pointer base, if sym is global we can fold offsets */
+            if (sym->scope == GLOBAL) {
+                emit_ld_symaddr_offset(sym, offset + idx.value);
+            } else {
+                if (is_ptr(&sym->type)) emit_ld_symval(sym); else emit_ld_symaddr(sym);
+                if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
+                if (idx.value) { emit_ldde_immed(); emit_n(idx.value); emit_nl(); emit_add16(); }
+            }
         }
-        if (idx.value) { emit_ldde_immed(); emit_n(idx.value); emit_nl(); emit_add16(); }
 
         *out_type = *ftype;
         make_scalar(out_type);
@@ -410,9 +418,43 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                  * from the base type for arrays/pointers (TYPEREC doesn't have elem).
                  */
                 TYPEREC elemtype = { .basetype = sym.type.basetype, .dim = 1, .struct_id = sym.type.struct_id };
-                emit_indexed_sym_address(&sym, 0, &elemtype, &factor_result.type, (sym.type.dim == 0));
-                dereference = 1;
-                addr_in_hl = 1;
+
+                /* Parse index first so we can optimize constant-index global reads */
+                EXPR_RESULT idx = parse_indexer(&elemtype);
+                if (is_const(&idx.type)) {
+                    uint16_t total_offset = idx.value; /* already scaled by parse_indexer */
+                    /* If base is a global symbol and element size is a word (2), and
+                     * we're not assigning into it, load the word directly from the
+                     * computed address: ld hl,(_sym+total_offset). This avoids a
+                     * runtime add + two byte loads.
+                     */
+                    if (sym.scope == GLOBAL && type_size(&elemtype) == 2 && tok != tokAssign) {
+                        emit_instr("ld hl,("); emit_sname(sym.name); emit_ch('+'); emit_n(total_offset); emit_strln(")");
+                        factor_result.type = elemtype; make_scalar(&factor_result.type);
+                        /* HL already contains the value, avoid an extra load */
+                        dereference = 0;
+                        addr_in_hl = 0;
+                    } else {
+                        /* Fallback: compute address immediately without re-parsing index */
+                        if (is_ptr(&sym.type)) emit_ld_symval(&sym); else emit_ld_symaddr(&sym);
+                        if (total_offset) { emit_ldde_immed(); emit_n(total_offset); emit_nl(); emit_add16(); }
+                        factor_result.type = elemtype; make_scalar(&factor_result.type);
+                        dereference = 1;
+                        addr_in_hl = 1;
+                    }
+                } else {
+                    /* Non-constant index: parse_indexer already left scaled index in HL.
+                     * Save index, compute base and add it so final add happens at end.
+                     */
+                    emit_push(); /* push index (HL) */
+                    if (is_ptr(&sym.type)) emit_ld_symval(&sym); else emit_ld_symaddr(&sym);
+                    emit_pop(); /* pop index into DE */
+                    emit_add16();
+
+                    *(&factor_result.type) = elemtype; make_scalar(&factor_result.type);
+                    dereference = 1;
+                    addr_in_hl = 1;
+                }
             }
 
             if (!addr_in_hl) factor_result.type = sym.type;
@@ -460,24 +502,46 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                      */
                     TYPEREC elemtype = { .basetype = fi.type.basetype, .dim = 1, .struct_id = fi.type.struct_id };
 
-                    emit_indexed_sym_address(&sym, offset, &elemtype, &factor_result.type, (fi.type.dim == 0));
-                    dereference = 1;
-                    addr_in_hl = 1;
+                    EXPR_RESULT idx = parse_indexer(&elemtype);
+                    if (is_const(&idx.type)) {
+                        uint16_t total_offset = offset + idx.value;
+                        if (sym.scope == GLOBAL && type_size(&elemtype) == 2 && tok != tokAssign) {
+                            emit_instr("ld hl,("); emit_sname(sym.name); emit_ch('+'); emit_n(total_offset); emit_strln(")");
+                            factor_result.type = elemtype; make_scalar(&factor_result.type);
+                            dereference = 0;
+                            addr_in_hl = 0;
+                        } else {
+                            /* Fallback: compute base+offset and add constant index value */
+                            if (is_ptr(&sym.type)) emit_ld_symval(&sym); else emit_ld_symaddr(&sym);
+                            if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
+                            if (idx.value) { emit_ldde_immed(); emit_n(idx.value); emit_nl(); emit_add16(); }
+                            factor_result.type = elemtype; make_scalar(&factor_result.type);
+                            dereference = 1;
+                            addr_in_hl = 1;
+                        }
+                    } else {
+                        /* Non-constant index: push index, compute base+offset, pop and add */
+                        emit_push(); /* index in HL */
+                        if (is_ptr(&sym.type)) emit_ld_symval(&sym); else emit_ld_symaddr(&sym);
+                        if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
+                        emit_pop(); /* pop index into DE */
+                        emit_add16();
+                        factor_result.type = elemtype; make_scalar(&factor_result.type);
+                        dereference = 1;
+                        addr_in_hl = 1;
+                    }
                 }
                 else {
                     /* No indexer: compute field address now. If we already computed the
                      * element address into HL (addr_in_hl), do not reload the symbol;
-                     * simply add the field offset if needed.
+                     * simply add the field offset if needed. If the symbol is global
+                     * and the offset is a constant we can fold it into the load.
                      */
                     if (!addr_in_hl) {
                         if (is_ptr(&sym.type)) {
                             emit_ld_symval(&sym); /* pointer value = base */
                         } else {
-                            emit_ld_symaddr(&sym); /* base address */
-                        }
-                        if (offset) {
-                            emit_ldde_immed(); emit_n(offset); emit_nl();
-                            emit_add16();
+                            emit_ld_symaddr_offset(&sym, offset); /* base address (+offset folded if global) */
                         }
                     } else {
                         if (offset) {
