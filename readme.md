@@ -273,150 +273,93 @@ Variables can be declared at any point in the code
 
 ## Syntax (incomplete)
 ``` EBNF
-(* Program directives and top‐level items, where declarations and statements may appear. *)
-<program>         ::= [ <make> ]
-                      [ <org> ]
-                      { <top_level_item> }
+(* Top-level program structure *)
+<program>         ::= [ <make> ] [ <org> ] { <top_level_item> }
+<top_level_item>  ::= <decl> | <statement>
 
-<top_level_item>  ::= <decl>
-                      | <statement>
-
-<make>            ::= "make" [ "dot" | "nex" | "raw" ] "(" <string> ")" ";"
-
+(* Directives *)
+<make>            ::= "make" ( "dot" | "nex" | "raw" ) [ <string> ] ";"
 <org>             ::= "org" <number> ";"
-
 <bank>            ::= "bank" "(" <number> [ "," <number> ] ")" <stmnt_block>
 
 (* Statements *)
 <statement>       ::= <stmnt_block>
-                      | <decl>
-                      | <assignment>                    
-                      | <if>
-                      | <switch>
-                      | <while>
-                      | <for>
-                      | <break>
-                      | <continue>
-                      | <return>
-                      | <putc>
-                      | <puts>
-                      | <asm>
-                      | <include>
-                      | <expr>
-                      | <org>
-                      | ";"
+                   | <decl>
+                   | <assignment> ";"
+                   | <if>
+                   | <switch>
+                   | <while>
+                   | <for>
+                   | <break>
+                   | <continue>
+                   | <return>
+                   | <putc>
+                   | <puts>
+                   | <out>
+                   | <asm>
+                   | <include>
+                   | <expr> ";"
+                   | ";"
 
 <stmnt_block>     ::= "{" { <statement> } "}"
 
-(* Declarations: variable declarations, function definitions, and function prototypes *)
-<decl>            ::= <vardecl>
-                      | <funcdecl>
-                      | <funcproto>
+(* Declarations *)
+<decl>            ::= <vardecl> | <funcdecl> | <funcproto> | <structdef>
+<structdef>       ::= "struct" <ident> "{" { <vardecl_no_semicolon> } "}" [ ";" ]
 
-(* Function prototype: note the trailing semicolon instead of a body *)
-<funcproto>       ::= <rettype> <ident> "(" <arglist> ")" ";"
+<funcproto>       ::= <rettype> <ident> "(" [ <arglist> ] ")" ";"
+<funcdecl>        ::= <rettype> <ident> "(" [ <arglist> ] ")" ( <asm> | <stmnt_block> )
 
-(* Assignment expressions. Either a simple identifier or a more complex lvalue/expression on the left-hand side. *)
-<assignment>      ::= <lvalue> "=" <expr> ";"
-<lvalue>          ::= <ident>
-                    | <ident> "[" <expr> "]"
-                    | "*" <lvalue>
-                    | "&" <lvalue>
-
-(* Control structures *)
-<if>              ::= "if" "(" <expr> ")" <statement> [ "else" <statement> ]
-
-<switch>          ::= "switch" "(" <expr> ")" <switch_block>
-<switch_block>    ::= "{" { <case_section> } "}"
-<case_section>    ::= <case_header> { <statement> }
-<case_header>     ::= { "case" <expr> ":" } [ "default" ":" ]
-
-<while>           ::= "while" "(" <expr> ")" <statement>
-
-<for>             ::= "for" "(" [ <decl> | <assignment> ] ";" [ <expr> ] ";" [ <expr> ] ")" <statement>
-
-<break>           ::= "break" ";"
-
-<continue>        ::= "continue" ";"
-
-<return>          ::= "return" [ <expr> ] ";"
-
-<putc>            ::= "putc" "(" <expr> ")" ";"
-
-<puts>            ::= "puts" "(" <expr> ")" ";"
-
-(* Inline assembly block (contents treated as raw Z80N Assembly). *)
-<asm>             ::= "__asm__" "{" Z80N_Assembly "}"
-
-<include>         ::= "include" <string>
-
-(* String literal: content details omitted here *)
-<string>          ::= "\"" { <character> } "\""
-
-(* Variable declaration: type, identifier, and optional initializer.
-   Multiple variables may be declared in one statement. *)
-<vardecl>         ::= [const] <type> <ident> [ "=" <expr> ] { "," <ident> [ "=" <expr> ] } ";"
-
-(* Function definition: includes return type, name, parameter list,
-   either an assembly block, or a function body. *)
-<funcdecl>        ::= <rettype> <ident> "(" <arglist> ")"  <asm> | <stmnt_block>
-
-(* Function call used as an expression; when used as a statement, a semicolon is appended. *)
-<call_expr>       ::= <ident> "(" [ <exprlist> ] ")"
-<funccall_stmt>   ::= <call_expr> ";"
+(* Variable declarations: optional const, single-level pointer or array suffix supported *)
+<vardecl>         ::= [ "const" ] <type> <ident> { "," <ident> } [ "=" <expr> ] ";"
+<vardecl_no_semicolon> ::= [ "const" ] <type> <ident> { "," <ident> } [ "=" <expr> ]
 
 <rettype>         ::= "void" | <type>
 
-(* Type definitions include scalar types, arrays, and pointers. *)
-<type>            ::= <scalartype>
-                      | <arraytype>
-                      | <pointertype>
-
-<scalartype>      ::= "char" | "byte" | "int"
-
-<arraytype>       ::= <scalartype> "[" <number> "]"
-
-<pointertype>     ::= <scalartype> "*"
+(* Types: scalar base, optional single pointer or array suffix. Structural types supported via 'struct' identifier. *)
+<type>            ::= <basetype> [ "*" | "[" <number> "]" ]
+<basetype>        ::= "char" | "byte" | "int" | "string" | <ident>   (* ident may be a struct name *)
 
 <arglist>         ::= <arg> { "," <arg> }
-
 <arg>             ::= <type> <ident>
 
-(* Expressions are parsed using a precedence-climbing algorithm.
-   The production below is schematic. *)
-<expr>            ::= "(" <expr> ")" 
-                      | <factor> { <op> <factor> }
+(* Expressions: precedence-climbing parser; this is a schematic description. *)
+<expr>            ::= <ternary>
+<ternary>         ::= <binary> [ "?" <expr> ":" <expr> ]
+<binary>          ::= <unary> { <binop> <unary> }
 
-<factor>          ::= <number>
-                      | <string>
-                      | <call_expr>
-                      | ( "*" | "&" ) <var> [ "[" <expr> "]" ]
+(* Unary and postfix operators, member access and indexing are part of factor handling. *)
+<unary>           ::= [ "+" | "-" | "~" | "!" ] <postfix>
+<postfix>         ::= <primary> { "++" | "--" | "(" [ <exprlist> ] ")" | "." <ident> | "[" <expr> "]" }
 
-<var>             ::= <ident>
+<primary>         ::= <number>
+                   | <string>
+                   | <ident>
+                   | "(" <expr> ")"
+                   | "*" <primary>      (* dereference *)
+                   | "&" <ident>        (* address of identifier *)
+                   | "{" <expr_list_const> "}"  (* brace-initializer used for data literals *)
 
-(* Operators available (similar to C, ++/-- can be prefix or postfix) *)
-<op>              ::= "+" | "-" | "*" | "/" | "%" 
-                      | "==" | "!=" | "<" | ">" | "<=" | ">=" 
-                      | "&&" | "||" | "^" | "|" | "&" | "<<" | ">>"
-                      | "++" | "--"
+<exprlist>        ::= <expr> { "," <expr> }
+<expr_list_const> ::= <expr> { "," <expr> }  (* must be constant expressions at compile time when used for data *)
 
-(* Identifiers, letters, and digits *)
+(* Binary operators *)
+<binop>           ::= "+" | "-" | "*" | "/" | "%" 
+                   | "==" | "!=" | "<" | ">" | "<=" | ">="
+                   | "&&" | "||" | "&" | "|" | "^" | "<<" | ">>"
+
+(* Identifiers, numbers, strings, and tokens *)
 <ident>           ::= <letter> { <letter> | <digit> | "_" }
-
-<letter>          ::= "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J"
-                      | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T"
-                      | "U" | "V" | "W" | "X" | "Y" | "Z"
-                      | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j"
-                      | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t"
-                      | "u" | "v" | "w" | "x" | "y" | "z"
-
-<digit>           ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
-
 <number>          ::= <digit> { <digit> }
+<string>          ::= '"' { <character> } '"'
 
-<character>       ::= /* any character except the double quote " */  
-                     
+(* Other constructs supported by the compiler: *)
+<putc>            ::= "putc" "(" <expr> ")" ";"
+<puts>            ::= "puts" "(" <expr> ")" ";"
+<out>             ::= "out" "(" <expr> "," <expr> ")" ";"
+<asm>             ::= "__asm__" "{" Z80N_Assembly "}"
 
-(* The nonterminal Z80N_Assembly is assumed to represent a block of valid Z80N assembly code. *)
-               
+(* The nonterminal Z80N_Assembly represents a block of valid Z80N assembly code. *)
+```
+
 ```
