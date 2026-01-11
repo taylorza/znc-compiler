@@ -224,6 +224,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
     uint16_t skiplbl;
     uint16_t tmplbl;
     uint16_t counter = 0;
+    uint8_t ident_base = 0; /* set when expression starts with a simple identifier */
     
     /* handle prefix ++/-- */
     while (tok == tokInc || tok == tokDec) {
@@ -406,6 +407,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
              */
             factor_result.sym = sym;
             factor_result.has_sym = 1;
+            ident_base = 1;
 
             /* If this identifier is immediately indexed (e.g. s[i]), handle it
              * now using the unified helper so we compute base first (for const)
@@ -471,7 +473,15 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             while (tok == tokMember) {
                 factor_result.has_sym = 0;
                 get_token(); // skip '.'
-                if (!is_struct(&factor_result.type)) {
+                    uint8_t member_base_is_ptr = 0;
+                if (is_ptr(&factor_result.type)) {
+                    /* Accept pointer-to-struct as a valid base for member access */
+                    if ((factor_result.type.basetype & 0xff) != STRUCT || factor_result.type.struct_id == 0) {
+                        error(errSyntax);
+                        return factor_result;
+                    }
+                    member_base_is_ptr = 1;
+                } else if (!is_struct(&factor_result.type)) {
                     error(errSyntax);
                     return factor_result;
                 }
@@ -538,16 +548,24 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                      * and the offset is a constant we can fold it into the load.
                      */
                     if (!addr_in_hl) {
-                        if (is_ptr(&sym.type)) {
-                            emit_ld_symval(&sym); /* pointer value = base */
+                        if (ident_base) {
+                            /* simple identifier base (sym valid) */
+                            if (is_ptr(&sym.type)) {
+                                /* load pointer value then add offset */
+                                emit_ld_symval(&sym); /* HL = pointer value */
+                                if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
+                            } else {
+                                /* non-pointer symbol: fold offset into address load when possible */
+                                emit_ld_symaddr_offset(&sym, offset); /* base address (+offset folded if global) */
+                            }
                         } else {
-                            emit_ld_symaddr_offset(&sym, offset); /* base address (+offset folded if global) */
+                            /* complex base expression: HL should contain the address or pointer
+                             * value after parsing the base; just add the offset.
+                             */
+                            if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
                         }
                     } else {
-                        if (offset) {
-                            emit_ldde_immed(); emit_n(offset); emit_nl();
-                            emit_add16();
-                        }
+                        if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
                     }
 
                     /* now HL points at field */
