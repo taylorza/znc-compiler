@@ -645,6 +645,9 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 if (loadval) {
                     if (is_func_or_proto(&sym)) {
                         emit_ld_immed(); emit_sname(sym.name); emit_nl();
+                    } else if (is_struct(&sym.type) && !is_ptr(&sym.type)) {
+                        /* Structs are loaded as address, not value */
+                        emit_ld_symaddr(&sym);
                     } else {
                         emit_ld_symval(&sym);
                     }
@@ -753,6 +756,58 @@ void far_parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC
 
         /* place the skip label here so code continues after the data */
         emit_lbl(skiplbl);
+        return;
+    }
+
+    /* Handle struct assignment */
+    if (is_struct(&typ) && !is_ptr(&typ)) {
+        EXPR_RESULT r = far_parse_expr(0);
+        
+        /* Verify types match */
+        if (!is_struct(&r.type) || r.type.struct_id != typ.struct_id) {
+            error(errTypeError);
+            return;
+        }
+        
+        /* HL now contains the source address (from far_parse_expr loading the struct address)
+         * We need to set up dest address and copy */
+        uint16_t struct_size = type_size(&typ);
+        
+        if (dereference) {
+            /* Dereferenced pointer case: *p1 = *p2 */
+            emit_push();  /* Save source address */
+            
+            if (sym) {
+                emit_ld_symval(sym);
+            }
+            /* else: HL already has dest address */
+            
+            if (indexed) {
+                emit_pop();  /* Get index */
+                emit_add16();
+                emit_push();  /* Save dest */
+            }
+            
+            emit_swap();  /* DE = dest */
+            emit_pop();   /* HL = source */
+            emit_ldbc_immed_n(struct_size);
+            emit_instrln("ldir");
+        } else {
+            /* Direct struct assignment: p1 = p2 */
+            emit_push();  /* Save source address */
+            
+            if (sym) {
+                emit_ld_symaddr(sym);
+            } else {
+                error(errNotlvalue);
+                return;
+            }
+            
+            emit_swap();  /* DE = dest */
+            emit_pop();   /* HL = source */
+            emit_ldbc_immed_n(struct_size);
+            emit_instrln("ldir");
+        }
         return;
     }
 
