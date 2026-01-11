@@ -73,44 +73,54 @@ static TYPEREC get_element_type(const TYPEREC *ptr_or_array_type) MYCC {
     return elemtype;
 }
 
-/* Helper: Emit scaling of value in HL by given scale factor */
-static void emit_scale_hl(uint16_t scale) MYCC {
+/* Helper: Emit scaling of value in HL or DE by given scale factor */
+static void emit_scale_reg(uint16_t scale, uint8_t is_hl) MYCC {
     if (scale == 1) {
-        /* no scaling */
-    } else if (scale <= 16 && (scale == 2 || scale == 3 || scale == 4 || 
-                                scale == 5 || scale == 6 || scale == 8 || 
-                                scale == 10 || scale == 16)) {
-        /* Use optimized multiplication for common small constants */
-        emit_mul_const_optimized(scale);
-    } else if ((scale & (scale - 1)) == 0) {
-        /* power of two: use repeated doubling */
-        uint16_t s = scale;
-        while (s > 1) { emit_mul2(); s >>= 1; }
+        return;
+    }
+    
+    if (is_hl) {
+        /* HL scaling */
+        if (scale <= 16 && (scale == 2 || scale == 3 || scale == 4 || 
+                            scale == 5 || scale == 6 || scale == 8 || 
+                            scale == 10 || scale == 16)) {
+            emit_mul_const_optimized(scale);
+        } else if ((scale & (scale - 1)) == 0) {
+            /* power of two: use repeated doubling */
+            uint16_t s = scale;
+            while (s > 1) { emit_mul2(); s >>= 1; }
+        } else {
+            /* arbitrary scale: use multiplication */
+            emit_ldde_immed_n(scale);
+            emit_rtl("ccmult");
+        }
     } else {
-        /* arbitrary scale: use multiplication */
-        emit_ldde_immed_n(scale);
-        emit_rtl("ccmult");
+        /* DE scaling */
+        if (scale == 2) {
+            emit_mulDE2();
+        } else if ((scale & (scale - 1)) == 0) {
+            /* power of two: use repeated doubling */
+            uint16_t s = scale;
+            while (s > 1) { emit_mulDE2(); s >>= 1; }
+        } else {
+            /* General case: swap, multiply HL, swap back */
+            emit_copy_hl_to_bc();
+            emit_swap();
+            emit_mul_const_optimized(scale);
+            emit_swap();
+            emit_copy_bc_to_hl();
+        }
     }
 }
 
-/* Helper: Emit scaling of value in DE by given scale factor */
+/* Wrapper for HL scaling */
+static void emit_scale_hl(uint16_t scale) MYCC {
+    emit_scale_reg(scale, 1);
+}
+
+/* Wrapper for DE scaling */
 static void emit_scale_de(uint16_t scale) MYCC {
-    if (scale == 1) {
-        /* no scaling */
-    } else if (scale == 2) {
-        emit_mulDE2();
-    } else if ((scale & (scale - 1)) == 0) {
-        /* power of two: use repeated doubling */
-        uint16_t s = scale;
-        while (s > 1) { emit_mulDE2(); s >>= 1; }
-    } else {
-        /* General case: swap, multiply HL, swap back */
-        emit_copy_hl_to_bc();
-        emit_swap();
-        emit_mul_const_optimized(scale);
-        emit_swap();
-        emit_copy_bc_to_hl();
-    }
+    emit_scale_reg(scale, 0);
 }
 
 /* Helper: Compute address of sym+offset into HL (handles global folding) */

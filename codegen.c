@@ -171,28 +171,17 @@ void emit_ldde_immed_n(uint16_t n) MYCC {
 /* Optimized addition of small constants to HL */
 void emit_add_hl_small(int16_t n) MYCC {
     if (n == 0) {
-        /* Nothing to do */
         return;
-    } else if (n == 1) {
-        emit_instrln("inc hl");
-    } else if (n == 2) {
-        emit_instrln("inc hl");
-        emit_instrln("inc hl");
-    } else if (n == 3) {
-        emit_instrln("inc hl");
-        emit_instrln("inc hl");
-        emit_instrln("inc hl");
-    } else if (n == -1) {
-        emit_instrln("dec hl");
-    } else if (n == -2) {
-        emit_instrln("dec hl");
-        emit_instrln("dec hl");
-    } else if (n == -3) {
-        emit_instrln("dec hl");
-        emit_instrln("dec hl");
-        emit_instrln("dec hl");
+    }
+    
+    const char *instr = (n > 0) ? "inc hl" : "dec hl";
+    int8_t count = (n > 0) ? n : -n;
+    
+    if (count <= 3) {
+        while (count--) {
+            emit_instrln(instr);
+        }
     } else {
-        /* Use standard add for larger values */
         emit_ldde_immed_n((uint16_t)n);
         emit_add16();
     }
@@ -277,11 +266,6 @@ void emit_mul_const_optimized(uint16_t factor) MYCC {
     }
 }
 
-/* Fast register move using exchange instead of stack */
-void emit_move_hl_to_de_fast(void) MYCC {
-    emit_swap();  /* ex de,hl is 1 byte, 4 T-states vs push/pop 2 bytes, 21 T-states */
-}
-
 void emit_load_word_from_hl(void) MYCC {
     emit_instrln("ld a,(hl)");
     emit_instrln("inc hl");
@@ -310,6 +294,12 @@ void emit_copy_hl_to_bc(void) MYCC {
 void emit_copy_bc_to_hl(void) MYCC {
     emit_instrln("ld h,b");
     emit_instrln("ld l,c");
+}
+
+/* Helper: Copy IX register to HL */
+void emit_copy_ix_to_hl(void) MYCC {
+    emit_instrln("ld l,ixl");
+    emit_instrln("ld h,ixh");
 }
 
 void emit_push(void) MYCC {
@@ -462,8 +452,7 @@ void emit_ld_symval(SYMBOL* sym) MYCC {
                 int16_t addr_offset = bp_offset - type_size(ptype);
                 
                 if (addr_offset >= -128 && addr_offset <= 127) {
-                    emit_instrln("ld l,ixl");
-                    emit_instrln("ld h,ixh");
+                    emit_copy_ix_to_hl();
                     if (addr_offset != 0) {
                         emit_add_hl_small(addr_offset);
                     }
@@ -534,13 +523,11 @@ void emit_ld_symaddr_offset(SYMBOL* sym, uint16_t offset) MYCC {
         
         /* OPTIMIZATION: Special cases for common offsets */
         if (bp_offset == 0) {
-            /* Offset 0: just copy IX to HL (4 bytes, 16 T-states vs 8 bytes, 37 T-states) */
-            emit_instrln("ld l,ixl");
-            emit_instrln("ld h,ixh");
+            /* Offset 0: just copy IX to HL */
+            emit_copy_ix_to_hl();
         } else if (bp_offset >= -3 && bp_offset <= 3) {
-            /* Small offset: copy IX and use inc/dec (6 bytes, 28 T-states vs 8 bytes, 37 T-states) */
-            emit_instrln("ld l,ixl");
-            emit_instrln("ld h,ixh");
+            /* Small offset: copy IX and use inc/dec */
+            emit_copy_ix_to_hl();
             emit_add_hl_small(bp_offset);
         } else {
             /* Standard: load offset and add to IX */
