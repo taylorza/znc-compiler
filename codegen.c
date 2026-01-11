@@ -306,8 +306,12 @@ void emit_push(void) MYCC {
     emit_instrln("push hl");
 }
 
-void emit_pop(void) MYCC {
+void emit_pop_de(void) MYCC {
     emit_instrln("pop de");
+}
+
+void emit_pop_hl(void) MYCC {
+    emit_instrln("pop hl");
 }
 
 void emit_swap(void) MYCC {
@@ -572,14 +576,14 @@ void emit_store_sym(SYMBOL* sym) MYCC {
             emit_push();
             emit_compute_ix_address(low_off);
             emit_swap();
-            emit_pop();
+            emit_pop_de();
             emit_store_word_at_de();
         }
     }
 }
 
 void emit_store(TYPEREC type) MYCC {
-    emit_pop();         // target address
+    emit_pop_de();      // target address
     if (is_void(&type) || is_char(&type)) {
         emit_store_byte_at_de();
     } else {

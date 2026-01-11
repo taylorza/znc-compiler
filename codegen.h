@@ -46,7 +46,8 @@ void emit_copy_ix_to_hl(void) MYCC;
 
 void emit_push(void) MYCC;
 
-void emit_pop(void) MYCC;
+void emit_pop_de(void) MYCC;
+void emit_pop_hl(void) MYCC;
 
 void emit_swap(void) MYCC;
 

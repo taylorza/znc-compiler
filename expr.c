@@ -209,7 +209,7 @@ static INDEXED_RESULT compute_indexed_address(SYMBOL *sym, uint16_t base_offset,
         /* Non-constant: push index, compute base, pop and add */
         emit_push();
         emit_sym_address_with_offset(sym, base_offset);
-        emit_pop();
+        emit_pop_de();
         emit_add16();
         result.type = elemtype;
         make_scalar(&result.type);
@@ -290,7 +290,7 @@ static uint8_t handle_incdec(uint8_t is_prefix, SYMBOL *sym, TYPEREC lvalue_type
         
         if (!is_prefix) {
             /* Postfix: restore original */
-            emit_pop();
+            emit_pop_de();
             emit_swap();
         }
     }
@@ -476,7 +476,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 }
                 emit_push();
                 parse_and_scale_index(&factor_result.type);
-                emit_pop();
+                emit_pop_de();
                 emit_add16();
             } else {
                 emit_ld_symaddr(&sym);
@@ -493,17 +493,24 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 make_ptr(&factor_result.type);
             }
             if (tok == tokAssign) {
-                /* For *p, we need to load the pointer value and pass the element type */
+                /* For *p, pass the pointer info to far_parse_assign
+                 * Do NOT load the pointer value here - let far_parse_assign handle it
+                 * after parsing the right side, to avoid register corruption
+                 */
+                TYPEREC elem_type = get_element_type(&factor_result.type);
+                SYMBOL *ptr_sym = factor_result.has_sym ? &factor_result.sym : NULL;
+                far_parse_assign(1, ptr_sym, 0, elem_type);
+            } else {
+                /* For reading (not assignment), load the value */
                 if (!is_const(&factor_result.type)) {
-                    /* Load the pointer value if not already a constant */
                     if (factor_result.has_sym) {
                         emit_ld_symval(&factor_result.sym);
                     }
                 }
-                TYPEREC elem_type = get_element_type(&factor_result.type);
-                far_parse_assign(1, NULL, 0, elem_type);
-            } else {
-                emit_load(factor_result.type);
+                /* For structs, we want the address, not the dereferenced value */
+                if (!is_struct(&factor_result.type)) {
+                    emit_load(factor_result.type);
+                }
             }
             break;
 
@@ -649,7 +656,10 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                         /* Structs are loaded as address, not value */
                         emit_ld_symaddr(&sym);
                     } else {
-                        emit_ld_symval(&sym);
+                        /* Don't load value here if initial_deref - let caller handle it */
+                        if (!initial_deref) {
+                            emit_ld_symval(&sym);
+                        }
                     }
                 }
 
@@ -711,7 +721,7 @@ void far_parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC
             }
             /* else: HL already contains the pointer value from parse_factor (*p case) */
             if (indexed) {
-                emit_pop();
+                emit_pop_de();
                 emit_add16();
             }
             
@@ -774,22 +784,28 @@ void far_parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC
         uint16_t struct_size = type_size(&typ);
         
         if (dereference) {
-            /* Dereferenced pointer case: *p1 = *p2 */
-            emit_push();  /* Save source address */
+            /* Dereferenced pointer case: *p1 = p2 or *p1 = *p2 
+             * HL = source address (from parsing right side)
+             * Need to get destination address from pointer value
+             */
+            emit_push();  /* Save source address on stack */
             
             if (sym) {
+                /* Load the pointer value (the address it points to) */
                 emit_ld_symval(sym);
             }
-            /* else: HL already has dest address */
+            /* else: HL already has dest address from parse_factor */
             
             if (indexed) {
-                emit_pop();  /* Get index */
-                emit_add16();
-                emit_push();  /* Save dest */
+                emit_swap();  /* DE = dest */
+                emit_pop_hl();   /* HL = index */
+                emit_add16(); /* HL = dest + index */
+                emit_push();  /* Save adjusted dest */
             }
             
-            emit_swap();  /* DE = dest */
-            emit_pop();   /* HL = source */
+            /* At this point we need: DE = dest, HL = source */
+            emit_swap();  /* DE = dest (pointer value or adjusted address) */
+            emit_pop_hl();   /* HL = source */
             emit_ldbc_immed_n(struct_size);
             emit_instrln("ldir");
         } else {
@@ -804,7 +820,7 @@ void far_parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC
             }
             
             emit_swap();  /* DE = dest */
-            emit_pop();   /* HL = source */
+            emit_pop_hl();   /* HL = source */
             emit_ldbc_immed_n(struct_size);
             emit_instrln("ldir");
         }
@@ -822,7 +838,7 @@ void far_parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC
     if (dereference) {
         emit_ld_symval(sym);
         if (indexed) {
-            emit_pop();
+            emit_pop_de();
             emit_add16();
         }
 
@@ -951,9 +967,9 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
         emit_ld_immed(); emit_n(val); emit_nl();
         scaleR = 0;
         r_result.type.basetype = base_type(&r_result.type);
-        emit_pop();
+        emit_pop_de();
     } else {
-        emit_pop();
+        emit_pop_de();
     }
 
     /* Emit runtime operation with scaling */

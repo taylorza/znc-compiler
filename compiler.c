@@ -574,7 +574,7 @@ void parse_nextreg(void) MYCC {
     emit_push();
     expect_comma();
     parse_expr(0);
-    emit_pop();
+    emit_pop_de();
 
     emit_instrln("ld bc,9275");
     emit_instrln("out (c),e");
