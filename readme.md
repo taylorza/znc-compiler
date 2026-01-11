@@ -285,7 +285,6 @@ Variables can be declared at any point in the code
 (* Statements *)
 <statement>       ::= <stmnt_block>
                    | <decl>
-                   | <assignment> ";"
                    | <if>
                    | <switch>
                    | <while>
@@ -293,11 +292,16 @@ Variables can be declared at any point in the code
                    | <break>
                    | <continue>
                    | <return>
+                   | <exit>
                    | <putc>
                    | <puts>
                    | <out>
+                   | <nextreg>
                    | <asm>
                    | <include>
+                   | <org>
+                   | <bank>
+                   | <hashif>
                    | <expr> ";"
                    | ";"
 
@@ -310,14 +314,15 @@ Variables can be declared at any point in the code
 <funcproto>       ::= <rettype> <ident> "(" [ <arglist> ] ")" ";"
 <funcdecl>        ::= <rettype> <ident> "(" [ <arglist> ] ")" ( <asm> | <stmnt_block> )
 
-(* Variable declarations: optional const, single-level pointer or array suffix supported *)
-<vardecl>         ::= [ "const" ] <type> <ident> { "," <ident> } [ "=" <expr> ] ";"
-<vardecl_no_semicolon> ::= [ "const" ] <type> <ident> { "," <ident> } [ "=" <expr> ]
+(* Variable declarations: optional const, each variable can have its own initializer *)
+<vardecl>         ::= [ "const" ] <type> <var_declarator> { "," <var_declarator> } ";"
+<vardecl_no_semicolon> ::= [ "const" ] <type> <var_declarator> { "," <var_declarator> }
+<var_declarator>  ::= <ident> [ "=" <expr> ]
 
 <rettype>         ::= "void" | <type>
 
 (* Types: scalar base, optional single pointer or array suffix. Structural types supported via 'struct' identifier. *)
-<type>            ::= <basetype> [ "*" | "[" <number> "]" ]
+<type>            ::= <basetype> [ "*" | "[" [ <expr> ] "]" ]
 <basetype>        ::= "char" | "byte" | "int" | "string" | <ident>   (* ident may be a struct name *)
 
 <arglist>         ::= <arg> { "," <arg> }
@@ -329,8 +334,9 @@ Variables can be declared at any point in the code
 <binary>          ::= <unary> { <binop> <unary> }
 
 (* Unary and postfix operators, member access and indexing are part of factor handling. *)
-<unary>           ::= [ "+" | "-" | "~" | "!" ] <postfix>
-<postfix>         ::= <primary> { "++" | "--" | "(" [ <exprlist> ] ")" | "." <ident> | "[" <expr> "]" }
+<unary>           ::= { "++" | "--" | "+" | "-" | "~" | "!" } <postfix>
+<postfix>         ::= <primary> { <postfix_op> }
+<postfix_op>      ::= "++" | "--" | "(" [ <exprlist> ] ")" | "[" <expr> "]" | "." <ident>
 
 <primary>         ::= <number>
                    | <string>
@@ -339,6 +345,8 @@ Variables can be declared at any point in the code
                    | "*" <primary>      (* dereference *)
                    | "&" <ident>        (* address of identifier *)
                    | "{" <expr_list_const> "}"  (* brace-initializer used for data literals *)
+                   | "in" "(" <expr> ")"        (* read from I/O port *)
+                   | "readreg" "(" <expr> ")"   (* read NextReg register *)
 
 <exprlist>        ::= <expr> { "," <expr> }
 <expr_list_const> ::= <expr> { "," <expr> }  (* must be constant expressions at compile time when used for data *)
@@ -350,16 +358,46 @@ Variables can be declared at any point in the code
 
 (* Identifiers, numbers, strings, and tokens *)
 <ident>           ::= <letter> { <letter> | <digit> | "_" }
-<number>          ::= <digit> { <digit> }
-<string>          ::= '"' { <character> } '"'
+
+(* Numbers support decimal, hexadecimal (0x), binary (0b), and character literals *)
+<number>          ::= <decimal_literal> | <hex_literal> | <binary_literal> | <char_literal>
+<decimal_literal> ::= <digit> { <digit> }
+<hex_literal>     ::= "0x" <hex_digit> { <hex_digit> }
+<binary_literal>  ::= "0b" ("0" | "1") { "0" | "1" }
+<char_literal>    ::= "'" <character> "'"
+<hex_digit>       ::= <digit> | "a"..."f" | "A"..."F"
+
+(* Strings support escape sequences *)
+<string>          ::= '"' { <str_char> } '"'
+<str_char>        ::= <character> | <escape_seq>
+<escape_seq>      ::= "\" ( "n" | "r" | "t" | "\" | '"' | "0" | "x" <hex_digit> <hex_digit> )
+
+(* Comments - single line only *)
+<comment>         ::= "//" { <any_char> } <newline>
 
 (* Other constructs supported by the compiler: *)
+<if>              ::= "if" "(" <expr> ")" <statement> [ "else" <statement> ]
+<switch>          ::= "switch" "(" <expr> ")" "{" { <case> | <default> } "}"
+<case>            ::= "case" <const_expr> ":" { <statement> }
+<default>         ::= "default" ":" { <statement> }
+<while>           ::= "while" "(" <expr> ")" <statement>
+<for>             ::= "for" "(" <for_init> ";" [ <expr> ] ";" [ <expr> ] ")" <statement>
+<for_init>        ::= <vardecl> | <expr> | (* empty *)
+<break>           ::= "break" ";"
+<continue>        ::= "continue" ";"
+<return>          ::= "return" [ <expr> ] ";"
+<exit>            ::= "exit" "(" <expr> ")" ";"
 <putc>            ::= "putc" "(" <expr> ")" ";"
 <puts>            ::= "puts" "(" <expr> ")" ";"
 <out>             ::= "out" "(" <expr> "," <expr> ")" ";"
+<nextreg>         ::= "nextreg" "(" <expr> "," <expr> ")" ";"
 <asm>             ::= "__asm__" "{" Z80N_Assembly "}"
+<include>         ::= "include" <string>
+
+(* Conditional compilation directives *)
+<hashif>          ::= ( "#if" <const_expr> | "#ifdef" <ident> | "#ifndef" <ident> )
+                      { <statement> }
+                      [ "#else" { <statement> } ]
+                      "#endif"
 
 (* The nonterminal Z80N_Assembly represents a block of valid Z80N assembly code. *)
-```
-
-```
