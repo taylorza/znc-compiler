@@ -483,7 +483,15 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 make_ptr(&factor_result.type);
             }
             if (tok == tokAssign) {
-                far_parse_assign(is_ptr(&factor_result.type), NULL, 0, factor_result.type);
+                /* For *p, we need to load the pointer value and pass the element type */
+                if (!is_const(&factor_result.type)) {
+                    /* Load the pointer value if not already a constant */
+                    if (factor_result.has_sym) {
+                        emit_ld_symval(&factor_result.sym);
+                    }
+                }
+                TYPEREC elem_type = get_element_type(&factor_result.type);
+                far_parse_assign(1, NULL, 0, elem_type);
             } else {
                 emit_load(factor_result.type);
             }
@@ -521,7 +529,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
 
             factor_result.sym = sym;
             factor_result.has_sym = 1;
-            ident_base = 1;
+            ident_base = 0;
 
             /* Handle immediate indexing on identifier */
             if (tok == tokLBrack) {
@@ -632,7 +640,8 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                     }
                 }
 
-                if (dereference) {
+                /* Only emit_load if not in initial dereference mode - caller will handle it */
+                if (dereference && !initial_deref) {
                     emit_load(factor_result.type);
                 }
             }
@@ -687,17 +696,16 @@ void far_parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC
             if (sym) {
                 emit_ld_symval(sym);                
             }
-            else {
-                emit_load(typ);
-            }
+            /* else: HL already contains the pointer value from parse_factor (*p case) */
             if (indexed) {
                 emit_pop();
                 emit_add16();
             }
             
-            emit_ldde_immed(); emit_lblref(datalbl); emit_nl();
-            emit_swap();
-            emit_ldbc_immed(); emit_lblref(datalen); emit_nl();
+            /* Set up registers for ldir: HL=source, DE=dest, BC=count */
+            emit_swap();  /* DE = destination (from HL) */
+            emit_ld_immed(); emit_lblref(datalbl); emit_nl();  /* HL = source */
+            emit_ldbc_immed(); emit_lblref(datalen); emit_nl();  /* BC = count */
             emit_instrln("ldir");
         }
         
