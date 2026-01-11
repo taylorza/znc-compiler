@@ -168,6 +168,120 @@ void emit_ldde_immed_n(uint16_t n) MYCC {
     emit_nl();
 }
 
+/* Optimized addition of small constants to HL */
+void emit_add_hl_small(int16_t n) MYCC {
+    if (n == 0) {
+        /* Nothing to do */
+        return;
+    } else if (n == 1) {
+        emit_instrln("inc hl");
+    } else if (n == 2) {
+        emit_instrln("inc hl");
+        emit_instrln("inc hl");
+    } else if (n == 3) {
+        emit_instrln("inc hl");
+        emit_instrln("inc hl");
+        emit_instrln("inc hl");
+    } else if (n == -1) {
+        emit_instrln("dec hl");
+    } else if (n == -2) {
+        emit_instrln("dec hl");
+        emit_instrln("dec hl");
+    } else if (n == -3) {
+        emit_instrln("dec hl");
+        emit_instrln("dec hl");
+        emit_instrln("dec hl");
+    } else {
+        /* Use standard add for larger values */
+        emit_ldde_immed_n((uint16_t)n);
+        emit_add16();
+    }
+}
+
+/* Optimized multiplication by small constants - using BC for temps instead of stack */
+void emit_mul_const_optimized(uint16_t factor) MYCC {
+    switch (factor) {
+        case 0:
+            emit_ld_immed_n(0);
+            break;
+        case 1:
+            /* HL unchanged */
+            break;
+        case 3:
+            /* a * 3 = a * 2 + a - use BC to save original */
+            emit_copy_hl_to_bc();     /* BC = original */
+            emit_mul2();              /* HL = HL * 2 */
+            emit_instrln("add hl,bc"); /* HL = HL*2 + original */
+            break;
+        case 5:
+            /* a * 5 = a * 4 + a - use BC to save original */
+            emit_copy_hl_to_bc();     /* BC = original */
+            emit_mul2();              /* HL = HL * 2 */
+            emit_mul2();              /* HL = HL * 4 */
+            emit_instrln("add hl,bc"); /* HL = HL*4 + original */
+            break;
+        case 6:
+            /* a * 6 = a * 2 + a * 4 - use BC to save HL*2 */
+            emit_mul2();              /* HL = HL * 2 */
+            emit_copy_hl_to_bc();     /* BC = HL * 2 */
+            emit_mul2();              /* HL = HL * 4 */
+            emit_instrln("add hl,bc"); /* HL = HL*4 + HL*2 = HL*6 */
+            break;
+        case 7:
+            /* a * 7 = a * 8 - a - use BC to save original */
+            emit_copy_hl_to_bc();     /* BC = original */
+            emit_mul2();              /* HL * 2 */
+            emit_mul2();              /* HL * 4 */
+            emit_mul2();              /* HL * 8 */
+            emit_instrln("xor a");    /* Clear carry */
+            emit_instrln("sbc hl,bc"); /* HL = HL*8 - original */
+            break;
+        case 9:
+            /* a * 9 = a * 8 + a - use BC to save original */
+            emit_copy_hl_to_bc();     /* BC = original */
+            emit_mul2();              /* HL * 2 */
+            emit_mul2();              /* HL * 4 */
+            emit_mul2();              /* HL * 8 */
+            emit_instrln("add hl,bc"); /* HL = HL*8 + original */
+            break;
+        case 10:
+            /* a * 10 = a * 8 + a * 2 - use BC to save HL*2 */
+            emit_mul2();              /* HL = HL * 2 */
+            emit_copy_hl_to_bc();     /* BC = HL * 2 */
+            emit_mul2();              /* HL = HL * 4 */
+            emit_mul2();              /* HL = HL * 8 */
+            emit_instrln("add hl,bc"); /* HL = HL*8 + HL*2 = HL*10 */
+            break;
+        case 12:
+            /* a * 12 = a * 4 * 3 = (a*4)*2 + a*4 */
+            emit_mul2();              /* HL * 2 */
+            emit_mul2();              /* HL * 4 */
+            emit_copy_hl_to_bc();     /* BC = HL * 4 */
+            emit_mul2();              /* HL * 8 */
+            emit_instrln("add hl,bc"); /* HL = HL*8 + HL*4 = HL*12 */
+            break;
+        default:
+            /* Check if power of two */
+            if ((factor & (factor - 1)) == 0) {
+                uint16_t temp = factor;
+                while (temp > 1) {
+                    emit_mul2();
+                    temp >>= 1;
+                }
+            } else {
+                /* Use generic multiplication */
+                emit_ldde_immed_n(factor);
+                emit_rtl("ccmult");
+            }
+            break;
+    }
+}
+
+/* Fast register move using exchange instead of stack */
+void emit_move_hl_to_de_fast(void) MYCC {
+    emit_swap();  /* ex de,hl is 1 byte, 4 T-states vs push/pop 2 bytes, 21 T-states */
+}
+
 void emit_load_word_from_hl(void) MYCC {
     emit_instrln("ld a,(hl)");
     emit_instrln("inc hl");
@@ -316,19 +430,60 @@ void emit_ld_symval(SYMBOL* sym) MYCC {
         
         if (sym->klass == VARIABLE) {
             bp_offset = (uint8_t)sym->offset;
-            if (is_array(ptype)) {
-                emit_instrln("ld hl,%d", bp_offset - type_size(ptype));
-                emit_instrln("ld d,ixh");
-                emit_instrln("ld e,ixl");                
-                emit_instrln("add hl,de");
+            if (is_array(ptype) || is_struct(ptype)) {
+                /* Arrays and structs: load their address */
+                int16_t addr_offset = bp_offset - type_size(ptype);
+                
+                /* OPTIMIZATION: Use direct IX addressing if offset in range */
+                if (addr_offset >= -128 && addr_offset <= 127) {
+                    emit_instrln("ld l,ixl");
+                    emit_instrln("ld h,ixh");
+                    if (addr_offset != 0) {
+                        emit_add_hl_small(addr_offset);
+                    }
+                } else {
+                    /* Out of range: need full computation */
+                    emit_instrln("ld hl,%d", addr_offset);
+                    emit_instrln("ld d,ixh");
+                    emit_instrln("ld e,ixl");
+                    emit_instrln("add hl,de");
+                }
             } else {
-                emit_instrln("ld h,(ix-%d)", bp_offset+1);
-                emit_instrln("ld l,(ix-%d)", bp_offset+2);
+                /* Scalar/pointer: direct indexed load */
+                int16_t low_offset = -(bp_offset + 2);
+                int16_t high_offset = -(bp_offset + 1);
+                
+                /* OPTIMIZATION: Use (ix+d) if in range, else compute address */
+                if (low_offset >= -128 && low_offset <= 127 && high_offset >= -128 && high_offset <= 127) {
+                    /* Direct indexed addressing */
+                    emit_instrln("ld l,(ix%+d)", low_offset);
+                    emit_instrln("ld h,(ix%+d)", high_offset);
+                } else {
+                    /* Out of range: compute address and load indirectly */
+                    emit_instrln("ld hl,%d", low_offset);
+                    emit_instrln("ld d,ixh");
+                    emit_instrln("ld e,ixl");
+                    emit_instrln("add hl,de");
+                    emit_load_word_from_hl();
+                }
             }
         } else if (sym->klass == ARGUMENT) {
-            bp_offset = 2 + (func_argcount - sym->offset) * 2;            
-            emit_instrln("ld h,(ix+%d)", bp_offset+1);
-            emit_instrln("ld l,(ix+%d)", bp_offset);            
+            bp_offset = 2 + (func_argcount - sym->offset) * 2;
+            int16_t low_offset = bp_offset;
+            int16_t high_offset = bp_offset + 1;
+            
+            /* Arguments are always at positive offsets, typically in range */
+            if (low_offset >= -128 && low_offset <= 127 && high_offset >= -128 && high_offset <= 127) {
+                emit_instrln("ld l,(ix+%d)", low_offset);
+                emit_instrln("ld h,(ix+%d)", high_offset);
+            } else {
+                /* Very rare case: too many arguments */
+                emit_instrln("ld hl,%d", low_offset);
+                emit_instrln("ld d,ixh");
+                emit_instrln("ld e,ixl");
+                emit_instrln("add hl,de");
+                emit_load_word_from_hl();
+            }
         }
     }
 }
@@ -350,20 +505,40 @@ void emit_ld_symaddr_offset(SYMBOL* sym, uint16_t offset) MYCC {
         int8_t bp_offset = 0;
         if (sym->klass == VARIABLE) {
             bp_offset = (uint8_t)sym->offset;
-            if (is_array(ptype))
+            /* Arrays and structs: address is at base - size */
+            if (is_array(ptype) || is_struct(ptype))
                 bp_offset = (bp_offset - type_size(ptype));
             else
+                /* Scalars and pointers: stored as 2-byte value */
                 bp_offset = (bp_offset - 2) + 1;
             
         }
         else if (sym->klass == ARGUMENT) {
             bp_offset = 2 + (func_argcount - sym->offset) * 2;            
         }
-        emit_instrln("ld hl,%d", bp_offset);
-        emit_instrln("ld d,ixh");
-        emit_instrln("ld e,ixl");
-        emit_instrln("add hl,de");
-        if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
+        
+        /* Add any additional offset */
+        if (offset) {
+            bp_offset += offset;
+        }
+        
+        /* OPTIMIZATION: Special cases for common offsets */
+        if (bp_offset == 0) {
+            /* Offset 0: just copy IX to HL (4 bytes, 16 T-states vs 8 bytes, 37 T-states) */
+            emit_instrln("ld l,ixl");
+            emit_instrln("ld h,ixh");
+        } else if (bp_offset >= -3 && bp_offset <= 3) {
+            /* Small offset: copy IX and use inc/dec (6 bytes, 28 T-states vs 8 bytes, 37 T-states) */
+            emit_instrln("ld l,ixl");
+            emit_instrln("ld h,ixh");
+            emit_add_hl_small(bp_offset);
+        } else {
+            /* Standard: load offset and add to IX */
+            emit_instrln("ld hl,%d", bp_offset);
+            emit_instrln("ld d,ixh");
+            emit_instrln("ld e,ixl");
+            emit_instrln("add hl,de");
+        }
     }
 }
 
@@ -387,13 +562,46 @@ void emit_store_sym(SYMBOL* sym) MYCC {
         int8_t bp_offset = 0;
         if (sym->klass == VARIABLE) {
             bp_offset = (uint8_t)sym->offset;
-            emit_instrln("ld (ix-%d),h", bp_offset + 1);
-            emit_instrln("ld (ix-%d),l", bp_offset + 2);
+            int16_t low_offset = -(bp_offset + 2);
+            int16_t high_offset = -(bp_offset + 1);
+            
+            /* OPTIMIZATION: Use (ix+d) if in range, else compute address and store */
+            if (low_offset >= -128 && low_offset <= 127 && high_offset >= -128 && high_offset <= 127) {
+                /* Direct indexed addressing */
+                emit_instrln("ld (ix%+d),l", low_offset);
+                emit_instrln("ld (ix%+d),h", high_offset);
+            } else {
+                /* Out of range: compute address and store indirectly */
+                emit_push();  /* Save value */
+                emit_instrln("ld hl,%d", low_offset);
+                emit_instrln("ld d,ixh");
+                emit_instrln("ld e,ixl");
+                emit_instrln("add hl,de");
+                emit_swap();  /* DE = address, HL = address */
+                emit_pop();   /* HL = value, DE = address (from pop) */
+                emit_store_word_at_de();
+            }
         }
         else if (sym->klass == ARGUMENT) {
             bp_offset = 2 + (func_argcount - sym->offset) * 2;
-            emit_instrln("ld (ix+%d),h", bp_offset + 1);
-            emit_instrln("ld (ix+%d),l", bp_offset);
+            int16_t low_offset = bp_offset;
+            int16_t high_offset = bp_offset + 1;
+            
+            /* Arguments are always at positive offsets, typically in range */
+            if (low_offset >= -128 && low_offset <= 127 && high_offset >= -128 && high_offset <= 127) {
+                emit_instrln("ld (ix+%d),l", low_offset);
+                emit_instrln("ld (ix+%d),h", high_offset);
+            } else {
+                /* Very rare case: too many arguments */
+                emit_push();
+                emit_instrln("ld hl,%d", low_offset);
+                emit_instrln("ld d,ixh");
+                emit_instrln("ld e,ixl");
+                emit_instrln("add hl,de");
+                emit_swap();
+                emit_pop();
+                emit_store_word_at_de();
+            }
         }
     }
 }

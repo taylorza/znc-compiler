@@ -67,6 +67,226 @@ EXPR_RESULT far_parse_expr(uint8_t minprec) MYCC;
 EXPR_RESULT far_parse_expr_delayconst(uint8_t minprec) MYCC;
 void far_parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ) MYCC;
 
+/* Helper: Get element type from pointer/array type */
+static TYPEREC get_element_type(const TYPEREC *ptr_or_array_type) MYCC {
+    TYPEREC elemtype = { .basetype = ptr_or_array_type->basetype, .dim = 1, .struct_id = ptr_or_array_type->struct_id };
+    return elemtype;
+}
+
+/* Helper: Emit scaling of value in HL by given scale factor */
+static void emit_scale_hl(uint16_t scale) MYCC {
+    if (scale == 1) {
+        /* no scaling */
+    } else if (scale <= 16 && (scale == 2 || scale == 3 || scale == 4 || 
+                                scale == 5 || scale == 6 || scale == 8 || 
+                                scale == 10 || scale == 16)) {
+        /* Use optimized multiplication for common small constants */
+        emit_mul_const_optimized(scale);
+    } else if ((scale & (scale - 1)) == 0) {
+        /* power of two: use repeated doubling */
+        uint16_t s = scale;
+        while (s > 1) { emit_mul2(); s >>= 1; }
+    } else {
+        /* arbitrary scale: use multiplication */
+        emit_ldde_immed_n(scale);
+        emit_rtl("ccmult");
+    }
+}
+
+/* Helper: Emit scaling of value in DE by given scale factor */
+static void emit_scale_de(uint16_t scale) MYCC {
+    if (scale == 1) {
+        /* no scaling */
+    } else if (scale == 2) {
+        emit_mulDE2();
+    } else if ((scale & (scale - 1)) == 0) {
+        /* power of two: use repeated doubling */
+        uint16_t s = scale;
+        while (s > 1) { emit_mulDE2(); s >>= 1; }
+    } else {
+        /* General case: swap, multiply HL, swap back */
+        emit_copy_hl_to_bc();
+        emit_swap();
+        emit_mul_const_optimized(scale);
+        emit_swap();
+        emit_copy_bc_to_hl();
+    }
+}
+
+/* Helper: Compute address of sym+offset into HL (handles global folding) */
+static void emit_sym_address_with_offset(SYMBOL *sym, uint16_t offset) MYCC {
+    if (is_ptr(&sym->type)) {
+        emit_ld_symval(sym);
+        if (offset) {
+            if (offset <= 3) {
+                /* Use optimized small addition (inc hl is actually faster/smaller) */
+                emit_add_hl_small((int16_t)offset);
+            } else {
+                emit_ldde_immed_n(offset);
+                emit_add16();
+            }
+        }
+    } else {
+        if (sym->scope == GLOBAL && offset) {
+            emit_ld_symaddr_offset(sym, offset);
+        } else {
+            emit_ld_symaddr(sym);
+            if (offset) {
+                if (offset <= 3) {
+                    emit_add_hl_small((int16_t)offset);
+                } else {
+                    emit_ldde_immed_n(offset);
+                    emit_add16();
+                }
+            }
+        }
+    }
+}
+
+/* Helper: Parse and scale array index expression.
+ * Returns scaled index as EXPR_RESULT (constant or in HL).
+ */
+static EXPR_RESULT parse_and_scale_index(const TYPEREC *elemtype) MYCC {
+    get_token();
+    EXPR_RESULT index_result = far_parse_expr_delayconst(0);
+    expect(tokRBrack, ']');
+
+    uint16_t scale = (uint16_t)type_size(elemtype);
+
+    if (is_const(&index_result.type)) {
+        index_result.value = (uint16_t)(index_result.value * scale);
+    } else {
+        emit_scale_hl(scale);
+    }
+    return index_result;
+}
+
+/* Helper: Compute indexed address (sym[index]) into HL.
+ * Returns result with type set to element type and dereference/addr_in_hl flags updated.
+ * For constant index + global sym + word size, tries to optimize as direct load.
+ */
+typedef struct {
+    TYPEREC type;
+    uint8_t dereference;
+    uint8_t addr_in_hl;
+} INDEXED_RESULT;
+
+static INDEXED_RESULT compute_indexed_address(SYMBOL *sym, uint16_t base_offset, TOKEN next_tok) MYCC {
+    INDEXED_RESULT result;
+    TYPEREC elemtype = get_element_type(&sym->type);
+    EXPR_RESULT idx = parse_and_scale_index(&elemtype);
+    
+    if (is_const(&idx.type)) {
+        uint16_t total_offset = base_offset + idx.value;
+        
+        /* Optimize: global word-sized element with constant index and no assignment */
+        if (sym->scope == GLOBAL && type_size(&elemtype) == 2 && next_tok != tokAssign) {
+            emit_instr("ld hl,("); emit_sname(sym->name); emit_ch('+'); 
+            emit_n(total_offset); emit_strln(")");
+            result.type = elemtype;
+            make_scalar(&result.type);
+            result.dereference = 0;
+            result.addr_in_hl = 0;
+        } else {
+            /* Compute address with folded offset */
+            emit_sym_address_with_offset(sym, total_offset);
+            result.type = elemtype;
+            make_scalar(&result.type);
+            result.dereference = 1;
+            result.addr_in_hl = 1;
+        }
+    } else {
+        /* Non-constant: push index, compute base, pop and add */
+        emit_push();
+        emit_sym_address_with_offset(sym, base_offset);
+        emit_pop();
+        emit_add16();
+        result.type = elemtype;
+        make_scalar(&result.type);
+        result.dereference = 1;
+        result.addr_in_hl = 1;
+    }
+    return result;
+}
+
+/* Helper: Handle prefix/postfix increment/decrement for lvalue at address in HL or simple sym.
+ * Returns 1 if handled, 0 if no inc/dec operator present.
+ */
+static uint8_t handle_incdec(uint8_t is_prefix, SYMBOL *sym, TYPEREC lvalue_type, uint8_t addr_in_hl) MYCC {
+    TOKEN op = tok;
+    if (op != tokInc && op != tokDec) return 0;
+    
+    if (is_prefix) {
+        /* already consumed by caller */
+    } else {
+        get_token(); /* postfix: consume now */
+    }
+    
+    uint8_t isdec = (op == tokDec);
+    
+    /* Compute step size */
+    uint16_t step;
+    if (is_ptr(&lvalue_type) || is_array(&lvalue_type)) {
+        TYPEREC elem = get_element_type(&lvalue_type);
+        step = type_size(&elem);
+    } else {
+        step = 1;
+    }
+    
+    if (addr_in_hl) {
+        /* Address in HL: load, adjust, store */
+        emit_push();
+        emit_load(lvalue_type);
+        
+        if (!is_prefix) {
+            /* Postfix: save original */
+            emit_copy_hl_to_bc();
+        }
+        
+        if (isdec) {
+            emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
+        } else {
+            emit_instrln("ld de,%d", step);
+        }
+        emit_add16();
+        emit_store(lvalue_type);
+        
+        if (!is_prefix) {
+            /* Postfix: restore original */
+            emit_copy_bc_to_hl();
+        }
+    } else {
+        /* Simple symbol */
+        if (!is_prefix && sym) {
+            /* Postfix: load and save */
+            emit_ld_symval(sym);
+            emit_push();
+        }
+        
+        if (is_prefix && sym) {
+            emit_ld_symval(sym);
+        }
+        
+        if (isdec) {
+            emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
+        } else {
+            emit_instrln("ld de,%d", step);
+        }
+        emit_add16();
+        
+        if (sym) {
+            emit_store_sym(sym);
+        }
+        
+        if (!is_prefix) {
+            /* Postfix: restore original */
+            emit_pop();
+            emit_swap();
+        }
+    }
+    return 1;
+}
+
 EXPR_RESULT far_parse_expr(uint8_t minprec) MYCC {
     EXPR_RESULT expr_result = far_parse_expr_delayconst(minprec);
     
@@ -105,7 +325,7 @@ EXPR_RESULT parse_ternary(EXPR_RESULT expr_result, uint8_t prec) MYCC {
     emit_jp_false(altlbl);
     EXPR_RESULT ptyp = far_parse_expr(0);  // primary expression
     emit_jp(donelbl);
-    expect(tokColon, ':');
+    expect(tokColon, ':' );
     emit_lbl(altlbl);
     EXPR_RESULT atyp = far_parse_expr(prec); // alternate expresion
     emit_lbl(donelbl);
@@ -117,99 +337,6 @@ EXPR_RESULT parse_ternary(EXPR_RESULT expr_result, uint8_t prec) MYCC {
     return expr_result;
 }
 
-EXPR_RESULT parse_indexer(const TYPEREC *elemtype) {
-    get_token();    // skip '['
-    EXPR_RESULT index_result = far_parse_expr_delayconst(0);   // index expression
-    expect(tokRBrack, ']'); // skip ']'
-
-    /* Scale index by element size in bytes (handles scalars, pointers, and structs) */
-    uint16_t scale = (uint16_t)type_size(elemtype);
-
-    if (is_const(&index_result.type)) {
-        /* Constant index: multiply at compile time so callers can fold immediates */
-        index_result.value = (uint16_t)(index_result.value * scale);
-    }
-    else {
-        /* Non-constant index: scale HL in-place. Optimize common cases. */
-        if (scale == 1) {
-            /* no scaling required */
-        }
-        else if (scale == 2) {
-            emit_mul2();
-        }
-        else {
-            /* If scale is power of two, apply repeated doubling */
-            uint16_t s = scale;
-            if ((s & (s - 1)) == 0) {
-                while (s > 1) { emit_mul2(); s >>= 1; }
-            } else {
-                /* Use runtime RTL multiply HL = HL * DE to handle arbitrary scales. */
-                emit_ldde_immed_n(scale);
-                emit_rtl("ccmult");
-            }
-        }
-        /* Non-constant index left in HL (now scaled) */
-    }
-    return index_result;
-}
-
-/* Helper: apply indexing to a symbol's base address.
- * Computes the address of the element (base+offset + index) into HL.
- * - sym: symbol for base
- * - offset: byte offset of the field within the struct (0 for plain arrays)
- * - ftype: the type of the field (array or element type)
- * On return HL points to the element and the caller should call
- * make_scalar(out_type) to set the element type.
- */
-static void emit_indexed_sym_address(SYMBOL *sym, uint16_t offset, const TYPEREC *ftype, TYPEREC *out_type, uint8_t base_is_pointer) {
-    EXPR_RESULT idx = parse_indexer(ftype);
-    if (is_const(&idx.type)) {
-        /* Constant index: compute base then add immediate. Try to fold constant
-         * offsets when the base is a global symbol so we can emit _sym+imm.
-         */
-        if (base_is_pointer) {
-            /* base is a pointer stored at the field address: load pointer value */
-            if (is_ptr(&sym->type)) emit_ld_symval(sym); else emit_ld_symaddr(sym);
-            if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
-            if (idx.value) { emit_ldde_immed(); emit_n(idx.value); emit_nl(); emit_add16(); }
-            emit_load_word_from_hl(); /* HL = *(base+offset) */
-        } else {
-            /* For non-pointer base, if sym is global we can fold offsets */
-            if (sym->scope == GLOBAL) {
-                emit_ld_symaddr_offset(sym, offset + idx.value);
-            } else {
-                if (is_ptr(&sym->type)) emit_ld_symval(sym); else emit_ld_symaddr(sym);
-                if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
-                if (idx.value) { emit_ldde_immed(); emit_n(idx.value); emit_nl(); emit_add16(); }
-            }
-        }
-
-        *out_type = *ftype;
-        make_scalar(out_type);
-    } else {
-        /* Non-constant index: parse_indexer already left scaled index in HL.
-         * Save index, compute base, restore index and add so the final add
-         * happens at the end (better for optimizers and correctness).
-         */
-        emit_push(); /* push index (HL) */
-
-        if (base_is_pointer) {
-            if (is_ptr(&sym->type)) emit_ld_symval(sym); else emit_ld_symaddr(sym);
-            if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
-            emit_load_word_from_hl(); /* HL = *(base+offset) */
-        } else {
-            if (is_ptr(&sym->type)) emit_ld_symval(sym); else emit_ld_symaddr(sym);
-            if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
-        }
-
-        emit_pop(); /* pop index into DE */
-        emit_add16();
-
-        *out_type = *ftype;
-        make_scalar(out_type);
-    }
-}
-
 EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
     SYMBOL sym;
     EXPR_RESULT factor_result = { .type = int_type, .has_sym = 0 };
@@ -219,14 +346,14 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
     uint8_t not = 0;
     uint8_t cmpl = 0;
     uint8_t loadval = 1;
-    uint8_t addr_in_hl = 0; /* set when we computed field address into HL */
-    uint8_t initial_deref = dereference; /* snapshot of caller intent to prevent inner consumption */
+    uint8_t addr_in_hl = 0;
+    uint8_t initial_deref = dereference;
     uint16_t skiplbl;
     uint16_t tmplbl;
     uint16_t counter = 0;
-    uint8_t ident_base = 0; /* set when expression starts with a simple identifier */
+    uint8_t ident_base = 0;
     
-    /* handle prefix ++/-- */
+    /* Handle prefix ++/-- */
     while (tok == tokInc || tok == tokDec) {
         if (tok == tokInc) prefix_inc = 1;
         if (tok == tokDec) prefix_dec = 1;
@@ -338,7 +465,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                     error(errSyntax);
                 }
                 emit_push();
-                parse_indexer(&factor_result.type);
+                parse_and_scale_index(&factor_result.type);
                 emit_pop();
                 emit_add16();
             } else {
@@ -348,11 +475,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             break;
 
         case tokStar:
-            get_token();    // skip '*'
-            /* Parse inner expression with dereference set so inner postfix behavior
-             * (like s++ or ++s) computes and returns the pointer value correctly
-             * and inner assignment handling will write to the dereferenced location.
-             */
+            get_token();
             factor_result = parse_factor(1);
             if (is_const(&factor_result.type)) {
                 emit_ld_const(factor_result.value);
@@ -360,10 +483,8 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 make_ptr(&factor_result.type);
             }
             if (tok == tokAssign) {
-                /* Assignment to dereferenced value: HL must contain address to write to */
                 far_parse_assign(is_ptr(&factor_result.type), NULL, 0, factor_result.type);
             } else {
-                /* Non-assignment: load the value pointed to by HL */
                 emit_load(factor_result.type);
             }
             break;
@@ -381,9 +502,8 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             if (dereference) {
                 emit_ld_const(intval);
                 emit_load(int_type);
-                factor_result.type = int_type;                
-            } 
-            else {
+                factor_result.type = int_type;
+            } else {
                 factor_result.type = int_type;
                 factor_result.value = intval;
                 make_const(&factor_result.type);
@@ -399,64 +519,19 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
 
             get_token(); // skip identifier
 
-            /* record simple identifier snapshot so callers (like unary '*') can
-             * handle writes to the address without triggering inner-assignment
-             * code that may cause extra loads. If later we process a member or
-             * indexer, clear the has_sym flag as the effective address is no
-             * longer represented by the simple symbol copy.
-             */
             factor_result.sym = sym;
             factor_result.has_sym = 1;
             ident_base = 1;
 
-            /* If this identifier is immediately indexed (e.g. s[i]), handle it
-             * now using the unified helper so we compute base first (for const)
-             * or otherwise save and restore the index so the final add is last.
-             */
+            /* Handle immediate indexing on identifier */
             if (tok == tokLBrack) {
                 factor_result.has_sym = 0;
                 if (!is_ptr(&sym.type) && !is_array(&sym.type)) error(errSyntax);
-                /* Compute element type for the indexer: build a scalar element type
-                 * from the base type for arrays/pointers (TYPEREC doesn't have elem).
-                 */
-                TYPEREC elemtype = { .basetype = sym.type.basetype, .dim = 1, .struct_id = sym.type.struct_id };
-
-                /* Parse index first so we can optimize constant-index global reads */
-                EXPR_RESULT idx = parse_indexer(&elemtype);
-                if (is_const(&idx.type)) {
-                    uint16_t total_offset = idx.value; /* already scaled by parse_indexer */
-                    /* If base is a global symbol and element size is a word (2), and
-                     * we're not assigning into it, load the word directly from the
-                     * computed address: ld hl,(_sym+total_offset). This avoids a
-                     * runtime add + two byte loads.
-                     */
-                    if (sym.scope == GLOBAL && type_size(&elemtype) == 2 && tok != tokAssign) {
-                        emit_instr("ld hl,("); emit_sname(sym.name); emit_ch('+'); emit_n(total_offset); emit_strln(")");
-                        factor_result.type = elemtype; make_scalar(&factor_result.type);
-                        /* HL already contains the value, avoid an extra load */
-                        dereference = 0;
-                        addr_in_hl = 0;
-                    } else {
-                        /* Fallback: compute address immediately without re-parsing index */
-                        if (is_ptr(&sym.type)) emit_ld_symval(&sym); else emit_ld_symaddr(&sym);
-                        if (total_offset) { emit_ldde_immed(); emit_n(total_offset); emit_nl(); emit_add16(); }
-                        factor_result.type = elemtype; make_scalar(&factor_result.type);
-                        dereference = 1;
-                        addr_in_hl = 1;
-                    }
-                } else {
-                    /* Non-constant index: parse_indexer already left scaled index in HL.
-                     * Save index, compute base and add it so final add happens at end.
-                     */
-                    emit_push(); /* push index (HL) */
-                    if (is_ptr(&sym.type)) emit_ld_symval(&sym); else emit_ld_symaddr(&sym);
-                    emit_pop(); /* pop index into DE */
-                    emit_add16();
-
-                    *(&factor_result.type) = elemtype; make_scalar(&factor_result.type);
-                    dereference = 1;
-                    addr_in_hl = 1;
-                }
+                
+                INDEXED_RESULT ir = compute_indexed_address(&sym, 0, tok);
+                factor_result.type = ir.type;
+                dereference = ir.dereference;
+                addr_in_hl = ir.addr_in_hl;
             }
 
             if (!addr_in_hl) factor_result.type = sym.type;
@@ -469,23 +544,18 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             }
             if (dereference) make_scalar(&factor_result.type);
 
-            /* Support struct member access: "ident . field" */
+            /* Handle member access */
             while (tok == tokMember) {
                 factor_result.has_sym = 0;
-                get_token(); // skip '.'
-                    uint8_t member_base_is_ptr = 0;
-                if (is_ptr(&factor_result.type)) {
-                    /* Accept pointer-to-struct as a valid base for member access */
-                    if ((factor_result.type.basetype & 0xff) != STRUCT || factor_result.type.struct_id == 0) {
-                        error(errSyntax);
-                        return factor_result;
-                    }
-                    member_base_is_ptr = 1;
-                } else if (!is_struct(&factor_result.type)) {
+                get_token();
+                
+                if (!is_struct(&factor_result.type) && 
+                    !(is_ptr(&factor_result.type) && (factor_result.type.basetype & 0xff) == STRUCT)) {
                     error(errSyntax);
                     return factor_result;
                 }
                 if (tok != tokIdent) { error(errSyntax); return factor_result; }
+                
                 char fname[MAX_IDENT_LEN+1];
                 strncpy(fname, token, MAX_IDENT_LEN);
                 int sid = (int)factor_result.type.struct_id - 1;
@@ -494,81 +564,25 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
 
                 FIELDINFO fi = get_struct_field(sid, fid);
                 uint16_t offset = fi.offset;
-
-                /* Advance past the field name so we can detect an indexer following the
-                 * member access (e.g. p.name[1]). If there is an indexer, parse it first
-                 * so we can push the index and then compute the base+offset without
-                 * clobbering the index value.
-                 */
-                get_token(); // skip field name
+                get_token();
 
                 if (tok == tokLBrack) {
-                    /* Use helper that handles both constant and non-constant indexes
-                     * and ensures the final addition happens after the base computation.
-                     */
-                    /* Determine the element type for the field (arrays/pointers). Build
-                     * a scalar element type from the base type since TYPEREC has no elem
-                     * pointer in this simpler representation.
-                     */
-                    TYPEREC elemtype = { .basetype = fi.type.basetype, .dim = 1, .struct_id = fi.type.struct_id };
-
-                    EXPR_RESULT idx = parse_indexer(&elemtype);
-                    if (is_const(&idx.type)) {
-                        uint16_t total_offset = offset + idx.value;
-                        if (sym.scope == GLOBAL && type_size(&elemtype) == 2 && tok != tokAssign) {
-                            emit_instr("ld hl,("); emit_sname(sym.name); emit_ch('+'); emit_n(total_offset); emit_strln(")");
-                            factor_result.type = elemtype; make_scalar(&factor_result.type);
-                            dereference = 0;
-                            addr_in_hl = 0;
-                        } else {
-                            /* Fallback: compute base+offset and add constant index value */
-                            if (is_ptr(&sym.type)) emit_ld_symval(&sym); else emit_ld_symaddr(&sym);
-                            if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
-                            if (idx.value) { emit_ldde_immed(); emit_n(idx.value); emit_nl(); emit_add16(); }
-                            factor_result.type = elemtype; make_scalar(&factor_result.type);
-                            dereference = 1;
-                            addr_in_hl = 1;
-                        }
-                    } else {
-                        /* Non-constant index: push index, compute base+offset, pop and add */
-                        emit_push(); /* index in HL */
-                        if (is_ptr(&sym.type)) emit_ld_symval(&sym); else emit_ld_symaddr(&sym);
-                        if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
-                        emit_pop(); /* pop index into DE */
-                        emit_add16();
-                        factor_result.type = elemtype; make_scalar(&factor_result.type);
-                        dereference = 1;
-                        addr_in_hl = 1;
-                    }
-                }
-                else {
-                    /* No indexer: compute field address now. If we already computed the
-                     * element address into HL (addr_in_hl), do not reload the symbol;
-                     * simply add the field offset if needed. If the symbol is global
-                     * and the offset is a constant we can fold it into the load.
-                     */
+                    /* Member array indexing: p.field[i] */
+                    INDEXED_RESULT ir = compute_indexed_address(&sym, offset, tok);
+                    factor_result.type = ir.type;
+                    dereference = ir.dereference;
+                    addr_in_hl = ir.addr_in_hl;
+                } else {
+                    /* Simple member access: p.field */
                     if (!addr_in_hl) {
-                        if (ident_base) {
-                            /* simple identifier base (sym valid) */
-                            if (is_ptr(&sym.type)) {
-                                /* load pointer value then add offset */
-                                emit_ld_symval(&sym); /* HL = pointer value */
-                                if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
-                            } else {
-                                /* non-pointer symbol: fold offset into address load when possible */
-                                emit_ld_symaddr_offset(&sym, offset); /* base address (+offset folded if global) */
-                            }
-                        } else {
-                            /* complex base expression: HL should contain the address or pointer
-                             * value after parsing the base; just add the offset.
-                             */
-                            if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
-                        }
+                        emit_sym_address_with_offset(&sym, offset);
                     } else {
-                        if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
+                        if (offset) {
+                            emit_ldde_immed(); emit_n(offset); emit_nl();
+                            emit_add16();
+                        }
                     }
 
-                    /* now HL points at field */
                     factor_result.type = fi.type;
                     if (is_array(&factor_result.type)) {
                         make_ptr(&factor_result.type);
@@ -580,145 +594,34 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 }
             }
 
-            /* If address is already in HL (member access), don't load the symbol.
-             * Keep HL as the address (arrays decay to pointer) and avoid emitting
-             * a second symbol load which would clobber HL.
-             */
             if (addr_in_hl) loadval = 0;
 
             if (tok == tokLParen) {
                 factor_result.has_sym = 0;
-                parse_funccall(&sym);   
+                parse_funccall(&sym);
                 loadval = 0;
             }
 
-            /* handle prefix ++/-- for identifiers (supports indexed lvalues)
-             * Capture whether we have an address in HL now so later modifications don't
-             * confuse the optimizer. For indexed lvalues the parse_indexer already
-             * pushed the index on the stack.
-             */
+            /* Handle prefix ++/-- */
             uint8_t had_addr_in_hl = addr_in_hl;
-            if ((prefix_inc || prefix_dec)) {
-                if (is_const(&sym.type)) {
-                    error(errSyntax);
-                } else {
-                    /* step size: pointer element size for pointer types, otherwise scalar step */
-                    uint16_t step;
-                    if (is_ptr(&sym.type)) {
-                        TYPEREC elem = { .basetype = sym.type.basetype, .dim = 1, .struct_id = sym.type.struct_id };
-                        step = type_size(&elem);
-                    } else {
-                        /* Scalar increment/decrement always adjust by 1 (not by sizeof(int)). */
-                        step = 1;
-                    }
-                    if (had_addr_in_hl) {
-                        /* Address already computed into HL (member or indexed access). */
-                        emit_push(); /* push address for store */
-                        emit_load(factor_result.type); /* HL = original value */
-
-                        if (prefix_dec) {
-                            emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
-                        } else {
-                            emit_instrln("ld de,%d", step);
-                        }
-                        emit_add16(); /* HL = new value */
-
-                        emit_store(factor_result.type); /* pop address and store HL */
-                        loadval = 0;
-                        dereference = 0;
-                    } else {
-                        /* simple identifier */
-                        emit_ld_symval(&sym);
-                        if (prefix_dec) {
-                            emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
-                        } else {
-                            emit_instrln("ld de,%d", step);
-                        }
-                        emit_add16();
-                        emit_store_sym(&sym);
-                        loadval = 0;
-                    }
-                }
+            if ((prefix_inc || prefix_dec) && !is_const(&sym.type)) {
+                handle_incdec(1, &sym, factor_result.type, had_addr_in_hl);
+                loadval = 0;
             }
+
             if (tok == tokAssign) {
-                /* If this parse was invoked within a unary dereference (e.g., parsing
-                 * the inner expression of '*inner'), do NOT consume the assignment here;
-                 * let the outer dereference handle assignment to the location. This
-                 * avoids extra loads/stores and preserves HL for the outer handler.
-                 */
                 if (!initial_deref) {
                     if (had_addr_in_hl) {
-                        /* HL already contains address of field, so pass sym==NULL to indicate that */
                         far_parse_assign(1, NULL, 0, factor_result.type);
                     } else {
                         far_parse_assign(dereference, &sym, 0, factor_result.type);
                     }
                 }
             } else {
-                /* handle postfix ++/-- */
-                if (tok == tokInc || tok == tokDec) {
-                    uint8_t isdec = (tok == tokDec);
-                    get_token();
-                    if (is_const(&sym.type)) {
-                        error(errSyntax);
-                    } else {
-                        uint16_t step;
-                        if (is_ptr(&sym.type)) {
-                            TYPEREC elem = { .basetype = sym.type.basetype, .dim = 1, .struct_id = sym.type.struct_id };
-                            step = type_size(&elem);
-                        } else {
-                            /* Scalar increment/decrement always adjust by 1 (not by sizeof(int)). */
-                            step = 1;
-                        }
-                        if (had_addr_in_hl) {
-                            /* Address already computed into HL (member or indexed access). */
-                            emit_push(); /* push address */
-                            emit_load(factor_result.type); /* HL = original value */
-
-                            /* save original in BC */
-                            emit_copy_hl_to_bc();
-
-                            /* compute new value */
-                            if (isdec) {
-                                emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
-                                emit_add16();
-                            } else {
-                                emit_ldde_immed_n(step);
-                                emit_add16();
-                            }
-
-                            emit_store(factor_result.type); /* pop address and store new value */
-
-                            /* restore original from BC */
-                            emit_copy_bc_to_hl(); 
-
-                            loadval = 0;
-                            dereference = 0;
-                        } else {
-                            /* simple identifier postfix */
-                            if (loadval) {
-                                if (is_func_or_proto(&sym)) {
-                                    emit_ld_immed(); emit_sname(sym.name); emit_nl();
-                                } else {
-                                    emit_ld_symval(&sym);
-                                }
-                            }
-
-                            /* save original, compute new, store, restore original */
-                            emit_push();
-                            if (isdec) {
-                                emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
-                            } else {
-                                emit_ldde_immed_n(step);
-                            }
-                            emit_add16();
-                            emit_store_sym(&sym);
-                            emit_pop();
-                            emit_swap();
-                            /* now HL contains original value for postfix expression */
-                            loadval = 0;
-                        }
-                    }
+                /* Handle postfix ++/-- */
+                if ((tok == tokInc || tok == tokDec) && !is_const(&sym.type)) {
+                    handle_incdec(0, &sym, factor_result.type, had_addr_in_hl);
+                    loadval = 0;
                 }
 
                 if (loadval) {
@@ -733,9 +636,9 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                     emit_load(factor_result.type);
                 }
             }
-            break; 
+            break;
         default:
-            error(errSyntax);            
+            error(errSyntax);
             break;
     }
     if (neg) emit_neg();
@@ -865,62 +768,40 @@ void far_parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC
 EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
     uint16_t scaleL = 0;
     uint16_t scaleR = 0;
-    
     EXPR_RESULT r_result = { .type = void_type};
     EXPR_RESULT short_circuit_result = { .type = int_type };
 
-    /* Determine element scale when one operand is a pointer and the other is an integer.
-     * scaleR is the byte-scale to apply to the right operand (HL) when the left
-     * operand is a pointer. scaleL is the byte-scale to apply to the left operand
-     * (DE) when the right operand is a pointer.
-     */
     if (op == tokOr || op == tokAnd) {
         uint16_t short_circuit_lbl = newlbl();
         uint8_t short_circuit = 0;
         if (is_const(&l_result.type)) {
             emit_ld_const(l_result.value);
-            if (op == tokOr) {
-                short_circuit = l_result.value != 0;               
-            }
-            else if (op == tokAnd) {
-                short_circuit = l_result.value == 0;                
-            }            
+            short_circuit = (op == tokOr) ? (l_result.value != 0) : (l_result.value == 0);
         }
         
         if (!short_circuit) {
-            switch (op) {
-                case tokOr:
-                    emit_jp_true(short_circuit_lbl);
-                    break;
-                case tokAnd:
-                    emit_jp_false(short_circuit_lbl);
-                    break;
-            }
+            (op == tokOr) ? emit_jp_true(short_circuit_lbl) : emit_jp_false(short_circuit_lbl);
         } else {
             emit_jp(short_circuit_lbl);
         }
         l_result = far_parse_expr(opprec + 1);
         emit_lbl(short_circuit_lbl);
-
         return short_circuit_result;
     }
 
     if (!is_const(&l_result.type)) {
-        emit_push();        
+        emit_push();
     }
 
     r_result = far_parse_expr_delayconst(opprec + 1);
 
-    /* Treat arrays as decaying to pointers for arithmetic. Compute element
-     * size for pointer+int arithmetic so we can scale the integer operand by
-     * the pointed-to element size (handles int pointers and struct pointers).
-     */
+    /* Compute pointer arithmetic scaling */
     if ((is_ptr(&l_result.type) || is_array(&l_result.type)) && base_type(&r_result.type) == INT) {
-        TYPEREC elem = { .basetype = l_result.type.basetype, .dim = 1, .struct_id = l_result.type.struct_id };
+        TYPEREC elem = get_element_type(&l_result.type);
         scaleR = type_size(&elem);
     }
     if ((is_ptr(&r_result.type) || is_array(&r_result.type)) && base_type(&l_result.type) == INT) {
-        TYPEREC elem = { .basetype = r_result.type.basetype, .dim = 1, .struct_id = r_result.type.struct_id };
+        TYPEREC elem = get_element_type(&r_result.type);
         scaleL = type_size(&elem);
     }
 
@@ -929,7 +810,6 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
     uint8_t pointer = is_ptr(&l_result.type) || is_ptr(&r_result.type);
 
     if (pointer) {
-        // Check for invalid pointer operations
         switch(op) {
         case tokStar:
         case tokDiv:
@@ -943,22 +823,20 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
         }
     }
 
+    /* Constant folding */
     if (is_const(&l_result.type) && is_const(&r_result.type)) {
         switch (op) {
             case tokLt: 
-                if (pointer) l_result.value = l_result.value < r_result.value; 
-                else l_result.value = (int16_t)l_result.value < (int16_t)r_result.value; 
+                l_result.value = pointer ? (l_result.value < r_result.value) : ((int16_t)l_result.value < (int16_t)r_result.value);
                 break;
-            case tokLeq: if (pointer) l_result.value = l_result.value <= r_result.value; 
-            else l_result.value = (int16_t)l_result.value <= (int16_t)r_result.value; 
-            break;
-            case tokGt: 
-                if (pointer) l_result.value = l_result.value > r_result.value; 
-                else l_result.value = (int16_t)l_result.value > (int16_t)r_result.value; 
+            case tokLeq:
+                l_result.value = pointer ? (l_result.value <= r_result.value) : ((int16_t)l_result.value <= (int16_t)r_result.value);
                 break;
-            case tokGeq: 
-                if (pointer) l_result.value = l_result.value >= r_result.value; 
-                else l_result.value = (int16_t)l_result.value >= (int16_t)r_result.value; 
+            case tokGt:
+                l_result.value = pointer ? (l_result.value > r_result.value) : ((int16_t)l_result.value > (int16_t)r_result.value);
+                break;
+            case tokGeq:
+                l_result.value = pointer ? (l_result.value >= r_result.value) : ((int16_t)l_result.value >= (int16_t)r_result.value);
                 break;
             case tokEq: l_result.value = l_result.value == r_result.value; break;
             case tokNeq: l_result.value = l_result.value != r_result.value; break;
@@ -975,8 +853,6 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
             case tokStar: l_result.value = l_result.value * r_result.value; break;
             case tokDiv: l_result.value = l_result.value / r_result.value; break;
             case tokMod: l_result.value = l_result.value % r_result.value; break;
-            case tokOr: l_result.value = l_result.value | r_result.value; break;
-            case tokAnd: l_result.value = l_result.value & r_result.value; break;
             case tokShl: l_result.value = l_result.value << r_result.value; break;
             case tokShr: l_result.value = l_result.value >> r_result.value; break;
             case tokBitOr: l_result.value = l_result.value | r_result.value; break;
@@ -985,136 +861,56 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
             default:
                 error(errSyntax);
                 break;
-        }        
+        }
         return l_result;
-    } 
+    }
     
+    /* Load constants with pre-applied scaling */
     if (is_const(&l_result.type)) {
         uint16_t val = l_result.value;
-        if (scaleL) val = val * scaleL; /* pre-scale left constant when right is a pointer */
-        emit_ldde_immed();
-        emit_n(val);
+        if (scaleL) val = val * scaleL;
+        emit_ldde_immed(); emit_n(val); emit_nl();
         scaleL = 0;
-        emit_nl();
         l_result.type.basetype = base_type(&l_result.type);
-    }
-    else if (is_const(&r_result.type)) {
+    } else if (is_const(&r_result.type)) {
         uint16_t val = r_result.value;
-        if (scaleR) val = val * scaleR; /* pre-scale right constant when left is a pointer */
-        emit_ld_immed();
-        emit_n(val);
-        scaleR = 0; /* constant already scaled */
-        emit_nl();
+        if (scaleR) val = val * scaleR;
+        emit_ld_immed(); emit_n(val); emit_nl();
+        scaleR = 0;
         r_result.type.basetype = base_type(&r_result.type);
         emit_pop();
     } else {
         emit_pop();
     }
 
+    /* Emit runtime operation with scaling */
     switch (op) {
         case tokLt:
             emit_rtl(pointer ? "ccult" : "cclt");
             break;
-
         case tokLeq:
             emit_rtl(pointer ? "ccule" : "ccle");
             break;
-
         case tokGt:
             emit_rtl(pointer ? "ccugt" : "ccgt");
             break;
-
         case tokGeq:
             emit_rtl(pointer ? "ccuge" : "ccge");
             break;
-
         case tokEq:
             emit_rtl("cceq");
             break;
-
         case tokNeq:
             emit_rtl("ccne");
             break;
-
         case tokPlus:
-            /* If the right operand is a constant and we computed a scale earlier,
-             * apply scaling directly to HL (the constant). For non-constant RHS
-             * the index is already left in HL and scaleR will be applied the same way.
-             */
-            if (scaleR) {
-                if (scaleR == 2) {
-                    emit_mul2();
-                } else {
-                    uint16_t s = scaleR;
-                    if ((s & (s - 1)) == 0) {
-                        while (s > 1) { emit_mul2(); s >>= 1; }
-                    } else {
-                        emit_ldde_immed_n(scaleR);
-                        emit_rtl("ccmult");
-                    }
-                }
-            }
-
-            if (scaleL) {
-                if (scaleL == 2) {
-                    emit_mulDE2();
-                } else {
-                    uint16_t s = scaleL;
-                    if ((s & (s - 1)) == 0) {
-                        while (s > 1) { emit_mulDE2(); s >>= 1; }
-                    } else {
-                        /* General case: multiply DE (left) by scaleL while preserving HL (right).
-                         * Sequence:
-                         *  - copy right (HL) to BC
-                         *  - swap so HL=left
-                         *  - load DE with scaleL and ccmult (HL = left * scaleL)
-                         *  - swap back and restore right from BC so HL=right and DE=scaled_left
-                         */
-                        emit_copy_hl_to_bc();
-                        emit_swap(); /* HL = left */
-                        emit_ldde_immed_n(scaleL);
-                        emit_rtl("ccmult"); /* HL = left * scaleL */
-                        emit_swap(); /* HL = scale, DE = left*scale */
-                        emit_copy_bc_to_hl(); /* restore right into HL */
-                    }
-                }
-            }
-
+            if (scaleR) emit_scale_hl(scaleR);
+            if (scaleL) emit_scale_de(scaleL);
             emit_add16();
             break;
         case tokMinus:
-            if (scaleR) {
-                if (scaleR == 2) {
-                    emit_mul2();
-                } else {
-                    uint16_t s = scaleR;
-                    if ((s & (s - 1)) == 0) {
-                        while (s > 1) { emit_mul2(); s >>= 1; }
-                    } else {
-                        emit_ldde_immed_n(scaleR);
-                        emit_rtl("ccmult");
-                    }
-                }
-            }
-
-            if (scaleL) {
-                if (scaleL == 2) {
-                    emit_mulDE2();
-                } else {
-                    uint16_t s = scaleL;
-                    if ((s & (s - 1)) == 0) {
-                        while (s > 1) { emit_mulDE2(); s >>= 1; }
-                    } else {
-                        emit_copy_hl_to_bc();
-                        emit_swap(); /* HL = left */
-                        emit_ldde_immed_n(scaleL);
-                        emit_rtl("ccmult"); /* HL = left * scaleL */
-                        emit_swap(); /* HL = scale, DE = left*scale */
-                        emit_copy_bc_to_hl(); /* restore right into HL */
-                    }
-                }
-            }
-
+            if (scaleR) emit_scale_hl(scaleR);
+            if (scaleL) emit_scale_de(scaleL);
             emit_sub16();
             break;
         case tokStar:
@@ -1128,28 +924,24 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
             emit_swap();
             break;
         case tokShl:
-            emit_instrln("ld b,l");  // B  = shift count
+            emit_instrln("ld b,l");
             emit_instrln("bsla de,b");
-            emit_swap();            // HL = result;
+            emit_swap();
             break;
         case tokShr:
-            emit_instrln("ld b,l");  // B  = shift count
+            emit_instrln("ld b,l");
             emit_instrln("bsra de,b");
-            emit_swap();            // HL = result;
+            emit_swap();
             break;
-
         case tokBitOr:
             emit_rtl("ccor");
             break;
-
         case tokBitAnd:
             emit_rtl("ccand");
             break;
-
         case tokBitXor:
             emit_rtl("ccxor");
             break;
-
         default:
             error(errSyntax);
             break;

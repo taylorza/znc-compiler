@@ -33,6 +33,11 @@ void emit_ld_immed_n(uint16_t n) MYCC;
 void emit_ldbc_immed_n(uint16_t n) MYCC;
 void emit_ldde_immed_n(uint16_t n) MYCC;
 
+/* Actually beneficial optimizations: */
+void emit_add_hl_small(int16_t n) MYCC;
+void emit_mul_const_optimized(uint16_t factor) MYCC;
+void emit_move_hl_to_de_fast(void) MYCC;
+
 void emit_load_word_from_hl(void) MYCC;
 void emit_store_word_at_de(void) MYCC;
 void emit_store_byte_at_de(void) MYCC;
