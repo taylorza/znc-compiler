@@ -402,6 +402,34 @@ void emit_lblequ16(uint16_t lbl, uint16_t value) MYCC {
     emit_lblref(lbl); emit_str(" equ "); emit_n(value); emit_nl();
 }
 
+/* Helper: Check if offset pair is in IX+d range */
+static inline uint8_t offsets_in_ix_range(int16_t low, int16_t high) MYCC {
+    return (low >= -128 && low <= 127 && high >= -128 && high <= 127);
+}
+
+/* Helper: Compute local variable offsets for load/store operations */
+static void compute_local_offsets(SYMBOL *sym, int16_t *low_off, int16_t *high_off) MYCC {
+    int8_t bp_offset;
+    
+    if (sym->klass == VARIABLE) {
+        bp_offset = (uint8_t)sym->offset;
+        *low_off = -(bp_offset + 2);
+        *high_off = -(bp_offset + 1);
+    } else { /* ARGUMENT */
+        bp_offset = 2 + (func_argcount - sym->offset) * 2;
+        *low_off = bp_offset;
+        *high_off = bp_offset + 1;
+    }
+}
+
+/* Helper: Emit code to compute address in HL when offsets out of range */
+static void emit_compute_ix_address(int16_t offset) MYCC {
+    emit_instrln("ld hl,%d", offset);
+    emit_instrln("ld d,ixh");
+    emit_instrln("ld e,ixl");
+    emit_instrln("add hl,de");
+}
+
 void emit_ld_symval(SYMBOL* sym) MYCC {
     TYPEREC* ptype = &sym->type;
 
@@ -426,15 +454,13 @@ void emit_ld_symval(SYMBOL* sym) MYCC {
         }
     }
     else if (sym->scope == LOCAL) {
-        int8_t bp_offset = 0;
-        
         if (sym->klass == VARIABLE) {
-            bp_offset = (uint8_t)sym->offset;
+            int8_t bp_offset = (uint8_t)sym->offset;
+            
             if (is_array(ptype) || is_struct(ptype)) {
                 /* Arrays and structs: load their address */
                 int16_t addr_offset = bp_offset - type_size(ptype);
                 
-                /* OPTIMIZATION: Use direct IX addressing if offset in range */
                 if (addr_offset >= -128 && addr_offset <= 127) {
                     emit_instrln("ld l,ixl");
                     emit_instrln("ld h,ixh");
@@ -442,46 +468,30 @@ void emit_ld_symval(SYMBOL* sym) MYCC {
                         emit_add_hl_small(addr_offset);
                     }
                 } else {
-                    /* Out of range: need full computation */
-                    emit_instrln("ld hl,%d", addr_offset);
-                    emit_instrln("ld d,ixh");
-                    emit_instrln("ld e,ixl");
-                    emit_instrln("add hl,de");
+                    emit_compute_ix_address(addr_offset);
                 }
             } else {
                 /* Scalar/pointer: direct indexed load */
-                int16_t low_offset = -(bp_offset + 2);
-                int16_t high_offset = -(bp_offset + 1);
+                int16_t low_off, high_off;
+                compute_local_offsets(sym, &low_off, &high_off);
                 
-                /* OPTIMIZATION: Use (ix+d) if in range, else compute address */
-                if (low_offset >= -128 && low_offset <= 127 && high_offset >= -128 && high_offset <= 127) {
-                    /* Direct indexed addressing */
-                    emit_instrln("ld l,(ix%+d)", low_offset);
-                    emit_instrln("ld h,(ix%+d)", high_offset);
+                if (offsets_in_ix_range(low_off, high_off)) {
+                    emit_instrln("ld l,(ix%+d)", low_off);
+                    emit_instrln("ld h,(ix%+d)", high_off);
                 } else {
-                    /* Out of range: compute address and load indirectly */
-                    emit_instrln("ld hl,%d", low_offset);
-                    emit_instrln("ld d,ixh");
-                    emit_instrln("ld e,ixl");
-                    emit_instrln("add hl,de");
+                    emit_compute_ix_address(low_off);
                     emit_load_word_from_hl();
                 }
             }
-        } else if (sym->klass == ARGUMENT) {
-            bp_offset = 2 + (func_argcount - sym->offset) * 2;
-            int16_t low_offset = bp_offset;
-            int16_t high_offset = bp_offset + 1;
+        } else { /* ARGUMENT */
+            int16_t low_off, high_off;
+            compute_local_offsets(sym, &low_off, &high_off);
             
-            /* Arguments are always at positive offsets, typically in range */
-            if (low_offset >= -128 && low_offset <= 127 && high_offset >= -128 && high_offset <= 127) {
-                emit_instrln("ld l,(ix+%d)", low_offset);
-                emit_instrln("ld h,(ix+%d)", high_offset);
+            if (offsets_in_ix_range(low_off, high_off)) {
+                emit_instrln("ld l,(ix+%d)", low_off);
+                emit_instrln("ld h,(ix+%d)", high_off);
             } else {
-                /* Very rare case: too many arguments */
-                emit_instrln("ld hl,%d", low_offset);
-                emit_instrln("ld d,ixh");
-                emit_instrln("ld e,ixl");
-                emit_instrln("add hl,de");
+                emit_compute_ix_address(low_off);
                 emit_load_word_from_hl();
             }
         }
@@ -549,6 +559,7 @@ void emit_ld_const(uint16_t value) MYCC {
 void emit_store_sym(SYMBOL* sym) MYCC {
     TYPEREC* ptype = &sym->type;
     if (is_array(ptype)) error(errNotlvalue);
+    
     if (sym->scope == GLOBAL) {
         if (!is_ptr(ptype) && is_char(ptype)) {
             emit_instrln("ld a,l");
@@ -559,49 +570,23 @@ void emit_store_sym(SYMBOL* sym) MYCC {
         }
     }
     else if (sym->scope == LOCAL) {
-        int8_t bp_offset = 0;
-        if (sym->klass == VARIABLE) {
-            bp_offset = (uint8_t)sym->offset;
-            int16_t low_offset = -(bp_offset + 2);
-            int16_t high_offset = -(bp_offset + 1);
-            
-            /* OPTIMIZATION: Use (ix+d) if in range, else compute address and store */
-            if (low_offset >= -128 && low_offset <= 127 && high_offset >= -128 && high_offset <= 127) {
-                /* Direct indexed addressing */
-                emit_instrln("ld (ix%+d),l", low_offset);
-                emit_instrln("ld (ix%+d),h", high_offset);
-            } else {
-                /* Out of range: compute address and store indirectly */
-                emit_push();  /* Save value */
-                emit_instrln("ld hl,%d", low_offset);
-                emit_instrln("ld d,ixh");
-                emit_instrln("ld e,ixl");
-                emit_instrln("add hl,de");
-                emit_swap();  /* DE = address, HL = address */
-                emit_pop();   /* HL = value, DE = address (from pop) */
-                emit_store_word_at_de();
+        int16_t low_off, high_off;
+        compute_local_offsets(sym, &low_off, &high_off);
+        
+        if (offsets_in_ix_range(low_off, high_off)) {
+            if (sym->klass == VARIABLE) {
+                emit_instrln("ld (ix%+d),l", low_off);
+                emit_instrln("ld (ix%+d),h", high_off);
+            } else { /* ARGUMENT */
+                emit_instrln("ld (ix+%d),l", low_off);
+                emit_instrln("ld (ix+%d),h", high_off);
             }
-        }
-        else if (sym->klass == ARGUMENT) {
-            bp_offset = 2 + (func_argcount - sym->offset) * 2;
-            int16_t low_offset = bp_offset;
-            int16_t high_offset = bp_offset + 1;
-            
-            /* Arguments are always at positive offsets, typically in range */
-            if (low_offset >= -128 && low_offset <= 127 && high_offset >= -128 && high_offset <= 127) {
-                emit_instrln("ld (ix+%d),l", low_offset);
-                emit_instrln("ld (ix+%d),h", high_offset);
-            } else {
-                /* Very rare case: too many arguments */
-                emit_push();
-                emit_instrln("ld hl,%d", low_offset);
-                emit_instrln("ld d,ixh");
-                emit_instrln("ld e,ixl");
-                emit_instrln("add hl,de");
-                emit_swap();
-                emit_pop();
-                emit_store_word_at_de();
-            }
+        } else {
+            emit_push();
+            emit_compute_ix_address(low_off);
+            emit_swap();
+            emit_pop();
+            emit_store_word_at_de();
         }
     }
 }
