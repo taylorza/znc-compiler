@@ -696,27 +696,15 @@ void parse_funccall(SYMBOL* sym) MYCC {
     uint8_t argcount = 0;
     while (tok != tokRParen) {
         ++argcount;
-        /* Special-case simple struct lvalue arguments (pass address). Only
-         * apply when the identifier stands alone (not followed by '.' or '[').
-         * This avoids treating 'p.x' or 'p[i]' as the entire argument.
-         */
-        if (tok == tokIdent) {
-            SYMBOL s = lookupIdent(token);
-            if (!not_defined(&s) && is_struct(&s.type) && !is_ptr(&s.type)) {
-                char nc = peek_char();
-                if (nc != '.' && nc != '[') {
-                    /* consume identifier and push its address */
-                    get_token(); // skip identifier
-                    emit_ld_symaddr(&s);
-                    emit_push();
-                    if (tok != tokComma) break;
-                    get_token(); // skip ','
-                    continue;
-                }
-            }
+        
+        /* Parse the argument expression */
+        EXPR_RESULT arg_result = parse_expr(0);
+        
+        /* Error if passing a struct by value - must use & to pass pointer */
+        if (is_struct(&arg_result.type) && !is_ptr(&arg_result.type)) {
+            error(errTypeError);
         }
-
-        parse_expr(0);
+        
         emit_push();        
         if (tok != tokComma) break;
         get_token(); // skip ','
@@ -800,8 +788,12 @@ void parse_funcdecl(TYPEREC rettype, const char* name) MYCC {
     while (tok != tokRParen) {
         parse_type(&argtype);
         if (is_array(&argtype)) make_ptr(&argtype);
-        /* Struct parameters are passed by pointer (no by-value structs) */
-        if (is_struct(&argtype) && !is_ptr(&argtype)) make_ptr(&argtype);
+        
+        /* ERROR: Struct parameters must be declared as pointers explicitly */
+        if (is_struct(&argtype) && !is_ptr(&argtype)) {
+            error(errTypeError);
+        }
+        
         strncpy(argName, token, MAX_IDENT_LEN);           
         declloc(argtype, ARGUMENT, argName, func_argcount++);
         get_token(); // skip arg name

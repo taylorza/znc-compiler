@@ -304,8 +304,8 @@ void emit_copy_bc_to_hl(void) MYCC {
 
 /* Helper: Copy IX register to HL */
 void emit_copy_ix_to_hl(void) MYCC {
-    emit_instrln("ld l,ixl");
-    emit_instrln("ld h,ixh");
+    emit_instrln("push ix");
+    emit_instrln("pop hl");
 }
 
 void emit_push(void) MYCC {

@@ -211,14 +211,16 @@ static INDEXED_RESULT compute_indexed_address(SYMBOL *sym, uint16_t base_offset,
 /* Helper: Handle prefix/postfix increment/decrement for lvalue at address in HL or simple sym.
  * Returns 1 if handled, 0 if no inc/dec operator present.
  */
-static uint8_t handle_incdec(uint8_t is_prefix, SYMBOL *sym, TYPEREC lvalue_type, uint8_t addr_in_hl) MYCC {
-    TOKEN op = tok;
+static uint8_t handle_incdec_internal(uint8_t is_prefix, SYMBOL *sym, TYPEREC lvalue_type, uint8_t addr_in_hl, TOKEN op_override) MYCC {
+    TOKEN op = (op_override != tokNone) ? op_override : tok;
     if (op != tokInc && op != tokDec) return 0;
     
     if (is_prefix) {
-        /* already consumed by caller */
+        /* already consumed by caller or passed as override */
     } else {
-        get_token(); /* postfix: consume now */
+        if (op_override == tokNone) {
+            get_token(); /* postfix: consume now */
+        }
     }
     
     uint8_t isdec = (op == tokDec);
@@ -284,6 +286,11 @@ static uint8_t handle_incdec(uint8_t is_prefix, SYMBOL *sym, TYPEREC lvalue_type
         }
     }
     return 1;
+}
+
+/* Wrapper for normal case where operator is in tok */
+static uint8_t handle_incdec(uint8_t is_prefix, SYMBOL *sym, TYPEREC lvalue_type, uint8_t addr_in_hl) MYCC {
+    return handle_incdec_internal(is_prefix, sym, lvalue_type, addr_in_hl, tokNone);
 }
 
 EXPR_RESULT far_parse_expr(uint8_t minprec) MYCC {
@@ -394,6 +401,46 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             break;
         case tokLParen:
             get_token(); // skip '('
+            
+            /* Check for prefix ++(*ptr) or --(*ptr) OR postfix (*ptr)++ or (*ptr)-- patterns */
+            if (tok == tokStar) {
+                get_token(); // skip '*'
+                
+                /* Parse the pointer expression - this will load the pointer into HL */
+                EXPR_RESULT ptr_result = parse_factor(0);
+                expect_RParen();
+                
+                /* Get element type */
+                TYPEREC elem_type = get_element_type(&ptr_result.type);
+                
+                /* Check for postfix ++ or -- */
+                if (tok == tokInc || tok == tokDec) {
+                    /* This is (*ptr)++ or (*ptr)-- (postfix) */
+                    /* HL already contains the pointer value (address) from parse_factor */
+                    handle_incdec(0, NULL, elem_type, 1);
+                    factor_result.type = elem_type;
+                    break;
+                } else if (prefix_inc || prefix_dec) {
+                    /* This is ++(*ptr) or --(*ptr) (prefix) */
+                    /* The prefix tokens were already consumed before the switch */
+                    /* HL already contains the pointer value (address) */
+                    TOKEN op = prefix_inc ? tokInc : tokDec;
+                    handle_incdec_internal(1, NULL, elem_type, 1, op);
+                    factor_result.type = elem_type;
+                    /* Clear the flags so they don't get processed again */
+                    prefix_inc = 0;
+                    prefix_dec = 0;
+                    break;
+                } else {
+                    /* Not an inc/dec, so just dereference normally */
+                    /* HL already contains pointer from parse_factor, just load the value */
+                    emit_load(elem_type);
+                    factor_result.type = elem_type;
+                    break;
+                }
+            }
+            
+            /* Normal parenthesized expression */
             factor_result = far_parse_expr_delayconst(0);
             expect_RParen();
             break;
