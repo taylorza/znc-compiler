@@ -1,0 +1,45 @@
+make dot "bounce_struct.dot";
+
+include "io.znc"
+
+struct Obj {
+  int x;
+  int y;
+  int dx;
+  int dy;
+};
+
+
+Obj[5] balls;
+
+for (int i=0; i<5; ++i) {
+  balls[i].x = i;
+  balls[i].y = i;
+  balls[i].dx = 1;
+  balls[i].dy = 1;
+}
+
+void move(Obj *o) {
+  o.x = o.x + o.dx;
+  o.y = o.y + o.dy;
+  
+  if (o.x == 0 || o.x == 31) o.dx = -o.dx;
+  if (o.y == 0 || o.y == 21) o.dy = -o.dy;
+}
+
+nextreg(7,0);
+
+for(;;) {
+  __asm__ {
+    halt;
+  }
+  for(int i=0; i<5; ++i) {
+    gotoxy(balls[i].x, balls[i].y);
+    putc(' ');
+    move(&balls[i]);
+    gotoxy(balls[i].x, balls[i].y);
+    putc('@');  
+  }
+  if ((in(0x7ffe) & 1) == 0) break;
+}
+  

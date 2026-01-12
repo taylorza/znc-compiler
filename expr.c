@@ -680,7 +680,8 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             /* Handle prefix ++/-- */
             uint8_t had_addr_in_hl = addr_in_hl;
             if ((prefix_inc || prefix_dec) && !is_const(&sym.type)) {
-                handle_incdec(1, &sym, factor_result.type, had_addr_in_hl);
+                TOKEN prefix_op = prefix_inc ? tokInc : tokDec;
+                handle_incdec_internal(1, &sym, factor_result.type, had_addr_in_hl, prefix_op);
                 loadval = 0;
             }
 

@@ -273,10 +273,10 @@ void emit_mul_const_optimized(uint16_t factor) MYCC {
 }
 
 void emit_load_word_from_hl(void) MYCC {
-    emit_instrln("ld a,(hl)");
+    emit_instrln("ld e,(hl)");
     emit_instrln("inc hl");
-    emit_instrln("ld h,(hl)");
-    emit_instrln("ld l,a");
+    emit_instrln("ld d,(hl)");
+    emit_instrln("ex de,hl");
 }
 
 void emit_store_word_at_de(void) MYCC {
