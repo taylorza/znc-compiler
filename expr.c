@@ -674,7 +674,48 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             if (tok == tokLParen) {
                 factor_result.has_sym = 0;
                 parse_funccall(&sym);
+                /* Update result type to be the function's return type */
+                factor_result.type = sym.type;
                 loadval = 0;
+                
+                /* Handle member access on function return value (e.g., func().member) */
+                while (tok == tokMember) {
+                    get_token();
+                    
+                    if (!is_struct(&factor_result.type) && 
+                        !(is_ptr(&factor_result.type) && (factor_result.type.basetype & 0xff) == STRUCT)) {
+                        error(errSyntax);
+                        return factor_result;
+                    }
+                    if (tok != tokIdent) { error(errSyntax); return factor_result; }
+                    
+                    char fname[MAX_IDENT_LEN+1];
+                    strncpy(fname, token, MAX_IDENT_LEN);
+                    int sid = (int)factor_result.type.struct_id - 1;
+                    int fid = find_struct_field(sid, fname);
+                    if (fid < 0) error(errNotDefined_s, fname);
+
+                    FIELDINFO fi = get_struct_field(sid, fid);
+                    uint16_t offset = fi.offset;
+                    get_token();
+
+                    /* For function return values, HL contains the pointer/struct address */
+                    /* Add offset to access the member */
+                    if (offset) {
+                        emit_ldde_immed(); emit_n(offset); emit_nl();
+                        emit_add16();
+                    }
+                    
+                    factor_result.type = fi.type;
+                    if (is_array(&factor_result.type)) {
+                        make_ptr(&factor_result.type);
+                        dereference = 0;
+                    } else {
+                        dereference = 1;
+                    }
+                    addr_in_hl = 1;
+                    loadval = 0;
+                }
             }
 
             /* Handle prefix ++/-- */
