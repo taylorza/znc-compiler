@@ -4,7 +4,7 @@
 
 EXPR_RESULT far_parse_expr(uint8_t minprec) MYCC;
 EXPR_RESULT far_parse_expr_delayconst(uint8_t minprec) MYCC;
-void far_parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ) MYCC;
+void far_parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, uint8_t type_id) MYCC;
 
 EXPR_RESULT parse_expr(uint8_t minprec) MYCC {
     PROLOG(43)
@@ -18,8 +18,8 @@ EXPR_RESULT parse_expr_delayconst(uint8_t minprec) MYCC {
     EPILOG_RETURN(r);
 }
 
-void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ) MYCC {
+void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, uint8_t type_id) MYCC {
     PROLOG(43)
-    far_parse_assign(dereference, sym, indexed, typ);
+    far_parse_assign(dereference, sym, indexed, type_id);
     EPILOG
 }

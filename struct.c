@@ -27,7 +27,7 @@ int far_add_struct(const char* name) MYCC {
     return struct_count++;
 }
 
-void far_add_struct_field_with_offset(int id, const char* name, TYPEREC type, uint16_t offset) MYCC {
+void far_add_struct_field_with_offset(int id, const char* name, uint8_t type_id, uint16_t offset) MYCC {
     if (id < 0 || id >= struct_count) return;
     if (field_next >= MAX_FIELDS) {
         error(errTooManySymbols);
@@ -40,7 +40,7 @@ void far_add_struct_field_with_offset(int id, const char* name, TYPEREC type, ui
     uint16_t idx = field_next++;
     FIELDDEF* f = &field_pool[idx];
     strncpy(f->name, name, MAX_IDENT_LEN);
-    f->type = type;
+    f->type_id = type_id;
     f->offset = offset;
 
     if (s->first_field == 0xFFFF) s->first_field = idx;
@@ -71,15 +71,14 @@ void far_set_struct_size(int id, uint16_t size) MYCC {
 FIELDINFO far_get_struct_field(int id, int fid) MYCC {
     FIELDINFO fi;
     fi.offset = 0;
-    /* return an empty type by default */
-    fi.type.basetype = VOID; fi.type.dim = 1; fi.type.struct_id = 0;
+    fi.type_id = TYPE_ID_VOID;  /* return void type by default */
 
     if (id < 0 || id >= struct_count) return fi;
     STRUCTDEF* s = &struct_tab[id];
     if (s->first_field == 0xFFFF) return fi;
     if (fid < 0 || fid >= s->fieldcount) return fi;
     uint16_t idx = s->first_field + fid;
-    fi.type = field_pool[idx].type;
+    fi.type_id = field_pool[idx].type_id;
     fi.offset = field_pool[idx].offset;
     return fi;
 }

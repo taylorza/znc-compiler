@@ -48,7 +48,7 @@ void far_updatesym(SYMBOL from) MYCC {
     if (sym) *sym = from;
 }
 
-SYMBOL* far_addglb(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC {
+SYMBOL* far_addglb(const char* name, SYM_CLASS klass, uint8_t type_id, int16_t value) MYCC {
     SYMBOL *sym = far_findglb(name);
     if (sym) return sym;
 
@@ -60,7 +60,7 @@ SYMBOL* far_addglb(const char* name, SYM_CLASS klass, TYPEREC type, int16_t valu
     sym = &symtab[lastgbl];
     strncpy(sym->name, name, MAX_IDENT_LEN);
     sym->klass = klass;
-    sym->type = type;
+    sym->type_id = type_id;
     sym->scope = GLOBAL;
     sym->offset = value;
     sym->flags = 0;
@@ -68,7 +68,7 @@ SYMBOL* far_addglb(const char* name, SYM_CLASS klass, TYPEREC type, int16_t valu
     return sym;
 }
 
-SYMBOL* far_addloc(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC {
+SYMBOL* far_addloc(const char* name, SYM_CLASS klass, uint8_t type_id, int16_t value) MYCC {
     SYMBOL *sym = far_findloc(name);
     if (sym) return sym;
 
@@ -80,7 +80,7 @@ SYMBOL* far_addloc(const char* name, SYM_CLASS klass, TYPEREC type, int16_t valu
     sym = &symtab[--lastloc];
     strncpy(sym->name, name, MAX_IDENT_LEN);
     sym->klass = klass;
-    sym->type = type;
+    sym->type_id = type_id;
     sym->scope = LOCAL;
     sym->offset = value;
     return sym;
@@ -115,11 +115,10 @@ void far_dump_globals(void) MYCC {
          * `SYM_FLAG_INITIALIZED`), skip auto allocation here. Also skip
          * functions and consts as before.
          */
-        if (sym->klass == FUNCTION || is_const(&sym->type) || (sym->flags & SYM_FLAG_INITIALIZED)) continue; // skip functions, consts, inited
-        TYPEREC* ptype = &sym->type;
+        if (sym->klass == FUNCTION || type_is_const(sym->type_id) || (sym->flags & SYM_FLAG_INITIALIZED)) continue; // skip functions, consts, inited
         emit_sname(sym->name);
         emit_ch(' ');
-        uint16_t size = type_size(ptype);
+        uint16_t size = type_size(sym->type_id);
         switch(size) {
             case 1:
                 emit_str("db 0");

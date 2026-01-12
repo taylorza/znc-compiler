@@ -6,13 +6,13 @@ typedef enum SYM_CLASS { CLASS_UNDEFINED, VARIABLE, ARGUMENT, FUNCTION, FUNCTION
 typedef enum SYM_SCOPE { SCOPE_UNDEFINED, GLOBAL, LOCAL } SYM_SCOPE;
 
 typedef struct VALUE {
-    TYPEREC type;
+    uint8_t type_id;
     uint16_t value;
 } VALUE;
 
 typedef struct SYMBOL {
     char name[MAX_IDENT_LEN+1];
-    TYPEREC type;
+    uint8_t type_id;
     SYM_CLASS klass;
     SYM_SCOPE scope;
     int16_t offset;
@@ -29,8 +29,8 @@ SYMBOL* far_findglb(const char* name) MYCC;
 SYMBOL* far_findloc(const char* name) MYCC;
 SYMBOL* far_lookupIdent(const char* name) MYCC;
 
-SYMBOL* far_addglb(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC;
-SYMBOL* far_addloc(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC;
+SYMBOL* far_addglb(const char* name, SYM_CLASS klass, uint8_t type_id, int16_t value) MYCC;
+SYMBOL* far_addloc(const char* name, SYM_CLASS klass, uint8_t type_id, int16_t value) MYCC;
 void far_updatesym(SYMBOL from) MYCC;
 
 uint16_t far_push_frame(void) MYCC;
@@ -44,8 +44,8 @@ SYMBOL findglb(const char* name) MYCC;
 SYMBOL findloc(const char* name) MYCC;
 SYMBOL lookupIdent(const char* name) MYCC;
 
-SYMBOL addglb(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC;
-SYMBOL addloc(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC;
+SYMBOL addglb(const char* name, SYM_CLASS klass, uint8_t type_id, int16_t value) MYCC;
+SYMBOL addloc(const char* name, SYM_CLASS klass, uint8_t type_id, int16_t value) MYCC;
 void updatesym(SYMBOL* from) MYCC;
 
 uint16_t push_frame(void) MYCC;

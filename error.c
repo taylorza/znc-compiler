@@ -19,6 +19,8 @@ void error(ERROR err, ...) {
         "Invalid %s",
         "Expected %s",
         "Out of memory in arena",
+        "Too many types (max 256)",
+        "Too many pointer indirection levels (max 15)",
     };
     
     char buf[64];

@@ -29,17 +29,17 @@ int add_struct(const char* name) MYCC {
     return r;
 }
 
-void add_struct_field(int id, const char* name, TYPEREC type) MYCC {
+void add_struct_field(int id, const char* name, uint8_t type_id) MYCC {
     ARENA_MARKER m = arena_get_marker();
     char* ncopy = arena_strdup(name, strnlen(name, MAX_IDENT_LEN));
 
-    /* Compute offset and new struct size in main bank to avoid pulling type_size into BANK_44 */
+    /* Compute offset and new struct size in main bank */
     uint16_t cur = get_struct_size(id);
-    uint16_t inc = type_size(&type);
+    uint16_t inc = type_size(type_id);
     uint16_t newsize = cur + inc;
 
     PROLOG(44)
-    far_add_struct_field_with_offset(id, ncopy, type, cur);
+    far_add_struct_field_with_offset(id, ncopy, type_id, cur);
     far_set_struct_size(id, newsize);
     EPILOG
 

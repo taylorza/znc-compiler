@@ -22,11 +22,11 @@ uint16_t stack_size = 256;  // stack size
 
 uint8_t hash_if_depth = 0; // depth of #if/#ifdef statements
 
-SYMBOL declglb(TYPEREC type, SYM_CLASS klass, const char* name, int16_t value);
-SYMBOL declloc(TYPEREC type, SYM_CLASS klass, const char* name, int16_t offset);
+SYMBOL declglb(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t value);
+SYMBOL declloc(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t offset);
 
-void parse_type(TYPEREC* type) MYCC;
-void parse_funcdecl(TYPEREC rettype, const char* name) MYCC;
+void parse_type(uint8_t* type_id_out) MYCC;
+void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC;
 
 void parse_include(void) MYCC;
 void parse_decl(void) MYCC;
@@ -100,13 +100,12 @@ static void parse(const char* sourcefile, const char* outfilename, uint8_t entry
 }
 
 void emit_make_defines(TOKEN outputTok) {
-    TYPEREC type = { .basetype = CHAR };
-    make_const(&type);
+    uint8_t const_char_type = type_make_char(1);
 
     switch (outputTok) {
-        case tokNex: declglb(type, VARIABLE, "__NEX", 1);  break;
-        case tokDot: declglb(type, VARIABLE, "__DOT", 1);  break;
-        case tokRaw: declglb(type, VARIABLE, "__RAW", 1);  break;
+        case tokNex: declglb(const_char_type, VARIABLE, "__NEX", 1);  break;
+        case tokDot: declglb(const_char_type, VARIABLE, "__DOT", 1);  break;
+        case tokRaw: declglb(const_char_type, VARIABLE, "__RAW", 1);  break;
     }
 
     emit_strln("__NEX equ %d", outputTok == tokNex ? 1 : 0);
@@ -249,7 +248,7 @@ void parse_include(void) MYCC {
 }
 
 void parse_decl(void) MYCC {
-    TYPEREC type;
+    uint8_t type_id;
 
     uint8_t constdecl = 0;
     if (tok == tokConst) {
@@ -257,12 +256,19 @@ void parse_decl(void) MYCC {
         get_token(); // skip 'const'
     }
 
-    parse_type(&type);
+    parse_type(&type_id);
     if (constdecl) {
-        if (is_void(&type)) error(errSyntax);
-        if (is_ptr(&type)) error(errSyntax);
-        if (is_array(&type)) error(errSyntax);
-        make_const(&type);
+        if (type_is_void(type_id)) error(errSyntax);
+        if (type_is_pointer(type_id)) error(errSyntax);
+        if (type_is_array(type_id)) error(errSyntax);
+        /* Make const version */
+        TypeKind kind = type_get_kind(type_id);
+        if (kind == TK_CHAR) type_id = type_make_char(1);
+        else if (kind == TK_INT) type_id = type_make_int(1);
+        else if (kind == TK_STRUCT) {
+            uint8_t sid = type_get_struct_id(type_id);
+            type_id = type_make_struct(sid, 1);
+        }
     }
 
     if (tok != tokIdent) error(errSyntax);
@@ -274,29 +280,29 @@ void parse_decl(void) MYCC {
 
     if (tok == tokLParen) {
         if (infunc || constdecl) error(errSyntax);
-        parse_funcdecl(type, name);
+        parse_funcdecl(type_id, name);
     }
     else {
         SYMBOL sym;
 
-        if (is_void(&type) && !is_ptr(&type)) error(errSyntax);
+        if (type_is_void(type_id) && !type_is_pointer(type_id)) error(errSyntax);
 
         for (;;) {
             if (infunc || is_scoped()) {
-                uint16_t size = type_size(&type); 
+                uint16_t size = type_size(type_id); 
                 sym = findloc(name);
                 if (is_defined(&sym)) error(errAlreadyDefined_s, name);
-                sym = declloc(type, VARIABLE, name, bp_lastlocal);
+                sym = declloc(type_id, VARIABLE, name, bp_lastlocal);
                 bp_lastlocal += size;
                 if (localbytes < bp_lastlocal) localbytes = bp_lastlocal;
             } else {
                 sym = findglb(name);
                 if (is_defined(&sym)) error(errAlreadyDefined_s, name);
-                sym = declglb(type, VARIABLE, name, 0);
+                sym = declglb(type_id, VARIABLE, name, 0);
             }
                
             if (tok == tokAssign) {
-                parse_assign(0, &sym, 0, type);
+                parse_assign(0, &sym, 0, type_id);
             }
             else if (constdecl) error(errSyntax);
 
@@ -330,8 +336,8 @@ void parse_struct_def(void) MYCC {
     expect_LBrace();
 
     while (tok != tokRBrace && tok != tokEOS) {
-        TYPEREC ftype;
-        parse_type(&ftype);
+        uint8_t ftype_id;
+        parse_type(&ftype_id);
 
         for (;;) {
             if (tok != tokIdent) error(errSyntax);
@@ -343,17 +349,23 @@ void parse_struct_def(void) MYCC {
             if (tok == tokLBrack) {
                 get_token(); // skip '['
                 if (tok == tokRBrack) {
-                    make_ptr(&ftype); /* treat [] as pointer */
+                    /* treat [] as pointer */
+                    uint8_t elem_type = ftype_id;
+                    ftype_id = type_make_pointer(elem_type, 1);
                 } else {
                     EXPR_RESULT dim = parse_expr_delayconst(0);
-                    if (!is_const(&dim.type)) error_expect_const();
-                    if (dim.value > 0) make_array(&ftype, dim.value);
-                    else make_ptr(&ftype);
+                    if (!type_is_const(dim.type_id)) error_expect_const();
+                    if (dim.value > 0) {
+                        uint8_t len = (dim.value > 255) ? 255 : (uint8_t)dim.value;
+                        ftype_id = type_make_array(ftype_id, len);
+                    } else {
+                        ftype_id = type_make_pointer(ftype_id, 1);
+                    }
                 }
                 expect(tokRBrack, errSyntax);
             }
 
-            add_struct_field(sid, fname, ftype);
+            add_struct_field(sid, fname, ftype_id);
 
             if (tok == tokComma) {
                 get_token(); // skip ',' and continue
@@ -410,7 +422,7 @@ void parse_switch(uint16_t contlbl) MYCC {
         if (tok == tokCase) {
             get_token(); // skip 'case'
             EXPR_RESULT expr_result = parse_expr_delayconst(0);
-            if (!is_const(&expr_result.type)) {
+            if (!type_is_const(expr_result.type_id)) {
                 error_expect_const();
             }
             uint16_t lblCase = newlbl();
@@ -618,55 +630,67 @@ void parse_asm(int asmcol) MYCC {
     expect_RBrace();    
 }
 
-void parse_type(TYPEREC *type) MYCC {
-    /* Initialize type */
-    /* clear any struct id in case caller reused a type record */
-    type->struct_id = 0;
+void parse_type(uint8_t *type_id_out) MYCC {
+    /* Initialize to void */
+    uint8_t base_type_id = TYPE_ID_VOID;
+    uint8_t is_const_flag = 0;
+    uint8_t struct_id = 0;
 
     switch (tok) {
-        case tokVoid: type->basetype = VOID; break;
-        case tokChar: type->basetype = CHAR; break;
-        case tokInt: type->basetype = INT; break;
+        case tokVoid: 
+            base_type_id = TYPE_ID_VOID;
+            break;
+        case tokChar: 
+            base_type_id = TYPE_ID_CHAR;
+            break;
+        case tokInt: 
+            base_type_id = TYPE_ID_INT;
+            break;
         case tokIdent: {
             /* Ident could be a struct type name */
             int sid = find_struct(token);
             if (sid >= 0) {
-                type->basetype = STRUCT;
-                type->struct_id = sid + 1; /* 1-based id */
+                struct_id = sid + 1; /* 1-based id */
+                base_type_id = type_make_struct(struct_id, is_const_flag);
             } else {
                 error(errSyntax);
                 tok = tokInt;
+                base_type_id = TYPE_ID_INT;
             }
             break;
         }
         default:
             error(errSyntax);
             tok = tokInt;
+            base_type_id = TYPE_ID_INT;
             break;
     }
 
-    make_scalar(type);
-
     get_token(); // skip base type or identifier
 
-    /* Handle single pointer/array suffix (keep it simple) */
+    /* Handle single pointer/array suffix */
     if (tok == tokStar) {
         get_token(); // skip '*'
-        make_ptr(type); // set as pointer
+        base_type_id = type_make_pointer(base_type_id, 1);
     } else if (tok == tokLBrack) {
         get_token(); // skip '['
         if (tok == tokRBrack) {
-            make_ptr(type);
+            base_type_id = type_make_pointer(base_type_id, 1);
         } else {
             EXPR_RESULT dim = parse_expr_delayconst(0);
-            if (!is_const(&dim.type)) error_expect_const();
+            if (!type_is_const(dim.type_id)) error_expect_const();
             if (dim.value > 0) {
-                if (is_void(type)) error(errSyntax);
-                make_array(type, dim.value);
-            } else make_ptr(type); // zero means pointer
+                if (base_type_id == TYPE_ID_VOID) error(errSyntax);
+                uint8_t length = (dim.value > 255) ? 255 : (uint8_t)dim.value;
+                base_type_id = type_make_array(base_type_id, length);
+            } else {
+                base_type_id = type_make_pointer(base_type_id, 1); // zero means pointer
+            }
         }
         expect(tokRBrack, errSyntax);
     }
+    
+    *type_id_out = base_type_id;
 }
 
 static void clean_stack(int16_t bytes) MYCC {
@@ -701,7 +725,7 @@ void parse_funccall(SYMBOL* sym) MYCC {
         EXPR_RESULT arg_result = parse_expr(0);
         
         /* Error if passing a struct by value - must use & to pass pointer */
-        if (is_struct(&arg_result.type) && !is_ptr(&arg_result.type)) {
+        if (type_is_struct(arg_result.type_id) && !type_is_pointer(arg_result.type_id)) {
             error(errTypeError);
         }
         
@@ -719,11 +743,10 @@ void parse_funccall(SYMBOL* sym) MYCC {
 void do_exit(EXPR_RESULT exit_expr) {
     switch(tokMakeType) {
         case tokDot:                
-            if (is_void(&exit_expr.type) || (is_const(&exit_expr.type) && exit_expr.value == 0)) {
+            if (type_is_void(exit_expr.type_id) || (type_is_const(exit_expr.type_id) && exit_expr.value == 0)) {
                 emit_instrln("xor a");                            
             } else {
-                if ((is_ptr(&exit_expr.type) && is_char(&exit_expr.type)) 
-                        || is_string(&exit_expr.type)) {
+                if ((type_is_pointer(exit_expr.type_id) && type_is_char(type_get_element_type_id(exit_expr.type_id)))) {
                 emit_rtl("ccpstr"); // convert C string to BASIC string
                 emit_instrln("xor a");                      
                 } else {
@@ -733,7 +756,7 @@ void do_exit(EXPR_RESULT exit_expr) {
             }
             break;
         case tokRaw:
-            if (is_void(&exit_expr.type)) {
+            if (type_is_void(exit_expr.type_id)) {
                 emit_instr("xor a");
                 emit_instrln("ld b,a");
                 emit_instrln("ld c,a");
@@ -746,7 +769,7 @@ void do_exit(EXPR_RESULT exit_expr) {
 }
 
 void parse_return(void) MYCC {
-    EXPR_RESULT expr_result = { .type = void_type };
+    EXPR_RESULT expr_result = { .type_id = TYPE_ID_VOID };
 
     get_token(); // skip 'return';
     
@@ -766,17 +789,17 @@ void parse_exit(void) MYCC {
     do_exit(expr_result);
 }
 
-void parse_funcdecl(TYPEREC rettype, const char* name) MYCC {
+void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
     get_token(); // skip '('
 
-    TYPEREC argtype;
+    uint8_t argtype_id;
     char argName[MAX_IDENT_LEN + 1];
 
     SYMBOL symfunc = lookupIdent(name);
     uint8_t defined = 0;
 
     if (not_defined(&symfunc)) {
-        symfunc = declglb(rettype, FUNCTION, name, 0);
+        symfunc = declglb(rettype_id, FUNCTION, name, 0);
     } else if (symfunc.klass != FUNCTION_PROTO) {
         defined = 1;
     }
@@ -786,16 +809,20 @@ void parse_funcdecl(TYPEREC rettype, const char* name) MYCC {
     uint16_t funcframe = push_frame();
     func_argcount = 0;
     while (tok != tokRParen) {
-        parse_type(&argtype);
-        if (is_array(&argtype)) make_ptr(&argtype);
+        parse_type(&argtype_id);
+        if (type_is_array(argtype_id)) {
+            /* Convert array to pointer */
+            uint8_t elem_type = type_get_element_type(argtype_id);
+            argtype_id = type_make_pointer(elem_type, 1);
+        }
         
         /* ERROR: Struct parameters must be declared as pointers explicitly */
-        if (is_struct(&argtype) && !is_ptr(&argtype)) {
+        if (type_is_struct(argtype_id) && !type_is_pointer(argtype_id)) {
             error(errTypeError);
         }
         
         strncpy(argName, token, MAX_IDENT_LEN);           
-        declloc(argtype, ARGUMENT, argName, func_argcount++);
+        declloc(argtype_id, ARGUMENT, argName, func_argcount++);
         get_token(); // skip arg name
         if (tok == tokComma) get_token(); // skip ','
     }
@@ -850,7 +877,7 @@ void parse_funcdecl(TYPEREC rettype, const char* name) MYCC {
 void parse_org(void) MYCC {
     get_token(); // skip 'org'
     EXPR_RESULT expr_result = parse_expr_delayconst(0);
-    if (!is_const(&expr_result.type)) error_expect_const();
+    if (!type_is_const(expr_result.type_id)) error_expect_const();
     emit_org(expr_result.value);
     expect_semi();
 }
@@ -865,7 +892,7 @@ void parse_bank(void) MYCC {
     expect_LParen();
 
     EXPR_RESULT bankid_result = parse_expr_delayconst(0);
-    if (!is_const(&bankid_result.type)) error_expect_const();
+    if (!type_is_const(bankid_result.type_id)) error_expect_const();
     if (bankid_result.value > 255) error(errInvalid_s, "bank");
     bankid = (uint8_t)bankid_result.value;
  
@@ -873,7 +900,7 @@ void parse_bank(void) MYCC {
         get_token(); // skip ','
         
         EXPR_RESULT offset_result = parse_expr_delayconst(0);
-        if (!is_const(&offset_result.type)) error_expect_const();
+        if (!type_is_const(offset_result.type_id)) error_expect_const();
         offset = offset_result.value;
     }
     expect_RParen();
@@ -913,7 +940,7 @@ void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC {
         get_token(); // skip identifier
     } else {
         EXPR_RESULT expr_result = parse_expr_delayconst(0);
-        if (!is_const(&expr_result.type)) error_expect_const();
+        if (!type_is_const(expr_result.type_id)) error_expect_const();
         active = expr_result.value != 0;
     }
 
@@ -929,17 +956,20 @@ void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC {
     get_token(); // skip '#endif'
 }
 
-SYMBOL declglb(TYPEREC type, SYM_CLASS klass, const char* name, int16_t value) {
-    SYMBOL lsym = addglb(name, klass, type, value);
+SYMBOL declglb(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t value) {
+    SYMBOL lsym = addglb(name, klass, type_id, value);
     return lsym;
 }
 
-SYMBOL declloc(TYPEREC type, SYM_CLASS klass, const char* name, int16_t offset) {
-    SYMBOL lsym = addloc(name, klass, type, offset);
+SYMBOL declloc(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t offset) {
+    SYMBOL lsym = addloc(name, klass, type_id, offset);
     return lsym;
 }
 
 void compile(const char *filename, const char *asmfilename) MYCC {
+    /* Initialize type system */
+    type_init();
+    
     if (!asm_open(asmfilename)) {
         src_close();
         printf("can't create '%s'", asmfilename);

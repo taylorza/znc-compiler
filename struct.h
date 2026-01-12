@@ -9,7 +9,7 @@
 
 typedef struct FIELDDEF {
     char name[MAX_IDENT_LEN+1];
-    TYPEREC type;
+    uint8_t type_id;
     uint16_t offset;
 } FIELDDEF;
 
@@ -20,12 +20,12 @@ typedef struct STRUCTDEF {
     uint16_t size;
 } STRUCTDEF;
 
-typedef struct FIELDINFO { TYPEREC type; uint16_t offset; } FIELDINFO;
+typedef struct FIELDINFO { uint8_t type_id; uint16_t offset; } FIELDINFO;
 
 /* Main-bank stubs (wrappers) - implemented in main bank and call into BANK_44 */
 int find_struct(const char* name) MYCC; // returns index or -1
 int add_struct(const char* name) MYCC; // returns index (>=0) or -1
-void add_struct_field(int id, const char* name, TYPEREC type) MYCC;
+void add_struct_field(int id, const char* name, uint8_t type_id) MYCC;
 int find_struct_field(int id, const char* name) MYCC; // returns field index or -1
 uint16_t get_struct_size(int id) MYCC;
 FIELDINFO get_struct_field(int id, int fid) MYCC; // returns type+offset by value
@@ -34,7 +34,7 @@ FIELDINFO get_struct_field(int id, int fid) MYCC; // returns type+offset by valu
 int far_find_struct(const char* name) MYCC;
 int far_add_struct(const char* name) MYCC;
 /* Far API implemented in BANK 44. Keep these functions minimal and avoid heavy runtime calls. */
-void far_add_struct_field_with_offset(int id, const char* name, TYPEREC type, uint16_t offset) MYCC;
+void far_add_struct_field_with_offset(int id, const char* name, uint8_t type_id, uint16_t offset) MYCC;
 int far_find_struct_field(int id, const char* name) MYCC;
 uint16_t far_get_struct_size(int id) MYCC;
 void far_set_struct_size(int id, uint16_t size) MYCC;

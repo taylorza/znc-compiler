@@ -16,6 +16,8 @@ typedef enum ERROR {
     errInvalid_s,
     errExpected_s,
     errArenaOutOfMemory,
+    errTooManyTypes,
+    errTooManyPointerLevels,
 } ERROR;
 
 extern int errcnt;

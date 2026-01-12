@@ -69,8 +69,8 @@ void emit_ld_symval(SYMBOL* sym) MYCC;
 void emit_ld_symaddr(SYMBOL* sym) MYCC;
 void emit_ld_symaddr_offset(SYMBOL* sym, uint16_t offset) MYCC;
 void emit_store_sym(SYMBOL* sym) MYCC;
-void emit_store(TYPEREC typ) MYCC;
-void emit_load(TYPEREC typ) MYCC;
+void emit_store(uint8_t type_id) MYCC;
+void emit_load(uint8_t type_id) MYCC;
 
 uint16_t emit_alloclocals(void) MYCC;
 void emit_lblequ16(uint16_t lbl, uint16_t value) MYCC;

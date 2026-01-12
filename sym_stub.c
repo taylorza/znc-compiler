@@ -63,14 +63,14 @@ void updatesym(SYMBOL* from) MYCC {
     EPILOG;
 }
 
-SYMBOL addglb(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC {
+SYMBOL addglb(const char* name, SYM_CLASS klass, uint8_t type_id, int16_t value) MYCC {
     ARENA_MARKER m = arena_get_marker();
     char* ncopy = arena_strdup(name, strnlen(name, MAX_IDENT_LEN));
 
     SYMBOL *sym;
     SYMBOL lsym;
     PROLOG(41)
-    sym = far_addglb(ncopy, klass, type, value);
+    sym = far_addglb(ncopy, klass, type_id, value);
     if (!sym) sym = &undefined_sym;
     lsym = *sym;
     EPILOG
@@ -79,14 +79,14 @@ SYMBOL addglb(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MY
     return lsym;
 }
 
-SYMBOL addloc(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC {
+SYMBOL addloc(const char* name, SYM_CLASS klass, uint8_t type_id, int16_t value) MYCC {
     ARENA_MARKER m = arena_get_marker();
     char* ncopy = arena_strdup(name, strnlen(name, MAX_IDENT_LEN));
 
     SYMBOL *sym;
     SYMBOL lsym;
     PROLOG(41)
-    sym = far_addloc(ncopy, klass, type, value);
+    sym = far_addloc(ncopy, klass, type_id, value);
     if (!sym) sym = &undefined_sym;
     lsym = *sym;
     EPILOG

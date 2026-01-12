@@ -413,7 +413,7 @@ static void compute_local_offsets(SYMBOL *sym, int16_t *low_off, int16_t *high_o
     
     if (sym->klass == VARIABLE) {
         bp_offset = (uint8_t)sym->offset;
-        uint16_t var_size = type_size(&sym->type);
+        uint16_t var_size = type_size(sym->type_id);
         *low_off = -(bp_offset + var_size);
         *high_off = -(bp_offset + var_size - 1);
     } else { /* ARGUMENT */
@@ -432,15 +432,15 @@ static void emit_compute_ix_address(int16_t offset) MYCC {
 }
 
 void emit_ld_symval(SYMBOL* sym) MYCC {
-    TYPEREC* ptype = &sym->type;
+    uint8_t type_id = sym->type_id;
 
     if (sym->scope == GLOBAL) {
-        if (is_array(ptype)) {
+        if (type_is_array(type_id)) {
             emit_ld_immed();
             emit_sname(sym->name);
             emit_nl();
         }
-        else if (!is_ptr(ptype) && is_char(ptype)) {
+        else if (!type_is_pointer(type_id) && type_is_char(type_id)) {
             emit_instr("ld a,(");
             emit_sname(sym->name);
             emit_ch(')');
@@ -458,9 +458,9 @@ void emit_ld_symval(SYMBOL* sym) MYCC {
         if (sym->klass == VARIABLE) {
             int8_t bp_offset = (uint8_t)sym->offset;
             
-            if (is_array(ptype) || is_struct(ptype)) {
+            if (type_is_array(type_id) || type_is_struct(type_id)) {
                 /* Arrays and structs: load their address */
-                int16_t addr_offset = bp_offset - type_size(ptype);
+                int16_t addr_offset = bp_offset - type_size(type_id);
                 
                 if (addr_offset >= -128 && addr_offset <= 127) {
                     emit_copy_ix_to_hl();
@@ -470,7 +470,7 @@ void emit_ld_symval(SYMBOL* sym) MYCC {
                 } else {
                     emit_compute_ix_address(addr_offset);
                 }
-            } else if (!is_ptr(ptype) && is_char(ptype)) {
+            } else if (!type_is_pointer(type_id) && type_is_char(type_id)) {
                 /* Char/byte scalar: load single byte and sign-extend */
                 int16_t low_off = -(bp_offset + 1);
                 
@@ -515,7 +515,7 @@ void emit_ld_symaddr(SYMBOL* sym) MYCC {
 }
 
 void emit_ld_symaddr_offset(SYMBOL* sym, uint16_t offset) MYCC {
-    TYPEREC* ptype = &sym->type;
+    uint8_t type_id = sym->type_id;
 
     if (sym->scope == GLOBAL) {
         emit_ld_immed();
@@ -528,11 +528,11 @@ void emit_ld_symaddr_offset(SYMBOL* sym, uint16_t offset) MYCC {
         if (sym->klass == VARIABLE) {
             bp_offset = (uint8_t)sym->offset;
             /* Arrays and structs: address is at base - size */
-            if (is_array(ptype) || is_struct(ptype))
-                bp_offset = (bp_offset - type_size(ptype));
+            if (type_is_array(type_id) || type_is_struct(type_id))
+                bp_offset = (bp_offset - type_size(type_id));
             else {
                 /* Scalars and pointers: stored value, compute address to low byte */
-                uint16_t var_size = type_size(ptype);
+                uint16_t var_size = type_size(type_id);
                 bp_offset = (bp_offset - var_size) + 1;
             }
         }
@@ -573,11 +573,11 @@ void emit_ld_const(uint16_t value) MYCC {
 }
 
 void emit_store_sym(SYMBOL* sym) MYCC {
-    TYPEREC* ptype = &sym->type;
-    if (is_array(ptype)) error(errNotlvalue);
+    uint8_t type_id = sym->type_id;
+    if (type_is_array(type_id)) error(errNotlvalue);
     
     if (sym->scope == GLOBAL) {
-        if (!is_ptr(ptype) && is_char(ptype)) {
+        if (!type_is_pointer(type_id) && type_is_char(type_id)) {
             emit_instrln("ld a,l");
             emit_instr("ld ("); emit_sname(sym->name); emit_strln("),a");
         }
@@ -586,7 +586,7 @@ void emit_store_sym(SYMBOL* sym) MYCC {
         }
     }
     else if (sym->scope == LOCAL) {
-        if (sym->klass == VARIABLE && !is_ptr(ptype) && is_char(ptype)) {
+        if (sym->klass == VARIABLE && !type_is_pointer(type_id) && type_is_char(type_id)) {
             /* Char/byte scalar: store single byte */
             int8_t bp_offset = (uint8_t)sym->offset;
             int16_t low_off = -(bp_offset + 1);
@@ -624,21 +624,22 @@ void emit_store_sym(SYMBOL* sym) MYCC {
     }
 }
 
-void emit_store(TYPEREC type) MYCC {
+void emit_store(uint8_t type_id) MYCC {
     emit_pop_de();      // target address
-    if (is_void(&type) || is_char(&type)) {
+    if (type_is_void(type_id) || type_is_char(type_id)) {
         emit_store_byte_at_de();
     } else {
         emit_store_word_at_de();
     }
 } 
 
-void emit_load(TYPEREC type) MYCC {
+void emit_load(uint8_t type_id) MYCC {
     /* Load the value pointed to by HL. If the base type is char (including
      * pointers to char), load a byte and sign-extend. Otherwise load a 16-bit
      * value (word) from memory.
      */
-    if (is_char(&type)) {
+    uint8_t elem_type = type_get_element_type_id(type_id);
+    if (type_is_char(elem_type)) {
         emit_instrln("ld a,(hl)");
         emit_rtl("ccsxt");
     } else {
@@ -704,8 +705,9 @@ void emit_output(const char* filename, TOKEN outputTok) MYCC {
     emit_strln("  output \"%s\"", filename);
     if (outputTok == tokDot) {
         emit_org(0x2000);
-        TYPEREC str = { .basetype = CHAR, .dim = -80 };
-        addglb("args", VARIABLE, str, 0);
+        /* Create char[80] array type for args */
+        uint8_t args_type = type_make_array(TYPE_ID_CHAR, 80);
+        addglb("args", VARIABLE, args_type, 0);
         emit_rtl("ldcmdln");
     }
 }
