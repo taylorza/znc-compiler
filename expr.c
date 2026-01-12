@@ -137,19 +137,8 @@ static void emit_sym_address_with_offset(SYMBOL *sym, uint16_t offset) MYCC {
             }
         }
     } else {
-        if (sym->scope == GLOBAL && offset) {
-            emit_ld_symaddr_offset(sym, offset);
-        } else {
-            emit_ld_symaddr(sym);
-            if (offset) {
-                if (offset <= 3) {
-                    emit_add_hl_small((int16_t)offset);
-                } else {
-                    emit_ldde_immed_n(offset);
-                    emit_add16();
-                }
-            }
-        }
+        /* Use emit_ld_symaddr_offset which handles local variable offset folding */
+        emit_ld_symaddr_offset(sym, offset);
     }
 }
 
@@ -468,16 +457,30 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             if (tok == tokLBrack) {
                 if (is_ptr(&factor_result.type)) {
                     emit_ld_symval(&sym);
-                } else if (is_array(&factor_result.type) || sym.klass == FUNCTION) {
+                    TYPEREC elem_type = get_element_type(&factor_result.type);
+                    emit_push();
+                    parse_and_scale_index(&elem_type);
+                    emit_pop_de();
+                    emit_add16();
+                } else if (is_array(&factor_result.type)) {
                     emit_ld_symaddr(&sym);
                     make_ptr(&factor_result.type);
+                    TYPEREC elem_type = get_element_type(&factor_result.type);
+                    emit_push();
+                    parse_and_scale_index(&elem_type);
+                    emit_pop_de();
+                    emit_add16();
+                } else if (sym.klass == FUNCTION) {
+                    emit_ld_symaddr(&sym);
+                    make_ptr(&factor_result.type);
+                    TYPEREC elem_type = get_element_type(&factor_result.type);
+                    emit_push();
+                    parse_and_scale_index(&elem_type);
+                    emit_pop_de();
+                    emit_add16();
                 } else {
                     error(errSyntax);
                 }
-                emit_push();
-                parse_and_scale_index(&factor_result.type);
-                emit_pop_de();
-                emit_add16();
             } else {
                 emit_ld_symaddr(&sym);
             }            

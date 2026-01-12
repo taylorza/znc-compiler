@@ -20,7 +20,9 @@ uint16_t type_size(const TYPEREC* type) MYCC {
     if (type->basetype == STRUCT && type->struct_id) {
         return get_struct_size(type->struct_id - 1);
     }
-    return 2;
+    
+    /* Scalars: char/byte is 1 byte, int is 2 bytes */
+    return ((type->basetype & 0xff) == CHAR) ? 1 : 2;
 }
 
 uint8_t is_array(const TYPEREC* type) MYCC { return type->dim < 0; }

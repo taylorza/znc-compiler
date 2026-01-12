@@ -28,7 +28,13 @@ uint8_t asm_open(const char *asmfilename) MYCC {
     asm_fh = esx_f_open(asmfilename, ESX_MODE_OPEN_CREAT_TRUNC | ESX_MODE_W);
     if (errno) return 0;
 #else
-    asm_fh = stdout;
+    if (!asmfilename) {
+        asm_fh = stdout;     
+    }
+    else {
+        asm_fh = fopen(asmfilename, "wb");
+        if (!asm_fh) return 0;
+    }
 #endif
     return 1;
 }
@@ -407,8 +413,9 @@ static void compute_local_offsets(SYMBOL *sym, int16_t *low_off, int16_t *high_o
     
     if (sym->klass == VARIABLE) {
         bp_offset = (uint8_t)sym->offset;
-        *low_off = -(bp_offset + 2);
-        *high_off = -(bp_offset + 1);
+        uint16_t var_size = type_size(&sym->type);
+        *low_off = -(bp_offset + var_size);
+        *high_off = -(bp_offset + var_size - 1);
     } else { /* ARGUMENT */
         bp_offset = 2 + (func_argcount - sym->offset) * 2;
         *low_off = bp_offset;
@@ -463,8 +470,20 @@ void emit_ld_symval(SYMBOL* sym) MYCC {
                 } else {
                     emit_compute_ix_address(addr_offset);
                 }
+            } else if (!is_ptr(ptype) && is_char(ptype)) {
+                /* Char/byte scalar: load single byte and sign-extend */
+                int16_t low_off = -(bp_offset + 1);
+                
+                if (low_off >= -128 && low_off <= 127) {
+                    emit_instrln("ld a,(ix%+d)", low_off);
+                    emit_rtl("ccsxt");
+                } else {
+                    emit_compute_ix_address(low_off);
+                    emit_instrln("ld a,(hl)");
+                    emit_rtl("ccsxt");
+                }
             } else {
-                /* Scalar/pointer: direct indexed load */
+                /* Int scalar/pointer: load 2-byte value */
                 int16_t low_off, high_off;
                 compute_local_offsets(sym, &low_off, &high_off);
                 
@@ -505,36 +524,42 @@ void emit_ld_symaddr_offset(SYMBOL* sym, uint16_t offset) MYCC {
         emit_nl();
     }
     else if (sym->scope == LOCAL) {
-        int8_t bp_offset = 0;
+        int16_t bp_offset = 0;
         if (sym->klass == VARIABLE) {
             bp_offset = (uint8_t)sym->offset;
             /* Arrays and structs: address is at base - size */
             if (is_array(ptype) || is_struct(ptype))
                 bp_offset = (bp_offset - type_size(ptype));
-            else
-                /* Scalars and pointers: stored as 2-byte value */
-                bp_offset = (bp_offset - 2) + 1;
-            
+            else {
+                /* Scalars and pointers: stored value, compute address to low byte */
+                uint16_t var_size = type_size(ptype);
+                bp_offset = (bp_offset - var_size) + 1;
+            }
         }
         else if (sym->klass == ARGUMENT) {
             bp_offset = 2 + (func_argcount - sym->offset) * 2;            
         }
         
-        /* Add any additional offset */
-        if (offset) {
-            bp_offset += offset;
-        }
+        /* Fold in any additional offset BEFORE range checking */
+        bp_offset += (int16_t)offset;
         
-        /* OPTIMIZATION: Special cases for common offsets */
-        if (bp_offset == 0) {
-            /* Offset 0: just copy IX to HL */
-            emit_copy_ix_to_hl();
-        } else if (bp_offset >= -3 && bp_offset <= 3) {
-            /* Small offset: copy IX and use inc/dec */
-            emit_copy_ix_to_hl();
-            emit_add_hl_small(bp_offset);
+        /* OPTIMIZATION: If final offset is in IX+d range, compute optimally */
+        if (bp_offset >= -128 && bp_offset <= 127) {
+            if (bp_offset == 0) {
+                /* Special case: offset 0 - just copy IX */
+                emit_copy_ix_to_hl();
+            } else if (bp_offset >= -3 && bp_offset <= 3) {
+                /* Small offset: copy IX and use inc/dec */
+                emit_copy_ix_to_hl();
+                emit_add_hl_small(bp_offset);
+            } else {
+                /* Medium offset: still in range, use add */
+                emit_copy_ix_to_hl();
+                emit_ldde_immed_n((uint16_t)bp_offset);
+                emit_add16();
+            }
         } else {
-            /* Standard: load offset and add to IX */
+            /* Out of range: compute manually */
             emit_instrln("ld hl,%d", bp_offset);
             emit_instrln("ld d,ixh");
             emit_instrln("ld e,ixl");
@@ -561,23 +586,40 @@ void emit_store_sym(SYMBOL* sym) MYCC {
         }
     }
     else if (sym->scope == LOCAL) {
-        int16_t low_off, high_off;
-        compute_local_offsets(sym, &low_off, &high_off);
-        
-        if (offsets_in_ix_range(low_off, high_off)) {
-            if (sym->klass == VARIABLE) {
+        if (sym->klass == VARIABLE && !is_ptr(ptype) && is_char(ptype)) {
+            /* Char/byte scalar: store single byte */
+            int8_t bp_offset = (uint8_t)sym->offset;
+            int16_t low_off = -(bp_offset + 1);
+            
+            if (low_off >= -128 && low_off <= 127) {
                 emit_instrln("ld (ix%+d),l", low_off);
-                emit_instrln("ld (ix%+d),h", high_off);
-            } else { /* ARGUMENT */
-                emit_instrln("ld (ix+%d),l", low_off);
-                emit_instrln("ld (ix+%d),h", high_off);
+            } else {
+                emit_push();
+                emit_compute_ix_address(low_off);
+                emit_swap();
+                emit_pop_de();
+                emit_store_byte_at_de();
             }
         } else {
-            emit_push();
-            emit_compute_ix_address(low_off);
-            emit_swap();
-            emit_pop_de();
-            emit_store_word_at_de();
+            /* Int scalar/pointer or argument: store 2-byte value */
+            int16_t low_off, high_off;
+            compute_local_offsets(sym, &low_off, &high_off);
+            
+            if (offsets_in_ix_range(low_off, high_off)) {
+                if (sym->klass == VARIABLE) {
+                    emit_instrln("ld (ix%+d),l", low_off);
+                    emit_instrln("ld (ix%+d),h", high_off);
+                } else { /* ARGUMENT */
+                    emit_instrln("ld (ix+%d),l", low_off);
+                    emit_instrln("ld (ix+%d),h", high_off);
+                }
+            } else {
+                emit_push();
+                emit_compute_ix_address(low_off);
+                emit_swap();
+                emit_pop_de();
+                emit_store_word_at_de();
+            }
         }
     }
 }

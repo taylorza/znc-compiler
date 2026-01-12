@@ -955,8 +955,10 @@ void compile(const char *filename, const char *asmfilename) MYCC {
     }
    
     // quick and dirty remove extension
-    char *dot = strrchr(asmfilename, '.');
-    if (dot) *dot='\0';
+    if (asmfilename != NULL) {
+        char* dot = strrchr(asmfilename, '.');
+        if (dot) *dot = '\0';
+    }
     
     parse(filename, asmfilename, 1);
     

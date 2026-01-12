@@ -9,6 +9,7 @@ void cleanup(void) MYCC;
 
 int main(unsigned int argc, unsigned char **argv) { 
     show_banner();
+    
     if (argc < 2 || argc > 3) {
         show_help("expected source and output\n");
         return 0;
@@ -24,9 +25,13 @@ int main(unsigned int argc, unsigned char **argv) {
     const char *out_file;
 
     if (argc == 2) {
+#ifdef __ZXNEXT
         strcpy(outfilename, src_file);
         set_file_ext(outfilename, "asm");
         out_file = outfilename;
+#else
+        out_file = NULL;
+#endif
     } else {
         out_file = argv[2];
     }
