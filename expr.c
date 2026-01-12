@@ -716,6 +716,48 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                     addr_in_hl = 1;
                     loadval = 0;
                 }
+
+                /* Handle array indexing on function return value (e.g., func()[index]) */
+                if (tok == tokLBrack) {
+                    if (!is_ptr(&factor_result.type) && !is_array(&factor_result.type)) {
+                        error(errSyntax);
+                        return factor_result;
+                    }
+                    
+                    /* HL contains the array/pointer from function return */
+                    TYPEREC elemtype = get_element_type(&factor_result.type);
+                    
+                    /* Parse and scale the index */
+                    get_token(); // skip '['
+                    EXPR_RESULT index_result = far_parse_expr_delayconst(0);
+                    expect(tokRBrack, ']');
+                    
+                    uint16_t scale = (uint16_t)type_size(&elemtype);
+                    
+                    if (is_const(&index_result.type)) {
+                        /* Constant index: add scaled offset */
+                        uint16_t offset = index_result.value * scale;
+                        if (offset) {
+                            emit_ldde_immed_n(offset);
+                            emit_add16();
+                        }
+                    } else {
+                        /* Variable index: scale and add */
+                        emit_push();  /* Save base address */
+                        /* HL now has the index value */
+                        if (scale > 1) {
+                            emit_scale_hl(scale);
+                        }
+                        emit_pop_de();  /* Restore base to DE */
+                        emit_add16();   /* HL = base + scaled_index */
+                    }
+                    
+                    factor_result.type = elemtype;
+                    make_scalar(&factor_result.type);
+                    dereference = 1;
+                    addr_in_hl = 1;
+                    loadval = 0;
+                }
             }
 
             /* Handle prefix ++/-- */
