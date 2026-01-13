@@ -234,12 +234,19 @@ static uint8_t handle_incdec_internal(uint8_t is_prefix, SYMBOL *sym, uint8_t lv
             emit_copy_hl_to_bc();
         }
         
-        if (isdec) {
-            emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
+        /* Optimize: use repeated inc/dec hl for small steps */
+        if (step <= 3) {
+            for (uint16_t i = 0; i < step; i++) {
+                emit_instrln(isdec ? "dec hl" : "inc hl");
+            }
         } else {
-            emit_instrln("ld de,%d", step);
+            if (isdec) {
+                emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
+            } else {
+                emit_instrln("ld de,%d", step);
+            }
+            emit_add16();
         }
-        emit_add16();
         emit_store(lvalue_type_id);
         
         if (!is_prefix) {
@@ -258,21 +265,27 @@ static uint8_t handle_incdec_internal(uint8_t is_prefix, SYMBOL *sym, uint8_t lv
             emit_ld_symval(sym);
         }
         
-        if (isdec) {
-            emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
+        /* Optimize: use repeated inc/dec hl for small steps */
+        if (step <= 3) {
+            for (uint16_t i = 0; i < step; i++) {
+                emit_instrln(isdec ? "dec hl" : "inc hl");
+            }
         } else {
-            emit_instrln("ld de,%d", step);
+            if (isdec) {
+                emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
+            } else {
+                emit_instrln("ld de,%d", step);
+            }
+            emit_add16();
         }
-        emit_add16();
         
         if (sym) {
             emit_store_sym(sym);
         }
         
         if (!is_prefix) {
-            /* Postfix: restore original */
-            emit_pop_de();
-            emit_swap();
+            /* Postfix: restore original value to HL for expression result */
+            emit_pop_hl();
         }
     }
     return 1;
@@ -355,13 +368,11 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
     uint8_t neg = 0;
     uint8_t not = 0;
     uint8_t cmpl = 0;
-    uint8_t loadval = 1;
     uint8_t addr_in_hl = 0;
     uint8_t initial_deref = dereference;
     uint16_t skiplbl;
     uint16_t tmplbl;
     uint16_t counter = 0;
-    uint8_t ident_base = 0;
     
     /* Handle prefix ++/-- */
     while (tok == tokInc || tok == tokDec) {
@@ -625,7 +636,6 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
 
             factor_result.sym = sym;
             factor_result.has_sym = 1;
-            ident_base = 0;
 
             /* Handle immediate indexing on identifier */
             if (tok == tokLBrack) {
@@ -636,12 +646,6 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 factor_result.type_id = ir.type_id;
                 dereference = ir.dereference;
                 addr_in_hl = ir.addr_in_hl;
-                /* If the helper emitted a direct load into HL (addr_in_hl == 0),
-                 * the value is already in HL so avoid emitting another load later.
-                 */
-                if (ir.addr_in_hl == 0) {
-                    loadval = 0;
-                }
             }
 
             if (!addr_in_hl) factor_result.type_id = sym.type_id;
@@ -693,10 +697,6 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                     factor_result.type_id = ir.type_id;
                     dereference = ir.dereference;
                     addr_in_hl = ir.addr_in_hl;
-                    /* Avoid emitting a separate load if compute_indexed_address already loaded the value */
-                    if (ir.addr_in_hl == 0) {
-                        loadval = 0;
-                    }
                 } else {
                     /* Simple member access: p.field */
                     if (!addr_in_hl) {
@@ -720,8 +720,6 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 }
             }
 
-            if (addr_in_hl) loadval = 0;
-
             if (tok == tokLParen) {
                 factor_result.has_sym = 0;
                 /* When calling through an indexed array element, addr_in_hl indicates
@@ -729,9 +727,9 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                  * Pass this to parse_funccall so it doesn't reload the symbol.
                  */
                 parse_funccall(&sym, addr_in_hl);
-                /* Update result type to be the function's return type */
+                /* Function return value is in HL - clear flags accordingly */
                 factor_result.type_id = sym.type_id;
-                loadval = 0;
+                addr_in_hl = 0;
                 dereference = 0;
                 
                 /* Handle member access on function return value (e.g., func().member) */
@@ -774,7 +772,6 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                         dereference = 1;
                     }
                     addr_in_hl = 1;
-                    loadval = 0;
                 }
 
                 /* Handle array indexing on function return value (e.g., func()[index]) */
@@ -815,7 +812,6 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                     factor_result.type_id = elemtype_id;
                     dereference = 1;
                     addr_in_hl = 1;
-                    loadval = 0;
                 }
             }
 
@@ -824,7 +820,8 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             if ((prefix_inc || prefix_dec) && !type_is_const(sym.type_id)) {
                 TOKEN prefix_op = prefix_inc ? tokInc : tokDec;
                 handle_incdec_internal(1, &sym, factor_result.type_id, had_addr_in_hl, prefix_op);
-                loadval = 0;
+                addr_in_hl = 0;  /* After inc/dec, value is in HL, not an address */
+                factor_result.has_sym = 0;  /* Prevent unnecessary reload for standalone statement */
             }
 
             if (tok == tokAssign) {
@@ -839,23 +836,23 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 /* Handle postfix ++/-- */
                 if ((tok == tokInc || tok == tokDec) && !type_is_const(sym.type_id)) {
                     handle_incdec(0, &sym, factor_result.type_id, had_addr_in_hl);
-                    loadval = 0;
-                    dereference = 0;  /* Result value is already in HL, not an address */
+                    addr_in_hl = 0;  /* Result value is already in HL, not an address */
+                    dereference = 0;
+                    factor_result.has_sym = 0;  /* Prevent unnecessary reload for standalone statement */
                 }
 
-                if (loadval) {
-                    if (factor_result.has_sym) {
-                        if (is_func_or_proto(&factor_result.sym)) {
-                            emit_ld_immed(); emit_sname(factor_result.sym.name); emit_nl();
-                        } else if (type_is_struct(factor_result.sym.type_id) && !type_is_pointer(factor_result.sym.type_id)) {
-                            /* Structs are loaded as address, not value */
-                            emit_ld_symaddr(&factor_result.sym);
-                        } else {
-                            /* Don't load value here if initial_deref - let caller handle it */
-                            /* Also don't load if address is already in HL from array/member access */
-                            if (!initial_deref && !had_addr_in_hl) {
-                                emit_ld_symval(&factor_result.sym);
-                            }
+                /* Load value if needed */
+                uint8_t need_load = (addr_in_hl == 0) && factor_result.has_sym;
+                if (need_load) {
+                    if (is_func_or_proto(&factor_result.sym)) {
+                        emit_ld_immed(); emit_sname(factor_result.sym.name); emit_nl();
+                    } else if (type_is_struct(factor_result.sym.type_id) && !type_is_pointer(factor_result.sym.type_id)) {
+                        /* Structs are loaded as address, not value */
+                        emit_ld_symaddr(&factor_result.sym);
+                    } else {
+                        /* Don't load value here if initial_deref - let caller handle it */
+                        if (!initial_deref && !had_addr_in_hl) {
+                            emit_ld_symval(&factor_result.sym);
                         }
                     }
                 }

@@ -698,7 +698,7 @@ static void clean_stack(int16_t bytes) MYCC {
     
     if (bytes < 8) {
         while ((bytes-2) >= 0) {
-            emit_instrln("pop bc");
+            emit_instrln("pop af");
             bytes -= 2;
         }
         while (bytes) {
@@ -708,7 +708,7 @@ static void clean_stack(int16_t bytes) MYCC {
         return;
     } else  {
         emit_swap();
-        emit_ld_immed(); emit_n(bytes); emit_nl();
+        emit_ld_immed_n(bytes);        
         emit_instrln("add hl,sp");
         emit_instrln("ld sp,hl");        
         emit_swap();
