@@ -278,18 +278,14 @@ void emit_load_word_from_hl(void) MYCC {
     emit_instrln("ld d,(hl)");
     emit_instrln("ex de,hl");
 }
-
-void emit_store_word_at_de(void) MYCC {
-    emit_instrln("ld a,l");
-    emit_instrln("ld (de),a");
-    emit_instrln("inc de");
-    emit_instrln("ld a,h");
-    emit_instrln("ld (de),a");
+void emit_store_word_at_hl(void) MYCC {
+    emit_instrln("ld (hl),e");
+    emit_instrln("inc hl");
+    emit_instrln("ld (hl),d");
 }
 
-void emit_store_byte_at_de(void) MYCC {
-    emit_instrln("ld a,l");
-    emit_instrln("ld (de),a");
+void emit_store_byte_at_hl(void) MYCC {
+    emit_instrln("ld (hl),e");
 }
 
 void emit_copy_hl_to_bc(void) MYCC {
@@ -596,9 +592,9 @@ void emit_store_sym(SYMBOL* sym) MYCC {
             } else {
                 emit_push();
                 emit_compute_ix_address(low_off);
-                emit_swap();
                 emit_pop_de();
-                emit_store_byte_at_de();
+                /* DE contains value, HL contains address: store directly */
+                emit_store_byte_at_hl();
             }
         } else {
             /* Int scalar/pointer or argument: store 2-byte value */
@@ -616,20 +612,22 @@ void emit_store_sym(SYMBOL* sym) MYCC {
             } else {
                 emit_push();
                 emit_compute_ix_address(low_off);
-                emit_swap();
                 emit_pop_de();
-                emit_store_word_at_de();
+                /* DE contains value, HL contains address: store directly */
+                emit_store_word_at_hl();
             }
         }
     }
 }
 
+/* Store value from HL into address on top of stack */
 void emit_store(uint8_t type_id) MYCC {
-    emit_pop_de();      // target address
+    emit_swap();         // value in DE
+    emit_pop_hl();       // target address in HL
     if (type_is_void(type_id) || type_is_char(type_id)) {
-        emit_store_byte_at_de();
+        emit_store_byte_at_hl();
     } else {
-        emit_store_word_at_de();
+        emit_store_word_at_hl();
     }
 } 
 

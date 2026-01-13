@@ -38,8 +38,8 @@ void emit_add_hl_small(int16_t n) MYCC;
 void emit_mul_const_optimized(uint16_t factor) MYCC;
 
 void emit_load_word_from_hl(void) MYCC;
-void emit_store_word_at_de(void) MYCC;
-void emit_store_byte_at_de(void) MYCC;
+void emit_store_word_at_hl(void) MYCC;
+void emit_store_byte_at_hl(void) MYCC;
 void emit_copy_hl_to_bc(void) MYCC;
 void emit_copy_bc_to_hl(void) MYCC;
 void emit_copy_ix_to_hl(void) MYCC;
