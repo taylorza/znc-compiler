@@ -334,7 +334,16 @@ EXPR_RESULT parse_ternary(EXPR_RESULT expr_result, uint8_t prec) MYCC {
     TypeKind atyp_kind = type_get_kind(atyp.type_id);
     if (ptyp_kind != atyp_kind) error(errTypeError);
     
-    expr_result.type_id = ptyp.type_id;
+    /* Result type is the primary branch type, but mark as non-const since
+     * we've already emitted the conditional code to compute the result in HL
+     */
+    if (ptyp_kind == TK_CHAR) {
+        expr_result.type_id = TYPE_ID_CHAR;
+    } else if (ptyp_kind == TK_INT) {
+        expr_result.type_id = TYPE_ID_INT;
+    } else {
+        expr_result.type_id = ptyp.type_id;
+    }
 
     return expr_result;
 }
