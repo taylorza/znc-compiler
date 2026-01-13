@@ -302,7 +302,7 @@ void parse_decl(void) MYCC {
             }
                
             if (tok == tokAssign) {
-                parse_assign(0, &sym, 0, type_id);
+                parse_assign(0, sym, 0, type_id);
             }
             else if (constdecl) error(errSyntax);
 

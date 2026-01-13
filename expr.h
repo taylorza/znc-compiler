@@ -15,6 +15,6 @@ typedef struct EXPR_RESULT {
 EXPR_RESULT parse_expr(uint8_t minprec) MYCC;
 EXPR_RESULT parse_expr_delayconst(uint8_t minprec) MYCC;
 
-void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, uint8_t type_id) MYCC;
+void parse_assign(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t type_id) MYCC;
 
 #endif // EXPR_H_

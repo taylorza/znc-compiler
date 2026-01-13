@@ -11,7 +11,7 @@ CFLAGS = -m -c -clib=sdcc_iy -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLO
 AFLAGS =
 LFLAGS = -m -startup=30 -clib=sdcc_iy -subtype=dotn -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLOCS) -pragma-include:zpragma.inc -create-app
 
-SOURCES = strtbl_stub.c sym_stub.c rtl_stub.c expr_stub.c type_stub.c shared.c struct_stub.c struct.c strtbl.c codegen.c compiler.c dataarea.c error.c expr.c type.c main.c rtl.c scanner.c sym.c util.c 
+SOURCES = strtbl_stub.c sym_stub.c rtl_stub.c expr_stub.c shared.c typedata.c struct_stub.c struct.c strtbl.c codegen.c compiler.c dataarea.c error.c expr.c type.c main.c rtl.c scanner.c sym.c util.c 
 
 OBJFILES = $(patsubst %.c,$(OUTPUT_DIR)/%.o,$(SOURCES))
 
@@ -55,8 +55,8 @@ $(OUTPUT_DIR)/expr.o: expr.c | $(OUTPUT_DIR)
 	@echo "Compiling BANK 43"
 	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_43 --codesegBANK_43 --constsegBANK_43 --bsssegBANK_43
 
-$(OUTPUT_DIR)/type.o: type.c | $(OUTPUT_DIR)
-	@echo "Compiling BANK 43"
+$(OUTPUT_DIR)/typedata.o: typedata.c | $(OUTPUT_DIR)
+	@echo "Compiling BANK 43 (type data)"
 	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_43 --codesegBANK_43 --constsegBANK_43 --bsssegBANK_43
 
 $(OUTPUT_DIR)/dataarea.o: dataarea.c | $(OUTPUT_DIR)

@@ -65,7 +65,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC;
 EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT ltyp, uint8_t prec) MYCC;
 EXPR_RESULT far_parse_expr(uint8_t minprec) MYCC;
 EXPR_RESULT far_parse_expr_delayconst(uint8_t minprec) MYCC;
-void far_parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, uint8_t type_id) MYCC;
+void far_parse_assign(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t type_id) MYCC;
 
 /* Helper: Get element type ID from pointer/array type */
 static uint8_t get_element_type_id_local(uint8_t ptr_or_array_type_id) MYCC {
@@ -499,34 +499,60 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             if (tok == tokLBrack) {
                 if (type_is_pointer(factor_result.type_id)) {
                     emit_ld_symval(&sym);
+                    emit_push();  /* Save base before parse_and_scale_index overwrites HL */
                     uint8_t elem_type_id = get_element_type_id_local(factor_result.type_id);
-                    emit_push();
-                    parse_and_scale_index(elem_type_id);
-                    emit_pop_de();
-                    emit_add16();
+                    EXPR_RESULT idx = parse_and_scale_index(elem_type_id);
+                    if (type_is_const(idx.type_id)) {
+                        /* Optimize: add constant offset directly */
+                        emit_pop_de();  /* Restore base */
+                        if (idx.value != 0) {
+                            emit_ldde_immed_n(idx.value);
+                            emit_add16();
+                        } else {
+                            emit_swap();  /* Base to HL */
+                        }
+                    } else {
+                        /* Variable index: HL has scaled index, DE has base */
+                        emit_pop_de();
+                        emit_add16();
+                    }
                 } else if (type_is_array(factor_result.type_id)) {
                     emit_ld_symaddr(&sym);
+                    emit_push();  /* Save base before parse_and_scale_index overwrites HL */
                     uint8_t elem_type_id = get_element_type_id_local(factor_result.type_id);
-                    factor_result.type_id = type_make_pointer(elem_type_id, 0);
-                    emit_push();
-                    parse_and_scale_index(elem_type_id);
-                    emit_pop_de();
-                    emit_add16();
+                    factor_result.type_id = type_make_pointer(elem_type_id, 1);
+                    EXPR_RESULT idx = parse_and_scale_index(elem_type_id);
+                    if (type_is_const(idx.type_id)) {
+                        /* Optimize: ld hl,_arr+offset */
+                        emit_pop_de();  /* Discard saved base */
+                        emit_ld_symaddr_offset(&sym, idx.value);
+                    } else {
+                        /* Variable index: HL has scaled index, DE will have base */
+                        emit_pop_de();
+                        emit_add16();
+                    }
                 } else if (sym.klass == FUNCTION) {
                     emit_ld_symaddr(&sym);
+                    emit_push();  /* Save base before parse_and_scale_index overwrites HL */
                     uint8_t elem_type_id = get_element_type_id_local(factor_result.type_id);
-                    factor_result.type_id = type_make_pointer(elem_type_id, 0);
-                    emit_push();
-                    parse_and_scale_index(elem_type_id);
-                    emit_pop_de();
-                    emit_add16();
+                    factor_result.type_id = type_make_pointer(elem_type_id, 1);
+                    EXPR_RESULT idx = parse_and_scale_index(elem_type_id);
+                    if (type_is_const(idx.type_id)) {
+                        /* Optimize: ld hl,_func+offset */
+                        emit_pop_de();  /* Discard saved base */
+                        emit_ld_symaddr_offset(&sym, idx.value);
+                    } else {
+                        /* Variable index: HL has scaled index, DE will have base */
+                        emit_pop_de();
+                        emit_add16();
+                    }
                 } else {
                     error(errSyntax);
                 }
             } else {
                 emit_ld_symaddr(&sym);
                 uint8_t elem_type_id = get_element_type_id_local(factor_result.type_id);
-                factor_result.type_id = type_make_pointer(elem_type_id, 0);
+                factor_result.type_id = type_make_pointer(elem_type_id, 1);
             }
             break;
 
@@ -544,7 +570,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                  * after parsing the right side, to avoid register corruption
                  */
                 uint8_t elem_type_id = get_element_type_id_local(factor_result.type_id);
-                SYMBOL *ptr_sym = factor_result.has_sym ? &factor_result.sym : NULL;
+                SYMBOL ptr_sym = factor_result.has_sym ? factor_result.sym : undefined_sym;
                 far_parse_assign(1, ptr_sym, 0, elem_type_id);
             } else {
                 /* For reading (not assignment), load the value */
@@ -602,6 +628,12 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 factor_result.type_id = ir.type_id;
                 dereference = ir.dereference;
                 addr_in_hl = ir.addr_in_hl;
+                /* If the helper emitted a direct load into HL (addr_in_hl == 0),
+                 * the value is already in HL so avoid emitting another load later.
+                 */
+                if (ir.addr_in_hl == 0) {
+                    loadval = 0;
+                }
             }
 
             if (!addr_in_hl) factor_result.type_id = sym.type_id;
@@ -644,6 +676,10 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                     factor_result.type_id = ir.type_id;
                     dereference = ir.dereference;
                     addr_in_hl = ir.addr_in_hl;
+                    /* Avoid emitting a separate load if compute_indexed_address already loaded the value */
+                    if (ir.addr_in_hl == 0) {
+                        loadval = 0;
+                    }
                 } else {
                     /* Simple member access: p.field */
                     if (!addr_in_hl) {
@@ -772,9 +808,9 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             if (tok == tokAssign) {
                 if (!initial_deref) {
                     if (had_addr_in_hl) {
-                        far_parse_assign(1, NULL, 0, factor_result.type_id);
+                        far_parse_assign(1, undefined_sym, 0, factor_result.type_id);
                     } else {
-                        far_parse_assign(dereference, &sym, 0, factor_result.type_id);
+                        far_parse_assign(dereference, sym, 0, factor_result.type_id);
                     }
                 }
             } else {
@@ -782,18 +818,22 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 if ((tok == tokInc || tok == tokDec) && !type_is_const(sym.type_id)) {
                     handle_incdec(0, &sym, factor_result.type_id, had_addr_in_hl);
                     loadval = 0;
+                    dereference = 0;  /* Result value is already in HL, not an address */
                 }
 
                 if (loadval) {
-                    if (is_func_or_proto(&sym)) {
-                        emit_ld_immed(); emit_sname(sym.name); emit_nl();
-                    } else if (type_is_struct(sym.type_id) && !type_is_pointer(sym.type_id)) {
-                        /* Structs are loaded as address, not value */
-                        emit_ld_symaddr(&sym);
-                    } else {
-                        /* Don't load value here if initial_deref - let caller handle it */
-                        if (!initial_deref) {
-                            emit_ld_symval(&sym);
+                    if (factor_result.has_sym) {
+                        if (is_func_or_proto(&factor_result.sym)) {
+                            emit_ld_immed(); emit_sname(factor_result.sym.name); emit_nl();
+                        } else if (type_is_struct(factor_result.sym.type_id) && !type_is_pointer(factor_result.sym.type_id)) {
+                            /* Structs are loaded as address, not value */
+                            emit_ld_symaddr(&factor_result.sym);
+                        } else {
+                            /* Don't load value here if initial_deref - let caller handle it */
+                            /* Also don't load if address is already in HL from array/member access */
+                            if (!initial_deref && !had_addr_in_hl) {
+                                emit_ld_symval(&factor_result.sym);
+                            }
                         }
                     }
                 }
@@ -814,14 +854,14 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
     return factor_result;
 }
 
-void far_parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, uint8_t type_id) MYCC {
+void far_parse_assign(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t type_id) MYCC {
     get_token(); // skip '='
 
-    if (sym && type_is_const(sym->type_id)) {
+    if (sym.klass != CLASS_UNDEFINED && type_is_const(sym.type_id)) {
         EXPR_RESULT r = far_parse_expr_delayconst(0);
         if (!type_is_const(r.type_id)) error_expect_const();
-        sym->offset = r.value;
-        updatesym(sym);
+        sym.offset = r.value;
+        updatesym(&sym);
         return;
     }
 
@@ -837,12 +877,12 @@ void far_parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, uint8_t
         uint16_t datalbl = newlbl();
         uint16_t datalen = NO_LABEL;
 
-        if (!sym && !dereference) error(errSyntax);
+        if (sym.klass == CLASS_UNDEFINED && !dereference) error(errSyntax);
         
         if (!dereference) {            
             emit_ld_immed(); emit_lblref(datalbl); emit_nl();
-            if (sym) {
-                emit_store_sym(sym);
+            if (sym.klass != CLASS_UNDEFINED) {
+                emit_store_sym(&sym);
             }
             else {
                 emit_store(type_id);
@@ -851,8 +891,8 @@ void far_parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, uint8_t
         else {     
             datalen = newlbl();
 
-            if (sym) {
-                emit_ld_symval(sym);                
+            if (sym.klass != CLASS_UNDEFINED) {
+                emit_ld_symval(&sym);                
             }
             /* else: HL already contains the pointer value from parse_factor (*p case) */
             if (indexed) {
@@ -925,9 +965,9 @@ void far_parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, uint8_t
              */
             emit_push();  /* Save source address on stack */
             
-            if (sym) {
+            if (sym.klass != CLASS_UNDEFINED) {
                 /* Load the pointer value (the address it points to) */
-                emit_ld_symval(sym);
+                emit_ld_symval(&sym);
             }
             /* else: HL already has dest address from parse_factor */
             
@@ -947,8 +987,8 @@ void far_parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, uint8_t
             /* Direct struct assignment: p1 = p2 */
             emit_push();  /* Save source address */
             
-            if (sym) {
-                emit_ld_symaddr(sym);
+            if (sym.klass != CLASS_UNDEFINED) {
+                emit_ld_symaddr(&sym);
             } else {
                 error(errNotlvalue);
                 return;
@@ -962,7 +1002,7 @@ void far_parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, uint8_t
         return;
     }
 
-    if (!sym) {
+    if (sym.klass == CLASS_UNDEFINED) {
         // HL contains address to write to
         emit_push();
         far_parse_expr(0);
@@ -971,7 +1011,7 @@ void far_parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, uint8_t
     }
     
     if (dereference) {
-        emit_ld_symval(sym);
+        emit_ld_symval(&sym);
         if (indexed) {
             emit_pop_de();
             emit_add16();
@@ -985,7 +1025,7 @@ void far_parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, uint8_t
         emit_store(type_id);
     }
     else {
-        emit_store_sym(sym);
+        emit_store_sym(&sym);
     }
 }
 
@@ -1168,5 +1208,11 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
             error(errSyntax);
             break;
     }
+    
+    /* After emitting runtime code, result is no longer const */
+    if (type_is_const(l_result.type_id)) {
+        l_result.type_id = TYPE_ID_INT;
+    }
+    
     return l_result;
 }

@@ -19,19 +19,6 @@ typedef struct TypeEntry {
     uint8_t aux1;            /* ARRAY→length (0=unspecified), others→unused */
 } TypeEntry;
 
-/* Macros for packing/unpacking kind_and_flags byte */
-#define TYPE_KIND_SHIFT      5
-#define TYPE_CONST_BIT       0x10
-#define TYPE_INDIR_MASK      0x0F
-
-#define TYPE_GET_KIND(entry)       ((TypeKind)(((entry)->kind_and_flags >> TYPE_KIND_SHIFT) & 0x07))
-#define TYPE_GET_INDIR(entry)      ((entry)->kind_and_flags & TYPE_INDIR_MASK)
-#define TYPE_IS_CONST(entry)       ((entry)->kind_and_flags & TYPE_CONST_BIT)
-
-#define TYPE_SET_KIND(kaf, kind)   ((kaf) = ((kaf) & ~(0x07 << TYPE_KIND_SHIFT)) | (((uint8_t)(kind) & 0x07) << TYPE_KIND_SHIFT))
-#define TYPE_SET_CONST(kaf)        ((kaf) |= TYPE_CONST_BIT)
-#define TYPE_SET_INDIR(kaf, ind)   ((kaf) = ((kaf) & ~TYPE_INDIR_MASK) | ((uint8_t)(ind) & TYPE_INDIR_MASK))
-
 /* Type table - max 255 entries (uint8_t limit) */
 #define MAX_TYPES 255
 
@@ -48,7 +35,7 @@ uint8_t type_make_function(uint8_t signature_id) MYCC;
 uint8_t type_make_array(uint8_t element_type_id, uint8_t length) MYCC;
 
 /* Type queries - by type_id */
-const TypeEntry* type_get(uint8_t type_id) MYCC;
+const TypeEntry type_get(uint8_t type_id) MYCC;
 TypeKind type_get_kind(uint8_t type_id) MYCC;
 uint8_t type_get_indirection(uint8_t type_id) MYCC;
 uint8_t type_is_pointer(uint8_t type_id) MYCC;
