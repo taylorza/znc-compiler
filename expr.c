@@ -67,10 +67,6 @@ EXPR_RESULT far_parse_expr(uint8_t minprec) MYCC;
 EXPR_RESULT far_parse_expr_delayconst(uint8_t minprec) MYCC;
 void far_parse_assign(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t type_id) MYCC;
 
-/* Helper: Get element type ID from pointer/array type */
-static uint8_t get_element_type_id_local(uint8_t ptr_or_array_type_id) MYCC {
-    return type_get_element_type_id(ptr_or_array_type_id);
-}
 
 /* Helper: Emit scaling of value in HL or DE by given scale factor */
 static void emit_scale_reg(uint16_t scale, uint8_t is_hl) MYCC {
@@ -169,7 +165,7 @@ typedef struct {
 
 static INDEXED_RESULT compute_indexed_address(SYMBOL *sym, uint16_t base_offset, TOKEN next_tok) MYCC {
     INDEXED_RESULT result;
-    uint8_t elemtype_id = get_element_type_id_local(sym->type_id);
+    uint8_t elemtype_id = type_get_element_type_id(sym->type_id);
     EXPR_RESULT idx = parse_and_scale_index(elemtype_id);
     
     if (type_is_const(idx.type_id)) {
@@ -222,7 +218,7 @@ static uint8_t handle_incdec_internal(uint8_t is_prefix, SYMBOL *sym, uint8_t lv
     /* Compute step size */
     uint16_t step;
     if (type_is_pointer(lvalue_type_id) || type_is_array(lvalue_type_id)) {
-        uint8_t elem_id = get_element_type_id_local(lvalue_type_id);
+        uint8_t elem_id = type_get_element_type_id(lvalue_type_id);
         step = type_size(elem_id);
     } else {
         step = 1;
@@ -415,7 +411,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 expect_RParen();
                 
                 /* Get element type */
-                uint8_t elem_type_id = get_element_type_id_local(ptr_result.type_id);
+                uint8_t elem_type_id = type_get_element_type_id(ptr_result.type_id);
                 
                 /* Check for postfix ++ or -- */
                 if (tok == tokInc || tok == tokDec) {
@@ -509,7 +505,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 if (type_is_pointer(factor_result.type_id)) {
                     emit_ld_symval(&sym);
                     emit_push();  /* Save base before parse_and_scale_index overwrites HL */
-                    uint8_t elem_type_id = get_element_type_id_local(factor_result.type_id);
+                    uint8_t elem_type_id = type_get_element_type_id(factor_result.type_id);
                     EXPR_RESULT idx = parse_and_scale_index(elem_type_id);
                     if (type_is_const(idx.type_id)) {
                         /* Optimize: add constant offset directly */
@@ -528,7 +524,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 } else if (type_is_array(factor_result.type_id)) {
                     emit_ld_symaddr(&sym);
                     emit_push();  /* Save base before parse_and_scale_index overwrites HL */
-                    uint8_t elem_type_id = get_element_type_id_local(factor_result.type_id);
+                    uint8_t elem_type_id = type_get_element_type_id(factor_result.type_id);
                     factor_result.type_id = type_make_pointer(elem_type_id, 1);
                     EXPR_RESULT idx = parse_and_scale_index(elem_type_id);
                     if (type_is_const(idx.type_id)) {
@@ -543,7 +539,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 } else if (sym.klass == FUNCTION) {
                     emit_ld_symaddr(&sym);
                     emit_push();  /* Save base before parse_and_scale_index overwrites HL */
-                    uint8_t elem_type_id = get_element_type_id_local(factor_result.type_id);
+                    uint8_t elem_type_id = type_get_element_type_id(factor_result.type_id);
                     factor_result.type_id = type_make_pointer(elem_type_id, 1);
                     EXPR_RESULT idx = parse_and_scale_index(elem_type_id);
                     if (type_is_const(idx.type_id)) {
@@ -560,7 +556,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 }
             } else {
                 emit_ld_symaddr(&sym);
-                uint8_t elem_type_id = get_element_type_id_local(factor_result.type_id);
+                uint8_t elem_type_id = type_get_element_type_id(factor_result.type_id);
                 factor_result.type_id = type_make_pointer(elem_type_id, 1);
             }
             break;
@@ -578,7 +574,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                  * Do NOT load the pointer value here - let far_parse_assign handle it
                  * after parsing the right side, to avoid register corruption
                  */
-                uint8_t elem_type_id = get_element_type_id_local(factor_result.type_id);
+                uint8_t elem_type_id = type_get_element_type_id(factor_result.type_id);
                 SYMBOL ptr_sym = factor_result.has_sym ? factor_result.sym : undefined_sym;
                 far_parse_assign(1, ptr_sym, 0, elem_type_id);
             } else {
@@ -772,7 +768,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                     }
                     
                     /* HL contains the array/pointer from function return */
-                    uint8_t elemtype_id = get_element_type_id_local(factor_result.type_id);
+                    uint8_t elemtype_id = type_get_element_type_id(factor_result.type_id);
                     
                     /* Parse and scale the index */
                     get_token(); // skip '['
@@ -1070,11 +1066,11 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
 
     /* Compute pointer arithmetic scaling */
     if ((type_is_pointer(l_result.type_id) || type_is_array(l_result.type_id)) && type_get_kind(r_result.type_id) == TK_INT) {
-        uint8_t elem_id = get_element_type_id_local(l_result.type_id);
+        uint8_t elem_id = type_get_element_type_id(l_result.type_id);
         scaleR = type_size(elem_id);
     }
     if ((type_is_pointer(r_result.type_id) || type_is_array(r_result.type_id)) && type_get_kind(l_result.type_id) == TK_INT) {
-        uint8_t elem_id = get_element_type_id_local(r_result.type_id);
+        uint8_t elem_id = type_get_element_type_id(r_result.type_id);
         scaleL = type_size(elem_id);
     }
 
