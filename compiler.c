@@ -715,7 +715,7 @@ static void clean_stack(int16_t bytes) MYCC {
     }
 }
 
-void parse_funccall(SYMBOL* sym) MYCC {
+void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
     get_token(); // skip '('
     uint8_t argcount = 0;
     while (tok != tokRParen) {
@@ -736,7 +736,7 @@ void parse_funccall(SYMBOL* sym) MYCC {
     if (is_func_or_proto(sym) && argcount != sym->offset) error(errArgMismatch);
     expect_RParen();
 
-    emit_callsym(sym);
+    emit_callsym(sym, ptr_in_hl);
     clean_stack(sym->offset * 2);
 }
 

@@ -57,7 +57,7 @@ void emit_sub16(void) MYCC;
 
 void emit_rtl(const char* name) MYCC;
 void emit_call(const char *name) MYCC;
-void emit_callsym(SYMBOL* sym) MYCC;
+void emit_callsym(SYMBOL* sym, uint8_t ptr_in_hl) MYCC;
 void emit_ret(void) MYCC;
 void emit_jp(uint16_t lbl) MYCC;
 void emit_jp_true(uint16_t lbl) MYCC;

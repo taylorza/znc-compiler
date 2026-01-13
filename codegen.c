@@ -348,18 +348,20 @@ void emit_call(const char *name) MYCC {
     emit_instrln("call %s", name);    
 }
 
-void emit_callsym(SYMBOL* sym) MYCC {
+void emit_callsym(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
     if (is_func_or_proto(sym)) {
         emit_instr("call ");
         emit_sname(sym->name);
         emit_nl();
     } else {
-        uint16_t retlbl = newlbl(); 
-        emit_ld_symval(sym);
+        uint16_t retlbl = newlbl();
+        /* Only load the symbol value if it's not already in HL */
+        if (!ptr_in_hl) {
+            emit_ld_symval(sym);
+        }
         emit_instrln("ld bc,lbl%d", retlbl);
         emit_instrln("push bc");
-        emit_push();
-        emit_ret();
+        emit_instrln("jp (hl)");
         emit_lbl(retlbl);
     }
 }

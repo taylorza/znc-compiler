@@ -288,6 +288,9 @@ EXPR_RESULT far_parse_expr(uint8_t minprec) MYCC {
     
     if (type_is_const(expr_result.type_id)) {
         emit_ld_const(expr_result.value);
+    } else if (expr_result.has_sym && is_func_or_proto(&expr_result.sym)) {
+        /* Function address: emit symbol load */
+        emit_ld_immed(); emit_sname(expr_result.sym.name); emit_nl();
     }
 
     return expr_result;
@@ -650,6 +653,15 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 return factor_result;
             }
 
+            /* For function symbols used as addresses (not called), return early like constants
+             * to avoid emitting load instructions. The caller can check has_sym and is_func_or_proto
+             * to emit the symbol reference directly (e.g., for initializers).
+             */
+            if (is_func_or_proto(&sym) && tok != tokLParen) {
+                factor_result.value = 0;  /* Functions don't have a numeric value */
+                return factor_result;
+            }
+
             /* Handle member access */
             while (tok == tokMember) {
                 factor_result.has_sym = 0;
@@ -712,10 +724,15 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
 
             if (tok == tokLParen) {
                 factor_result.has_sym = 0;
-                parse_funccall(&sym);
+                /* When calling through an indexed array element, addr_in_hl indicates
+                 * the function pointer is already loaded in HL.
+                 * Pass this to parse_funccall so it doesn't reload the symbol.
+                 */
+                parse_funccall(&sym, addr_in_hl);
                 /* Update result type to be the function's return type */
                 factor_result.type_id = sym.type_id;
                 loadval = 0;
+                dereference = 0;
                 
                 /* Handle member access on function return value (e.g., func().member) */
                 while (tok == tokMember) {
@@ -920,12 +937,16 @@ void far_parse_assign(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t 
         
         while (tok != tokRBrace && tok != tokEOS) {
             EXPR_RESULT element = far_parse_expr_delayconst(0);
-            if (!type_is_const(element.type_id)) error_expect_const();
+            uint8_t is_func = element.has_sym && is_func_or_proto(&element.sym);
+            if (!type_is_const(element.type_id) && !is_func) error_expect_const();
 
             ++elementcount;
             if (counter++ > 0) emit_ch(','); else emit_instr(bt == TK_INT ? "dw " : "db ");
 
-            if (bt == TK_INT) {
+            if (is_func) {
+                /* Function address: emit symbol reference */
+                emit_sname(element.sym.name);
+            } else if (bt == TK_INT) {
                 emit_n(element.value);
             } else {
                 emit_n(element.value & 0xff);

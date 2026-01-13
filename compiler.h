@@ -10,6 +10,6 @@ extern uint16_t localbytes;
 
 void compile(const char *filename, const char *asmfilename) MYCC;
 
-void parse_funccall(SYMBOL* sym) MYCC;
+void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC;
 
 #endif //COMPILER_H_
