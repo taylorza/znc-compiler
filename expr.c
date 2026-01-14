@@ -132,8 +132,18 @@ static void emit_sym_address_with_offset(SYMBOL *sym, uint16_t offset) MYCC {
             }
         }
     } else {
-        /* Use emit_ld_symaddr_offset which handles local variable offset folding */
-        emit_ld_symaddr_offset(sym, offset);
+        /* For local arrays/structs, members/elements are at LOWER addresses (stack grows down)
+         * For global arrays/structs, members/elements are at HIGHER addresses
+         * Adjust offset sign based on scope, then use emit_ld_symaddr_offset for optimization */
+        if (sym->scope == LOCAL && offset && (type_is_array(sym->type_id) || type_is_struct(sym->type_id))) {
+            /* Local struct/array: members are at lower addresses, so negate the offset */
+            int16_t adjusted_offset = -(int16_t)offset;
+            /* emit_ld_symaddr_offset expects uint16_t, cast the negative value */
+            emit_ld_symaddr_offset(sym, (uint16_t)adjusted_offset);
+        } else {
+            /* Global or pointer: normal positive offset */
+            emit_ld_symaddr_offset(sym, offset);
+        }
     }
 }
 
@@ -805,6 +815,9 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
         
         /* Handle member access: expr.member */
         if (tok == tokMember) {
+            SYMBOL base_sym = factor_result.has_sym ? factor_result.sym : undefined_sym;
+            uint8_t had_sym = factor_result.has_sym;
+            
             factor_result.has_sym = 0;
             get_token();
             
@@ -831,17 +844,34 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             uint16_t offset = fi.offset;
             get_token();
 
-            /* Compute address of member */
+            /* Load struct address if needed */
             if (!addr_in_hl) {
-                /* Need to load the struct address first */
-                error(errSyntax);  /* Should not happen - member access needs an address */
-                return factor_result;
-            }
-            
-            /* HL contains the struct address */
-            if (offset) {
-                emit_ldde_immed(); emit_n(offset); emit_nl();
-                emit_add16();
+                if (had_sym) {
+                    if (type_is_pointer(factor_result.type_id)) {
+                        /* Pointer to struct: load pointer value then add offset */
+                        emit_ld_symval(&base_sym);
+                        addr_in_hl = 1;
+                        /* Add offset after loading pointer */
+                        if (offset) {
+                            emit_ldde_immed(); emit_n(offset); emit_nl();
+                            emit_add16();
+                        }
+                    } else {
+                        /* Direct struct variable: compute address with member offset
+                         * emit_sym_address_with_offset handles local/global correctly */
+                        emit_sym_address_with_offset(&base_sym, offset);
+                        addr_in_hl = 1;
+                    }
+                } else {
+                    error(errSyntax);
+                    return factor_result;
+                }
+            } else {
+                /* HL already contains the struct address - just add offset if needed */
+                if (offset) {
+                    emit_ldde_immed(); emit_n(offset); emit_nl();
+                    emit_add16();
+                }
             }
             
             factor_result.type_id = fi.type_id;
@@ -893,8 +923,10 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
         } else {
             error(errNotlvalue);
         }
-        /* After assignment, clear has_sym to prevent unnecessary reload */
+        /* After assignment, clear flags to prevent unnecessary reload */
         factor_result.has_sym = 0;
+        addr_in_hl = 0;
+        dereference = 0;
     }
     
     /* After postfix operators, load value if needed */
