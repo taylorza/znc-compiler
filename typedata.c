@@ -89,6 +89,7 @@ uint8_t signature_intern(uint8_t return_type_id, uint8_t arg_count, const uint8_
 uint8_t types_are_compatible(uint8_t type_id1, uint8_t type_id2) MYCC {
     TypeEntry t1, t2;
     uint8_t indir1, indir2;
+    uint8_t kind1, kind2;
     
     /* Same type ID is always compatible */
     if (type_id1 == type_id2) {
@@ -107,13 +108,20 @@ uint8_t types_are_compatible(uint8_t type_id1, uint8_t type_id2) MYCC {
     t1 = type_table[type_id1];
     t2 = type_table[type_id2];
     
-    /* Extract indirection level */
+    /* Extract indirection level and kind */
     indir1 = t1.kind_and_flags & 0x0F;
     indir2 = t2.kind_and_flags & 0x0F;
+    kind1 = (t1.kind_and_flags >> 5) & 0x07;
+    kind2 = (t2.kind_and_flags >> 5) & 0x07;
     
-    /* Pointers, arrays, structs must be exact matches */
-    if (indir1 > 0 || indir2 > 0) {
-        /* At least one is pointer/array - must match exactly */
+    /* Allow void* to be compatible with any pointer type */
+    if (indir1 > 0 && indir2 > 0) {
+        /* Both are pointers */
+        if (kind1 == TK_VOID || kind2 == TK_VOID) {
+            /* One is void* - compatible with any pointer */
+            return 1;
+        }
+        /* Non-void pointers must match exactly */
         if (t1.kind_and_flags != t2.kind_and_flags) {
             return 0;
         }
@@ -124,33 +132,38 @@ uint8_t types_are_compatible(uint8_t type_id1, uint8_t type_id2) MYCC {
             return 0;
         }
         return 1;
+    }
+    
+    /* Allow integers to be assigned to pointers (e.g., p = 1234) */
+    if ((indir1 > 0 && indir2 == 0) || (indir2 > 0 && indir1 == 0)) {
+        /* One is a pointer, one is not */
+        uint8_t scalar_kind = (indir1 > 0) ? kind2 : kind1;
+        /* Allow if the non-pointer is a scalar (char or int) */
+        if (scalar_kind == TK_CHAR || scalar_kind == TK_INT) {
+            return 1;
+        }
+        return 0;
     }
     
     /* Both are non-pointer types */
-    /* Extract base kind (bits 7-5) */
-    {
-        uint8_t kind1 = (t1.kind_and_flags >> 5) & 0x07;
-        uint8_t kind2 = (t2.kind_and_flags >> 5) & 0x07;
-        
-        /* For scalars (char/int), allow compatibility between them */
-        if ((kind1 == 0 || kind1 == 1) && (kind2 == 0 || kind2 == 1)) {
-            /* TK_CHAR (0) and TK_INT (1) are compatible */
-            return 1;
-        }
-        
-        /* Structs and other types must be exact matches */
-        if (t1.kind_and_flags != t2.kind_and_flags) {
-            return 0;
-        }
-        if (t1.aux0 != t2.aux0) {
-            return 0;
-        }
-        if (t1.aux1 != t2.aux1) {
-            return 0;
-        }
-        
+    /* For scalars (char/int), allow compatibility between them */
+    if ((kind1 == TK_CHAR || kind1 == TK_INT) && (kind2 == TK_CHAR || kind2 == TK_INT)) {
+        /* TK_CHAR and TK_INT are compatible */
         return 1;
     }
+    
+    /* Structs and other types must be exact matches */
+    if (t1.kind_and_flags != t2.kind_and_flags) {
+        return 0;
+    }
+    if (t1.aux0 != t2.aux0) {
+        return 0;
+    }
+    if (t1.aux1 != t2.aux1) {
+        return 0;
+    }
+    
+    return 1;
 }
 
 

@@ -718,9 +718,16 @@ static void clean_stack(int16_t bytes) MYCC {
 void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
     get_token(); // skip '('
     uint8_t argcount = 0;
-    uint8_t call_arg_types[MAX_FUNC_ARGS];  // Track argument types
+    uint8_t expected_count = is_func_or_proto(sym) ? sym->offset : 0xFF;
+    uint8_t sig_id = (is_func_or_proto(sym) && sym->signature_id != 0xFF) ? sym->signature_id : 0xFF;
     
     while (tok != tokRParen) {
+        /* Check argument count inline */
+        if (expected_count != 0xFF && argcount >= expected_count) {
+            error(errArgMismatch);
+            break;
+        }
+        
         /* Parse the argument expression */
         EXPR_RESULT arg_result = parse_expr(0);
         
@@ -729,9 +736,15 @@ void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
             error(errTypeError);
         }
         
-        /* Store argument type */
-        if (argcount < MAX_FUNC_ARGS) {
-            call_arg_types[argcount] = arg_result.type_id;
+        /* Check argument type inline if signature available */
+        if (sig_id != 0xFF && argcount < MAX_FUNC_ARGS) {
+            uint8_t expected_type = signature_get_arg_type(sig_id, argcount);
+            uint8_t actual_type = arg_result.type_id;
+            
+            /* Use type compatibility checker */
+            if (!type_check_compatible(expected_type, actual_type)) {
+                error(errTypeError);
+            }
         }
         
         emit_push();
@@ -741,43 +754,9 @@ void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
         get_token(); // skip ','
     }
     
-    /* Check argument count */
-    if (is_func_or_proto(sym) && argcount != sym->offset) {
+    /* Final argument count check */
+    if (expected_count != 0xFF && argcount != expected_count) {
         error(errArgMismatch);
-    }
-    
-    /* Check argument types if function has signature */
-    if (is_func_or_proto(sym) && sym->signature_id != 0xFF) {
-        uint8_t sig_arg_count = signature_get_arg_count(sym->signature_id);
-        
-        if (argcount == sig_arg_count) {
-            for (uint8_t i = 0; i < argcount && i < MAX_FUNC_ARGS; i++) {
-                uint8_t expected_type = signature_get_arg_type(sym->signature_id, i);
-                uint8_t actual_type = call_arg_types[i];
-                
-                /* Allow implicit conversions */
-                if (expected_type != actual_type) {
-                    /* Allow pointer to pointer conversions */
-                    if (type_is_pointer(expected_type) && type_is_pointer(actual_type)) {
-                        continue;
-                    }
-                    
-                    /* Allow char/int implicit conversions */
-                    if (!type_is_pointer(expected_type) && !type_is_pointer(actual_type)) {
-                        TypeKind expected_kind = type_get_kind(expected_type);
-                        TypeKind actual_kind = type_get_kind(actual_type);
-                        if ((expected_kind == TK_CHAR || expected_kind == TK_INT) &&
-                            (actual_kind == TK_CHAR || actual_kind == TK_INT)) {
-                            continue;
-                        }
-                    }
-                    
-                    /* Type mismatch */
-                    error(errTypeError);
-                    break;
-                }
-            }
-        }
     }
     
     expect_RParen();

@@ -356,6 +356,9 @@ EXPR_RESULT parse_ternary(EXPR_RESULT expr_result, uint8_t prec) MYCC {
     } else {
         expr_result.type_id = ptyp.type_id;
     }
+    
+    /* Ternary result is computed, not a direct symbol reference */
+    expr_result.has_sym = 0;
 
     return expr_result;
 }
@@ -416,8 +419,8 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
         case tokLParen:
             get_token(); // skip '('
             
-            /* Check for prefix ++(*ptr) or --(*ptr) OR postfix (*ptr)++ or (*ptr)-- patterns */
-            if (tok == tokStar) {
+            /* Check for prefix ++(*ptr) or --(*ptr) patterns only if we have prefix operators */
+            if (tok == tokStar && (prefix_inc || prefix_dec)) {
                 get_token(); // skip '*'
                 
                 /* Parse the pointer expression - this will load the pointer into HL */
@@ -427,36 +430,39 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 /* Get element type */
                 uint8_t elem_type_id = type_get_element_type_id(ptr_result.type_id);
                 
-                /* Check for postfix ++ or -- */
-                if (tok == tokInc || tok == tokDec) {
-                    /* This is (*ptr)++ or (*ptr)-- (postfix) */
-                    /* HL already contains the pointer value (address) from parse_factor */
-                    handle_incdec(0, NULL, elem_type_id, 1);
-                    factor_result.type_id = elem_type_id;
-                    break;
-                } else if (prefix_inc || prefix_dec) {
-                    /* This is ++(*ptr) or --(*ptr) (prefix) */
-                    /* The prefix tokens were already consumed before the switch */
-                    /* HL already contains the pointer value (address) */
-                    TOKEN op = prefix_inc ? tokInc : tokDec;
-                    handle_incdec_internal(1, NULL, elem_type_id, 1, op);
-                    factor_result.type_id = elem_type_id;
-                    /* Clear the flags so they don't get processed again */
-                    prefix_inc = 0;
-                    prefix_dec = 0;
-                    break;
-                } else {
-                    /* Not an inc/dec, so just dereference normally */
-                    /* HL already contains pointer from parse_factor, just load the value */
-                    emit_load(elem_type_id);
-                    factor_result.type_id = elem_type_id;
-                    break;
-                }
+                /* This is ++(*ptr) or --(*ptr) (prefix) */
+                TOKEN op = prefix_inc ? tokInc : tokDec;
+                handle_incdec_internal(1, NULL, elem_type_id, 1, op);
+                factor_result.type_id = elem_type_id;
+                /* Clear the flags so they don't get processed again */
+                prefix_inc = 0;
+                prefix_dec = 0;
+                break;
+            }
+            
+            /* Check for (*...) dereference pattern that might be followed by postfix ++ or -- */
+            if (tok == tokStar) {
+                get_token(); // skip '*'
+                
+                /* Parse the pointer expression */
+                EXPR_RESULT ptr_result = parse_factor(0);
+                expect_RParen();
+                
+                /* Get element type */
+                uint8_t elem_type_id = type_get_element_type_id(ptr_result.type_id);
+                factor_result.type_id = elem_type_id;
+                
+                /* Don't load the value yet - leave address in HL for potential postfix operator */
+                /* The postfix loop will handle ++ or --, or the normal path will load if needed */
+                addr_in_hl = 1;
+                dereference = 1;
+                break;
             }
             
             /* Normal parenthesized expression */
             factor_result = far_parse_expr_delayconst(0);
             expect_RParen();
+            
             break;
 
         case tokIn:
@@ -602,6 +608,8 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 if (!type_is_struct(factor_result.type_id)) {
                     emit_load(factor_result.type_id);
                 }
+                /* After dereferencing, result is no longer the original symbol */
+                factor_result.has_sym = 0;
             }
             break;
 
@@ -723,10 +731,15 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             if (tok == tokLParen) {
                 factor_result.has_sym = 0;
                 /* When calling through an indexed array element, addr_in_hl indicates
-                 * the function pointer is already loaded in HL.
-                 * Pass this to parse_funccall so it doesn't reload the symbol.
+                 * the address is in HL and needs to be dereferenced to get the function pointer.
                  */
-                parse_funccall(&sym, addr_in_hl);
+                if (addr_in_hl && dereference) {
+                    emit_load(factor_result.type_id);
+                    addr_in_hl = 0;
+                    dereference = 0;
+                }
+                /* Now HL contains the function pointer value, pass true to indicate no reload needed */
+                parse_funccall(&sym, 1);
                 /* Function return value is in HL - get the return type from signature */
                 if (type_is_function(sym.type_id)) {
                     uint8_t sig_id = type_get_function_sig(sym.type_id);
@@ -837,41 +850,70 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                         far_parse_assign(dereference, sym, 0, factor_result.type_id);
                     }
                 }
-            } else {
-                /* Handle postfix ++/-- */
-                if ((tok == tokInc || tok == tokDec) && !type_is_const(sym.type_id)) {
-                    handle_incdec(0, &sym, factor_result.type_id, had_addr_in_hl);
-                    addr_in_hl = 0;  /* Result value is already in HL, not an address */
-                    dereference = 0;
-                    factor_result.has_sym = 0;  /* Prevent unnecessary reload for standalone statement */
-                }
-
-                /* Load value if needed */
-                uint8_t need_load = (addr_in_hl == 0) && factor_result.has_sym;
-                if (need_load) {
-                    if (is_func_or_proto(&factor_result.sym)) {
-                        emit_ld_immed(); emit_sname(factor_result.sym.name); emit_nl();
-                    } else if (type_is_struct(factor_result.sym.type_id) && !type_is_pointer(factor_result.sym.type_id)) {
-                        /* Structs are loaded as address, not value */
-                        emit_ld_symaddr(&factor_result.sym);
-                    } else {
-                        /* Don't load value here if initial_deref - let caller handle it */
-                        if (!initial_deref && !had_addr_in_hl) {
-                            emit_ld_symval(&factor_result.sym);
-                        }
-                    }
-                }
-
-                /* Only emit_load if not in initial dereference mode - caller will handle it */
-                if (dereference && !initial_deref) {
-                    emit_load(factor_result.type_id);
-                }
+                /* After assignment, clear has_sym to prevent unnecessary reload */
+                factor_result.has_sym = 0;
             }
+            /* Note: Don't load values here - let the postfix loop or final load handle it */
             break;
         default:
             error(errSyntax);
             break;
     }
+    
+    /* Postfix operators loop - handles ++, -- for any lvalue expression */
+    while (tok == tokInc || tok == tokDec) {
+        /* For postfix increment/decrement, we need an lvalue.
+         * This can be:
+         * 1. A symbol (factor_result.has_sym is set)
+         * 2. An address already in HL (addr_in_hl is set, e.g., from array indexing or member access)
+         * 3. A dereferenced pointer from a parenthesized expression like (*ptr)
+         */
+        
+        /* For (*ptr)++, the parenthesized expression leaves us with:
+         * - The pointer value already loaded in HL (from the dereference)
+         * - addr_in_hl = 0 (because the parens case doesn't set it)
+         * - factor_result.has_sym = 0
+         * - But we DO have an lvalue at the address in HL!
+         * 
+         * The issue is distinguishing (*ptr)++ from something like (x + y)++
+         * We need to track whether the expression result is an lvalue.
+         */
+        
+        if (factor_result.has_sym || addr_in_hl) {
+            /* We have a clear lvalue */
+            handle_incdec(0, factor_result.has_sym ? &factor_result.sym : NULL, 
+                         factor_result.type_id, addr_in_hl);
+            addr_in_hl = 0;  /* Result value is in HL */
+            dereference = 0;
+            factor_result.has_sym = 0;
+        } else {
+            /* No lvalue available - this is an error */
+            error(errNotlvalue);
+            break;
+        }
+    }
+    
+    /* After postfix operators, load value if needed */
+    /* Load symbol values if we haven't loaded them yet */
+    if (factor_result.has_sym && !initial_deref && !addr_in_hl) {
+        if (is_func_or_proto(&factor_result.sym)) {
+            emit_ld_immed(); emit_sname(factor_result.sym.name); emit_nl();
+        } else if (type_is_struct(factor_result.sym.type_id) && !type_is_pointer(factor_result.sym.type_id)) {
+            /* Structs are loaded as address, not value */
+            emit_ld_symaddr(&factor_result.sym);
+        } else {
+            emit_ld_symval(&factor_result.sym);
+        }
+        addr_in_hl = 0;
+    }
+    
+    /* If we have an address in HL that needs dereferencing, load it */
+    if (addr_in_hl && dereference && !initial_deref) {
+        emit_load(factor_result.type_id);
+        addr_in_hl = 0;
+        dereference = 0;
+    }
+    
     if (neg) emit_neg();
     if (not) emit_rtl("ccnot");
     if (cmpl) emit_rtl("cccom");
@@ -1237,10 +1279,11 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
             break;
     }
     
-    /* After emitting runtime code, result is no longer const */
+    /* After emitting runtime code, result is no longer const or a simple symbol */
     if (type_is_const(l_result.type_id)) {
         l_result.type_id = TYPE_ID_INT;
     }
+    l_result.has_sym = 0;  /* Result is computed, not a direct symbol reference */
     
     return l_result;
 }
