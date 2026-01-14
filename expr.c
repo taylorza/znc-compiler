@@ -644,19 +644,8 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
 
             factor_result.sym = sym;
             factor_result.has_sym = 1;
-
-            /* Handle immediate indexing on identifier */
-            if (tok == tokLBrack) {
-                factor_result.has_sym = 0;
-                if (!type_is_pointer(sym.type_id) && !type_is_array(sym.type_id)) error(errSyntax);
-                
-                INDEXED_RESULT ir = compute_indexed_address(&sym, 0, tok);
-                factor_result.type_id = ir.type_id;
-                dereference = ir.dereference;
-                addr_in_hl = ir.addr_in_hl;
-            }
-
-            if (!addr_in_hl) factor_result.type_id = sym.type_id;
+            factor_result.type_id = sym.type_id;
+            
             if (type_is_const(sym.type_id)) {
                 factor_result.value = sym.offset;
                 if (neg) factor_result.value = -factor_result.value;
@@ -669,228 +658,243 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
              * to avoid emitting load instructions. The caller can check has_sym and is_func_or_proto
              * to emit the symbol reference directly (e.g., for initializers).
              */
-            if (is_func_or_proto(&sym) && tok != tokLParen) {
+            if (is_func_or_proto(&sym) && tok != tokLParen && tok != tokLBrack) {
                 factor_result.value = 0;  /* Functions don't have a numeric value */
                 return factor_result;
             }
-
-            /* Handle member access */
-            while (tok == tokMember) {
-                factor_result.has_sym = 0;
-                get_token();
-                
-                uint8_t check_type_id = factor_result.type_id;
-                if (type_is_pointer(check_type_id)) {
-                    check_type_id = type_get_element_type_id(check_type_id);
-                }
-                if (!type_is_struct(check_type_id)) {
-                    error(errSyntax);
-                    return factor_result;
-                }
-                if (tok != tokIdent) { error(errSyntax); return factor_result; }
-                
-                char fname[MAX_IDENT_LEN+1];
-                strncpy(fname, token, MAX_IDENT_LEN);
-                int sid = (int)type_get_struct_id(check_type_id) - 1;
-                int fid = find_struct_field(sid, fname);
-                if (fid < 0) error(errNotDefined_s, fname);
-
-                FIELDINFO fi = get_struct_field(sid, fid);
-                uint16_t offset = fi.offset;
-                get_token();
-
-                if (tok == tokLBrack) {
-                    /* Member array indexing: p.field[i] */
-                    INDEXED_RESULT ir = compute_indexed_address(&sym, offset, tok);
-                    factor_result.type_id = ir.type_id;
-                    dereference = ir.dereference;
-                    addr_in_hl = ir.addr_in_hl;
-                } else {
-                    /* Simple member access: p.field */
-                    if (!addr_in_hl) {
-                        emit_sym_address_with_offset(&sym, offset);
-                    } else {
-                        if (offset) {
-                            emit_ldde_immed(); emit_n(offset); emit_nl();
-                            emit_add16();
-                        }
-                    }
-
-                    factor_result.type_id = fi.type_id;
-                    if (type_is_array(factor_result.type_id)) {
-                        uint8_t elem_id = type_get_element_type_id(factor_result.type_id);
-                        factor_result.type_id = type_make_pointer(elem_id, 0);
-                        dereference = 0;
-                    } else {
-                        dereference = 1;
-                    }
-                    addr_in_hl = 1;
-                }
-            }
-
-            if (tok == tokLParen) {
-                factor_result.has_sym = 0;
-                /* When calling through an indexed array element, addr_in_hl indicates
-                 * the address is in HL and needs to be dereferenced to get the function pointer.
-                 */
-                if (addr_in_hl && dereference) {
-                    emit_load(factor_result.type_id);
-                    addr_in_hl = 0;
-                    dereference = 0;
-                }
-                /* Now HL contains the function pointer value, pass true to indicate no reload needed */
-                parse_funccall(&sym, 1);
-                /* Function return value is in HL - get the return type from signature */
-                if (type_is_function(sym.type_id)) {
-                    uint8_t sig_id = type_get_function_sig(sym.type_id);
-                    factor_result.type_id = signature_get_return_type(sig_id);
-                } else {
-                    factor_result.type_id = TYPE_ID_VOID;
-                }
-                addr_in_hl = 0;
-                dereference = 0;
-                
-                /* Handle member access on function return value (e.g., func().member) */
-                while (tok == tokMember) {
-                    get_token();
-                    
-                    uint8_t check_type_id = factor_result.type_id;
-                    if (type_is_pointer(check_type_id)) {
-                        check_type_id = type_get_element_type_id(check_type_id);
-                    }
-                    if (!type_is_struct(check_type_id)) {
-                        error(errSyntax);
-                        return factor_result;
-                    }
-                    if (tok != tokIdent) { error(errSyntax); return factor_result; }
-                    
-                    char fname[MAX_IDENT_LEN+1];
-                    strncpy(fname, token, MAX_IDENT_LEN);
-                    int sid = (int)type_get_struct_id(check_type_id) - 1;
-                    int fid = find_struct_field(sid, fname);
-                    if (fid < 0) error(errNotDefined_s, fname);
-
-                    FIELDINFO fi = get_struct_field(sid, fid);
-                    uint16_t offset = fi.offset;
-                    get_token();
-
-                    /* For function return values, HL contains the pointer/struct address */
-                    /* Add offset to access the member */
-                    if (offset) {
-                        emit_ldde_immed(); emit_n(offset); emit_nl();
-                        emit_add16();
-                    }
-                    
-                    factor_result.type_id = fi.type_id;
-                    if (type_is_array(factor_result.type_id)) {
-                        uint8_t elem_id = type_get_element_type_id(factor_result.type_id);
-                        factor_result.type_id = type_make_pointer(elem_id, 0);
-                        dereference = 0;
-                    } else {
-                        dereference = 1;
-                    }
-                    addr_in_hl = 1;
-                }
-
-                /* Handle array indexing on function return value (e.g., func()[index]) */
-                if (tok == tokLBrack) {
-                    if (!type_is_pointer(factor_result.type_id) && !type_is_array(factor_result.type_id)) {
-                        error(errSyntax);
-                        return factor_result;
-                    }
-                    
-                    /* HL contains the array/pointer from function return */
-                    uint8_t elemtype_id = type_get_element_type_id(factor_result.type_id);
-                    
-                    /* Parse and scale the index */
-                    get_token(); // skip '['
-                    EXPR_RESULT index_result = far_parse_expr_delayconst(0);
-                    expect(tokRBrack, ']');
-                    
-                    uint16_t scale = (uint16_t)type_size(elemtype_id);
-                    
-                    if (type_is_const(index_result.type_id)) {
-                        /* Constant index: add scaled offset */
-                        uint16_t offset = index_result.value * scale;
-                        if (offset) {
-                            emit_ldde_immed_n(offset);
-                            emit_add16();
-                        }
-                    } else {
-                        /* Variable index: scale and add */
-                        emit_push();  /* Save base address */
-                        /* HL now has the index value */
-                        if (scale > 1) {
-                            emit_scale_hl(scale);
-                        }
-                        emit_pop_de();  /* Restore base to DE */
-                        emit_add16();   /* HL = base + scaled_index */
-                    }
-                    
-                    factor_result.type_id = elemtype_id;
-                    dereference = 1;
-                    addr_in_hl = 1;
-                }
-            }
-
-            /* Handle prefix ++/-- */
-            uint8_t had_addr_in_hl = addr_in_hl;
-            if ((prefix_inc || prefix_dec) && !type_is_const(sym.type_id)) {
-                TOKEN prefix_op = prefix_inc ? tokInc : tokDec;
-                handle_incdec_internal(1, &sym, factor_result.type_id, had_addr_in_hl, prefix_op);
-                addr_in_hl = 0;  /* After inc/dec, value is in HL, not an address */
-                factor_result.has_sym = 0;  /* Prevent unnecessary reload for standalone statement */
-            }
-
-            if (tok == tokAssign) {
-                if (!initial_deref) {
-                    if (had_addr_in_hl) {
-                        far_parse_assign(1, undefined_sym, 0, factor_result.type_id);
-                    } else {
-                        far_parse_assign(dereference, sym, 0, factor_result.type_id);
-                    }
-                }
-                /* After assignment, clear has_sym to prevent unnecessary reload */
-                factor_result.has_sym = 0;
-            }
-            /* Note: Don't load values here - let the postfix loop or final load handle it */
+            
+            /* Don't handle postfix operators here - let the postfix loop handle them */
             break;
         default:
             error(errSyntax);
             break;
     }
     
-    /* Postfix operators loop - handles ++, -- for any lvalue expression */
-    while (tok == tokInc || tok == tokDec) {
-        /* For postfix increment/decrement, we need an lvalue.
-         * This can be:
-         * 1. A symbol (factor_result.has_sym is set)
-         * 2. An address already in HL (addr_in_hl is set, e.g., from array indexing or member access)
-         * 3. A dereferenced pointer from a parenthesized expression like (*ptr)
-         */
+    /* Postfix operators loop - handles [], (), ., ++, -- */
+    while (tok == tokLBrack || tok == tokLParen || tok == tokMember || tok == tokInc || tok == tokDec) {
         
-        /* For (*ptr)++, the parenthesized expression leaves us with:
-         * - The pointer value already loaded in HL (from the dereference)
-         * - addr_in_hl = 0 (because the parens case doesn't set it)
-         * - factor_result.has_sym = 0
-         * - But we DO have an lvalue at the address in HL!
-         * 
-         * The issue is distinguishing (*ptr)++ from something like (x + y)++
-         * We need to track whether the expression result is an lvalue.
-         */
-        
-        if (factor_result.has_sym || addr_in_hl) {
-            /* We have a clear lvalue */
-            handle_incdec(0, factor_result.has_sym ? &factor_result.sym : NULL, 
-                         factor_result.type_id, addr_in_hl);
-            addr_in_hl = 0;  /* Result value is in HL */
-            dereference = 0;
+        /* Handle array indexing: expr[index] */
+        if (tok == tokLBrack) {
+            SYMBOL base_sym = factor_result.has_sym ? factor_result.sym : undefined_sym;
+            uint8_t had_sym = factor_result.has_sym;
+            
+            /* Need address or pointer/array type */
+            if (addr_in_hl) {
+                /* HL has address, need to load it first if it's a pointer */
+                if (dereference && type_is_pointer(factor_result.type_id)) {
+                    emit_load(factor_result.type_id);
+                    dereference = 0;
+                }
+            } else if (factor_result.has_sym) {
+                /* Symbol - check if it's array or pointer */
+                if (!type_is_pointer(factor_result.sym.type_id) && !type_is_array(factor_result.sym.type_id)) {
+                    error(errSyntax);
+                    break;
+                }
+                /* For arrays with constant index, we can optimize later, so don't load yet */
+                /* For pointers, we need to load the pointer value */
+                if (type_is_pointer(factor_result.sym.type_id)) {
+                    emit_ld_symval(&factor_result.sym);
+                    had_sym = 0;  /* No longer a direct symbol reference */
+                }
+            } else {
+                /* Result already in HL from previous postfix operation */
+                if (!type_is_pointer(factor_result.type_id) && !type_is_array(factor_result.type_id)) {
+                    error(errSyntax);
+                    break;
+                }
+            }
+            
+            /* Clear has_sym after using it */
             factor_result.has_sym = 0;
-        } else {
-            /* No lvalue available - this is an error */
-            error(errNotlvalue);
-            break;
+            
+            /* Now HL contains the base address/pointer (or we have a symbol) */
+            uint8_t elemtype_id = type_get_element_type_id(factor_result.type_id);
+            
+            /* Parse and scale the index */
+            get_token(); // skip '['
+            
+            /* If base is already in HL (no symbol), save it before parsing index */
+            if (!had_sym) {
+                emit_push();
+            }
+            
+            EXPR_RESULT index_result = far_parse_expr_delayconst(0);
+            expect(tokRBrack, ']');
+            
+            uint16_t scale = (uint16_t)type_size(elemtype_id);
+            
+            if (type_is_const(index_result.type_id)) {
+                /* Constant index: compute offset */
+                uint16_t offset = index_result.value * scale;
+                
+                /* Optimize: For array symbols with constant index, use direct addressing */
+                if (had_sym && type_is_array(base_sym.type_id)) {
+                    if (offset) {
+                        emit_ld_symaddr_offset(&base_sym, offset);
+                    } else {
+                        emit_ld_symaddr(&base_sym);
+                    }
+                } else {
+                    /* Already loaded - add offset */
+                    if (had_sym) {
+                        /* Discard saved base for constant case with pointer symbol */
+                        /* (pointer was loaded before push) */
+                    } else {
+                        emit_pop_hl();  /* Restore base that was saved */
+                    }
+                    if (offset) {
+                        emit_ldde_immed_n(offset);
+                        emit_add16();  /* HL = base + offset */
+                    }
+                }
+            } else {
+                /* Variable index: HL has index, scale it first */
+                if (scale > 1) {
+                    emit_scale_hl(scale);
+                }
+                
+                /* Now get base address */
+                if (had_sym && type_is_array(base_sym.type_id)) {
+                    emit_swap();  /* DE = scaled index */
+                    emit_ld_symaddr(&base_sym);  /* HL = base */
+                } else {
+                    /* Base was saved on stack before parsing index */
+                    emit_pop_de();  /* DE = base */
+                }
+                emit_add16();   /* HL = base + scaled_index */
+            }
+            
+            factor_result.type_id = elemtype_id;
+            dereference = 1;
+            addr_in_hl = 1;
+            continue;
         }
+        
+        /* Handle function calls: expr(args) */
+        if (tok == tokLParen) {
+            /* Save symbol info before clearing has_sym */
+            SYMBOL call_sym = factor_result.has_sym ? factor_result.sym : undefined_sym;
+            uint8_t had_sym = factor_result.has_sym;
+            
+            factor_result.has_sym = 0;
+            
+            /* If we have an address that needs dereferencing, load it first */
+            if (addr_in_hl && dereference) {
+                emit_load(factor_result.type_id);
+                addr_in_hl = 0;
+                dereference = 0;
+            }
+            
+            /* Determine if pointer is already in HL or if we have a direct function symbol */
+            uint8_t ptr_in_hl = !had_sym;  /* If no symbol, value is in HL */
+            
+            parse_funccall(&call_sym, ptr_in_hl);
+            
+            /* Function return value is in HL - get the return type from signature */
+            if (had_sym && is_func_or_proto(&call_sym) && call_sym.signature_id != 0xFF) {
+                factor_result.type_id = signature_get_return_type(call_sym.signature_id);
+            } else {
+                factor_result.type_id = TYPE_ID_VOID;
+            }
+            
+            addr_in_hl = 0;
+            dereference = 0;
+            continue;
+        }
+        
+        /* Handle member access: expr.member */
+        if (tok == tokMember) {
+            factor_result.has_sym = 0;
+            get_token();
+            
+            uint8_t check_type_id = factor_result.type_id;
+            if (type_is_pointer(check_type_id)) {
+                check_type_id = type_get_element_type_id(check_type_id);
+            }
+            if (!type_is_struct(check_type_id)) {
+                error(errSyntax);
+                return factor_result;
+            }
+            if (tok != tokIdent) { 
+                error(errSyntax); 
+                return factor_result; 
+            }
+            
+            char fname[MAX_IDENT_LEN+1];
+            strncpy(fname, token, MAX_IDENT_LEN);
+            int sid = (int)type_get_struct_id(check_type_id) - 1;
+            int fid = find_struct_field(sid, fname);
+            if (fid < 0) error(errNotDefined_s, fname);
+
+            FIELDINFO fi = get_struct_field(sid, fid);
+            uint16_t offset = fi.offset;
+            get_token();
+
+            /* Compute address of member */
+            if (!addr_in_hl) {
+                /* Need to load the struct address first */
+                error(errSyntax);  /* Should not happen - member access needs an address */
+                return factor_result;
+            }
+            
+            /* HL contains the struct address */
+            if (offset) {
+                emit_ldde_immed(); emit_n(offset); emit_nl();
+                emit_add16();
+            }
+            
+            factor_result.type_id = fi.type_id;
+            if (type_is_array(factor_result.type_id)) {
+                uint8_t elem_id = type_get_element_type_id(factor_result.type_id);
+                factor_result.type_id = type_make_pointer(elem_id, 0);
+                dereference = 0;
+            } else {
+                dereference = 1;
+            }
+            addr_in_hl = 1;
+            continue;
+        }
+        
+        /* Handle postfix increment/decrement: expr++ or expr-- */
+        if (tok == tokInc || tok == tokDec) {
+            if (factor_result.has_sym || addr_in_hl) {
+                /* We have a clear lvalue */
+                handle_incdec(0, factor_result.has_sym ? &factor_result.sym : NULL, 
+                             factor_result.type_id, addr_in_hl);
+                addr_in_hl = 0;  /* Result value is in HL */
+                dereference = 0;
+                factor_result.has_sym = 0;
+            } else {
+                /* No lvalue available - this is an error */
+                error(errNotlvalue);
+                break;
+            }
+            continue;
+        }
+    }
+    
+    /* Handle prefix ++/-- operators (applied after postfix operators are done) */
+    if ((prefix_inc || prefix_dec) && !type_is_const(factor_result.type_id)) {
+        TOKEN prefix_op = prefix_inc ? tokInc : tokDec;
+        handle_incdec_internal(1, factor_result.has_sym ? &factor_result.sym : NULL, 
+                             factor_result.type_id, addr_in_hl, prefix_op);
+        addr_in_hl = 0;  /* After inc/dec, value is in HL, not an address */
+        dereference = 0;
+        factor_result.has_sym = 0;
+    }
+    
+    /* Handle assignment */
+    if (tok == tokAssign && !initial_deref) {
+        if (addr_in_hl) {
+            far_parse_assign(1, undefined_sym, 0, factor_result.type_id);
+        } else if (factor_result.has_sym) {
+            far_parse_assign(dereference, factor_result.sym, 0, factor_result.type_id);
+        } else {
+            error(errNotlvalue);
+        }
+        /* After assignment, clear has_sym to prevent unnecessary reload */
+        factor_result.has_sym = 0;
     }
     
     /* After postfix operators, load value if needed */
