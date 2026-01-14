@@ -64,6 +64,7 @@ SYMBOL* far_addglb(const char* name, SYM_CLASS klass, uint8_t type_id, int16_t v
     sym->scope = GLOBAL;
     sym->offset = value;
     sym->flags = 0;
+    sym->signature_id = 0xFF;  // No signature by default
     ++lastgbl;
     return sym;
 }
@@ -83,6 +84,7 @@ SYMBOL* far_addloc(const char* name, SYM_CLASS klass, uint8_t type_id, int16_t v
     sym->type_id = type_id;
     sym->scope = LOCAL;
     sym->offset = value;
+    sym->signature_id = 0xFF;  // No signature by default
     return sym;
 }
 

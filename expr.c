@@ -570,8 +570,8 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 }
             } else {
                 emit_ld_symaddr(&sym);
-                uint8_t elem_type_id = type_get_element_type_id(factor_result.type_id);
-                factor_result.type_id = type_make_pointer(elem_type_id, 1);
+                /* Taking address: add one level of indirection to the type */
+                factor_result.type_id = type_make_pointer(factor_result.type_id, 1);
             }
             break;
 
@@ -727,8 +727,13 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                  * Pass this to parse_funccall so it doesn't reload the symbol.
                  */
                 parse_funccall(&sym, addr_in_hl);
-                /* Function return value is in HL - clear flags accordingly */
-                factor_result.type_id = sym.type_id;
+                /* Function return value is in HL - get the return type from signature */
+                if (type_is_function(sym.type_id)) {
+                    uint8_t sig_id = type_get_function_sig(sym.type_id);
+                    factor_result.type_id = signature_get_return_type(sig_id);
+                } else {
+                    factor_result.type_id = TYPE_ID_VOID;
+                }
                 addr_in_hl = 0;
                 dereference = 0;
                 

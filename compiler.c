@@ -718,9 +718,9 @@ static void clean_stack(int16_t bytes) MYCC {
 void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
     get_token(); // skip '('
     uint8_t argcount = 0;
+    uint8_t call_arg_types[MAX_FUNC_ARGS];  // Track argument types
+    
     while (tok != tokRParen) {
-        ++argcount;
-        
         /* Parse the argument expression */
         EXPR_RESULT arg_result = parse_expr(0);
         
@@ -729,11 +729,57 @@ void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
             error(errTypeError);
         }
         
-        emit_push();        
+        /* Store argument type */
+        if (argcount < MAX_FUNC_ARGS) {
+            call_arg_types[argcount] = arg_result.type_id;
+        }
+        
+        emit_push();
+        ++argcount;
+        
         if (tok != tokComma) break;
         get_token(); // skip ','
     }
-    if (is_func_or_proto(sym) && argcount != sym->offset) error(errArgMismatch);
+    
+    /* Check argument count */
+    if (is_func_or_proto(sym) && argcount != sym->offset) {
+        error(errArgMismatch);
+    }
+    
+    /* Check argument types if function has signature */
+    if (is_func_or_proto(sym) && sym->signature_id != 0xFF) {
+        uint8_t sig_arg_count = signature_get_arg_count(sym->signature_id);
+        
+        if (argcount == sig_arg_count) {
+            for (uint8_t i = 0; i < argcount && i < MAX_FUNC_ARGS; i++) {
+                uint8_t expected_type = signature_get_arg_type(sym->signature_id, i);
+                uint8_t actual_type = call_arg_types[i];
+                
+                /* Allow implicit conversions */
+                if (expected_type != actual_type) {
+                    /* Allow pointer to pointer conversions */
+                    if (type_is_pointer(expected_type) && type_is_pointer(actual_type)) {
+                        continue;
+                    }
+                    
+                    /* Allow char/int implicit conversions */
+                    if (!type_is_pointer(expected_type) && !type_is_pointer(actual_type)) {
+                        TypeKind expected_kind = type_get_kind(expected_type);
+                        TypeKind actual_kind = type_get_kind(actual_type);
+                        if ((expected_kind == TK_CHAR || expected_kind == TK_INT) &&
+                            (actual_kind == TK_CHAR || actual_kind == TK_INT)) {
+                            continue;
+                        }
+                    }
+                    
+                    /* Type mismatch */
+                    error(errTypeError);
+                    break;
+                }
+            }
+        }
+    }
+    
     expect_RParen();
 
     emit_callsym(sym, ptr_in_hl);
@@ -794,6 +840,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
 
     uint8_t argtype_id;
     char argName[MAX_IDENT_LEN + 1];
+    uint8_t arg_types[MAX_FUNC_ARGS];  // Collect argument types
 
     SYMBOL symfunc = lookupIdent(name);
     uint8_t defined = 0;
@@ -808,6 +855,8 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
     retlbl = newlbl(); 
     uint16_t funcframe = push_frame();
     func_argcount = 0;
+    
+    /* Parse arguments and collect their types */
     while (tok != tokRParen) {
         parse_type(&argtype_id);
         if (type_is_array(argtype_id)) {
@@ -821,15 +870,47 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
             error(errTypeError);
         }
         
+        /* Store argument type */
+        if (func_argcount < MAX_FUNC_ARGS) {
+            arg_types[func_argcount] = argtype_id;
+        }
+        
         strncpy(argName, token, MAX_IDENT_LEN);           
         declloc(argtype_id, ARGUMENT, argName, func_argcount++);
         get_token(); // skip arg name
-        if (tok == tokComma) get_token(); // skip ','
+        if (tok == tokComma) get_token(); // skip ',',,
     }
     expect_RParen();
    
+    /* Check signature compatibility if already declared */
     if (defined || symfunc.klass == FUNCTION_PROTO) {
-        if (func_argcount != symfunc.offset) error(errDeclMismatch);
+        if (func_argcount != symfunc.offset) {
+            error(errDeclMismatch);
+        } else if (symfunc.signature_id != 0xFF) {
+            /* Verify argument types match */
+            uint8_t match = 1;
+            if (signature_get_arg_count(symfunc.signature_id) == func_argcount) {
+                for (uint8_t i = 0; i < func_argcount; i++) {
+                    if (signature_get_arg_type(symfunc.signature_id, i) != arg_types[i]) {
+                        match = 0;
+                        break;
+                    }
+                }
+            } else {
+                match = 0;
+            }
+            if (!match) {
+                error(errDeclMismatch);
+            }
+        }
+    }
+
+    /* Store function signature if not already stored */
+    if (symfunc.signature_id == 0xFF) {
+        symfunc.signature_id = signature_create(rettype_id, func_argcount, arg_types);
+        if (symfunc.signature_id == 0xFF) {
+            error(errTooManySymbols);
+        }
     }
 
     symfunc.offset = func_argcount;

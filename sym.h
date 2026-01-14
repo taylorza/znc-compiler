@@ -15,8 +15,9 @@ typedef struct SYMBOL {
     uint8_t type_id;
     SYM_CLASS klass;
     SYM_SCOPE scope;
-    int16_t offset;
+    int16_t offset;         // For functions: argument count
     uint8_t flags;
+    uint8_t signature_id;   // For functions: signature index (0xFF = none)
 } SYMBOL;
 
 /* Symbol flags */

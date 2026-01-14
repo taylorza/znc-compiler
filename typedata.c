@@ -5,6 +5,7 @@
 /* BANK_43: Type table storage and type_intern function */
 /* Type table storage - accessed via stubs from type.c */
 extern uint8_t type_count;
+extern uint8_t signature_count;
 TypeEntry type_table[MAX_TYPES];
 
 /* Internal: find or create type entry (type interning) */
@@ -22,13 +23,134 @@ uint8_t type_intern(TypeEntry entry) MYCC {
     }
     
     /* Not found - add new entry */
-    if (type_count >= 255) {  /* type_count is uint8_t, max 255 */
+    if (type_count >= MAX_TYPES) {  /* type_count is uint8_t, max 255 */
         error(errTooManyTypes);
         return 0;  /* Return void type as fallback */
     }
     
     type_table[type_count] = entry;
     return type_count++;
+}
+
+/* BANK_43: Function signature storage */
+/* Maximum arguments per function and maximum signatures */
+#define MAX_FUNC_ARGS 8
+#define MAX_SIGNATURES 255
+
+/* Function signature structure - stores return type and argument types */
+typedef struct FuncSignature {
+    uint8_t return_type_id;
+    uint8_t arg_count;
+    uint8_t arg_types[MAX_FUNC_ARGS];
+} FuncSignature;
+
+extern uint8_t signature_count;
+FuncSignature signature_table[MAX_SIGNATURES];
+
+/* Internal: find or create function signature (signature interning) */
+/* This function must be in BANK_43 as it directly accesses signature_table */
+uint8_t signature_intern(uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC {
+    uint8_t i, j;
+    
+    /* Search for existing identical signature */
+    for (i = 0; i < signature_count; i++) {
+        if (signature_table[i].return_type_id == return_type_id &&
+            signature_table[i].arg_count == arg_count) {
+            /* Check if all argument types match */
+            uint8_t match = 1;
+            for (j = 0; j < arg_count; j++) {
+                if (signature_table[i].arg_types[j] != arg_types[j]) {
+                    match = 0;
+                    break;
+                }
+            }
+            if (match) return i;
+        }
+    }
+    
+    /* Not found - add new entry */
+    if (signature_count >= MAX_SIGNATURES) {
+        error(errTooManyTypes);  /* Reuse error for now */
+        return 0;  /* Return empty signature as fallback */
+    }
+    
+    /* Store the new signature */
+    signature_table[signature_count].return_type_id = return_type_id;
+    signature_table[signature_count].arg_count = arg_count;
+    for (j = 0; j < arg_count && j < MAX_FUNC_ARGS; j++) {
+        signature_table[signature_count].arg_types[j] = arg_types[j];
+    }
+    
+    return signature_count++;
+}
+
+/* BANK_43: Type compatibility checking */
+/* This function must be in BANK_43 as it directly accesses type_table */
+uint8_t types_are_compatible(uint8_t type_id1, uint8_t type_id2) MYCC {
+    TypeEntry t1, t2;
+    uint8_t indir1, indir2;
+    
+    /* Same type ID is always compatible */
+    if (type_id1 == type_id2) {
+        return 1;
+    }
+    
+    /* Validate type IDs */
+    if (type_id1 >= type_count) {
+        return 0;
+    }
+    if (type_id2 >= type_count) {
+        return 0;
+    }
+    
+    /* Get type entries */
+    t1 = type_table[type_id1];
+    t2 = type_table[type_id2];
+    
+    /* Extract indirection level */
+    indir1 = t1.kind_and_flags & 0x0F;
+    indir2 = t2.kind_and_flags & 0x0F;
+    
+    /* Pointers, arrays, structs must be exact matches */
+    if (indir1 > 0 || indir2 > 0) {
+        /* At least one is pointer/array - must match exactly */
+        if (t1.kind_and_flags != t2.kind_and_flags) {
+            return 0;
+        }
+        if (t1.aux0 != t2.aux0) {
+            return 0;
+        }
+        if (t1.aux1 != t2.aux1) {
+            return 0;
+        }
+        return 1;
+    }
+    
+    /* Both are non-pointer types */
+    /* Extract base kind (bits 7-5) */
+    {
+        uint8_t kind1 = (t1.kind_and_flags >> 5) & 0x07;
+        uint8_t kind2 = (t2.kind_and_flags >> 5) & 0x07;
+        
+        /* For scalars (char/int), allow compatibility between them */
+        if ((kind1 == 0 || kind1 == 1) && (kind2 == 0 || kind2 == 1)) {
+            /* TK_CHAR (0) and TK_INT (1) are compatible */
+            return 1;
+        }
+        
+        /* Structs and other types must be exact matches */
+        if (t1.kind_and_flags != t2.kind_and_flags) {
+            return 0;
+        }
+        if (t1.aux0 != t2.aux0) {
+            return 0;
+        }
+        if (t1.aux1 != t2.aux1) {
+            return 0;
+        }
+        
+        return 1;
+    }
 }
 
 

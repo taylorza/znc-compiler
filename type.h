@@ -59,6 +59,16 @@ uint16_t type_size(uint8_t type_id) MYCC;
 /* Pointer/array element type derivation */
 uint8_t type_get_element_type_id(uint8_t ptr_or_array_type_id) MYCC;
 
+/* Function signature API */
+#define MAX_FUNC_ARGS 8
+uint8_t signature_create(uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC;
+uint8_t signature_get_return_type(uint8_t sig_id) MYCC;
+uint8_t signature_get_arg_count(uint8_t sig_id) MYCC;
+uint8_t signature_get_arg_type(uint8_t sig_id, uint8_t arg_index) MYCC;
+
+/* Type compatibility checking */
+uint8_t type_check_compatible(uint8_t type_id1, uint8_t type_id2) MYCC;
+
 /* Predefined type IDs (initialized by type_init) */
 extern uint8_t TYPE_ID_VOID;
 extern uint8_t TYPE_ID_CHAR;

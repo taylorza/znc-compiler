@@ -18,6 +18,7 @@ uint8_t TYPE_ID_INT = 0;
 uint8_t TYPE_ID_CHAR_PTR = 0;
 
 uint8_t type_count = 0;
+uint8_t signature_count = 0;
 
 /* Macros for packing/unpacking kind_and_flags byte */
 #define TYPE_KIND_SHIFT      5
@@ -273,4 +274,75 @@ uint8_t far_type_intern(TypeEntry entry) MYCC {
     PROLOG(43)
     uint8_t result = type_intern(entry);
     EPILOG_RETURN(result);
+}
+
+/* Function signature storage - MAX_FUNC_ARGS and MAX_SIGNATURES defined in typedata.c */
+#define MAX_FUNC_ARGS 8
+#define MAX_SIGNATURES 128
+
+typedef struct FuncSignature {
+    uint8_t return_type_id;
+    uint8_t arg_count;
+    uint8_t arg_types[MAX_FUNC_ARGS];
+} FuncSignature;
+
+extern FuncSignature signature_table[MAX_SIGNATURES];
+extern uint8_t signature_count;
+
+/* Stub functions to access signature table in BANK_43 */
+extern uint8_t signature_intern(uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC;
+
+/* Read a signature entry from the banked signature table */
+FuncSignature signature_read_from_bank(uint8_t sig_id) MYCC {
+    PROLOG(43)
+    FuncSignature sig = signature_table[sig_id];
+    EPILOG_RETURN(sig);
+}
+
+/* Wrapper to call signature_intern from other banks */
+uint8_t far_signature_intern(uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC {
+    PROLOG(43)
+    uint8_t result = signature_intern(return_type_id, arg_count, arg_types);
+    EPILOG_RETURN(result);
+}
+
+/* Function signature API */
+uint8_t signature_create(uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC {
+    if (arg_count > MAX_FUNC_ARGS) {
+        error(errTooManyTypes);  /* Reuse error for now */
+        arg_count = MAX_FUNC_ARGS;
+    }
+    return far_signature_intern(return_type_id, arg_count, arg_types);
+}
+
+uint8_t signature_get_return_type(uint8_t sig_id) MYCC {
+    if (sig_id >= signature_count) return TYPE_ID_VOID;
+    FuncSignature sig = signature_read_from_bank(sig_id);
+    return sig.return_type_id;
+}
+
+uint8_t signature_get_arg_count(uint8_t sig_id) MYCC {
+    if (sig_id >= signature_count) return 0;
+    FuncSignature sig = signature_read_from_bank(sig_id);
+    return sig.arg_count;
+}
+
+uint8_t signature_get_arg_type(uint8_t sig_id, uint8_t arg_index) MYCC {
+    if (sig_id >= signature_count) return TYPE_ID_VOID;
+    FuncSignature sig = signature_read_from_bank(sig_id);
+    if (arg_index >= sig.arg_count) return TYPE_ID_VOID;
+    return sig.arg_types[arg_index];
+}
+
+/* Type compatibility checking */
+extern uint8_t types_are_compatible(uint8_t type_id1, uint8_t type_id2) MYCC;
+
+uint8_t far_types_are_compatible(uint8_t type_id1, uint8_t type_id2) MYCC {
+    PROLOG(43)
+    uint8_t result = types_are_compatible(type_id1, type_id2);
+    EPILOG_RETURN(result);
+}
+
+uint8_t type_check_compatible(uint8_t type_id1, uint8_t type_id2) MYCC {
+    return far_types_are_compatible(type_id1, type_id2);
 }
