@@ -132,18 +132,10 @@ static void emit_sym_address_with_offset(SYMBOL *sym, uint16_t offset) MYCC {
             }
         }
     } else {
-        /* For local arrays/structs, members/elements are at LOWER addresses (stack grows down)
-         * For global arrays/structs, members/elements are at HIGHER addresses
-         * Adjust offset sign based on scope, then use emit_ld_symaddr_offset for optimization */
-        if (sym->scope == LOCAL && offset && (type_is_array(sym->type_id) || type_is_struct(sym->type_id))) {
-            /* Local struct/array: members are at lower addresses, so negate the offset */
-            int16_t adjusted_offset = -(int16_t)offset;
-            /* emit_ld_symaddr_offset expects uint16_t, cast the negative value */
-            emit_ld_symaddr_offset(sym, (uint16_t)adjusted_offset);
-        } else {
-            /* Global or pointer: normal positive offset */
-            emit_ld_symaddr_offset(sym, offset);
-        }
+        /* Both local and global arrays/structs have members at HIGHER addresses
+         * The base address points to the start, members grow upward in memory
+         * Simply pass the offset through to emit_ld_symaddr_offset */
+        emit_ld_symaddr_offset(sym, offset);
     }
 }
 

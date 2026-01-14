@@ -525,14 +525,10 @@ void emit_ld_symaddr_offset(SYMBOL* sym, uint16_t offset) MYCC {
         int16_t bp_offset = 0;
         if (sym->klass == VARIABLE) {
             bp_offset = (uint8_t)sym->offset;
-            /* Arrays and structs: address is at base - size */
-            if (type_is_array(type_id) || type_is_struct(type_id))
-                bp_offset = (bp_offset - type_size(type_id));
-            else {
-                /* Scalars and pointers: stored value, compute address to low byte */
-                uint16_t var_size = type_size(type_id);
-                bp_offset = (bp_offset - var_size) + 1;
-            }
+            uint16_t var_size = type_size(type_id);
+            /* All local variables: address points to low byte
+             * Formula: -(offset + size) gives the IX-relative address of the low byte */
+            bp_offset = -(bp_offset + var_size);
         }
         else if (sym->klass == ARGUMENT) {
             bp_offset = 2 + (func_argcount - sym->offset) * 2;            

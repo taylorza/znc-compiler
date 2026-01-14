@@ -1,0 +1,14 @@
+// Test local arrays - element 0 should be at lowest memory address
+
+void main() {
+    int arr[3];
+    
+    // Element 0 at lowest address
+    arr[0] = 10;
+    
+    // Element 1 at next address (base + 2)
+    arr[1] = 20;
+    
+    // Element 2 at highest address (base + 4)
+    arr[2] = 30;
+}
