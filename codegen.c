@@ -405,20 +405,24 @@ static inline uint8_t offsets_in_ix_range(int16_t low, int16_t high) MYCC {
     return (low >= -128 && low <= 127 && high >= -128 && high <= 127);
 }
 
+/* Helper: Compute IX-relative base offset for a local/argument symbol
+ * For local variables: returns -(offset + size), pointing to the low byte
+ * For arguments: returns 2 + (func_argcount - offset) * 2, pointing to the low byte */
+static int16_t compute_symbol_base_offset(SYMBOL *sym) MYCC {
+    if (sym->klass == VARIABLE) {
+        int8_t bp_offset = (uint8_t)sym->offset;
+        uint16_t var_size = type_size(sym->type_id);
+        return -(bp_offset + var_size);
+    } else { /* ARGUMENT */
+        return 2 + (func_argcount - sym->offset) * 2;
+    }
+}
+
 /* Helper: Compute local variable offsets for load/store operations */
 static void compute_local_offsets(SYMBOL *sym, int16_t *low_off, int16_t *high_off) MYCC {
-    int8_t bp_offset;
-    
-    if (sym->klass == VARIABLE) {
-        bp_offset = (uint8_t)sym->offset;
-        uint16_t var_size = type_size(sym->type_id);
-        *low_off = -(bp_offset + var_size);
-        *high_off = -(bp_offset + var_size - 1);
-    } else { /* ARGUMENT */
-        bp_offset = 2 + (func_argcount - sym->offset) * 2;
-        *low_off = bp_offset;
-        *high_off = bp_offset + 1;
-    }
+    int16_t base = compute_symbol_base_offset(sym);
+    *low_off = base;
+    *high_off = base + 1;
 }
 
 /* Helper: Emit code to compute address in HL when offsets out of range */
@@ -454,11 +458,9 @@ void emit_ld_symval(SYMBOL* sym) MYCC {
     }
     else if (sym->scope == LOCAL) {
         if (sym->klass == VARIABLE) {
-            int8_t bp_offset = (uint8_t)sym->offset;
-            
             if (type_is_array(type_id) || type_is_struct(type_id)) {
                 /* Arrays and structs: load their address */
-                int16_t addr_offset = bp_offset - type_size(type_id);
+                int16_t addr_offset = compute_symbol_base_offset(sym);
                 
                 if (addr_offset >= -128 && addr_offset <= 127) {
                     emit_copy_ix_to_hl();
@@ -468,9 +470,12 @@ void emit_ld_symval(SYMBOL* sym) MYCC {
                 } else {
                     emit_compute_ix_address(addr_offset);
                 }
-            } else if (!type_is_pointer(type_id) && type_is_char(type_id)) {
+                return;
+            }
+            
+            if (!type_is_pointer(type_id) && type_is_char(type_id)) {
                 /* Char/byte scalar: load single byte and sign-extend */
-                int16_t low_off = -(bp_offset + 1);
+                int16_t low_off = compute_symbol_base_offset(sym);
                 
                 if (low_off >= -128 && low_off <= 127) {
                     emit_instrln("ld a,(ix%+d)", low_off);
@@ -480,31 +485,20 @@ void emit_ld_symval(SYMBOL* sym) MYCC {
                     emit_instrln("ld a,(hl)");
                     emit_rtl("ccsxt");
                 }
-            } else {
-                /* Int scalar/pointer: load 2-byte value */
-                int16_t low_off, high_off;
-                compute_local_offsets(sym, &low_off, &high_off);
-                
-                if (offsets_in_ix_range(low_off, high_off)) {
-                    emit_instrln("ld l,(ix%+d)", low_off);
-                    emit_instrln("ld h,(ix%+d)", high_off);
-                } else {
-                    emit_compute_ix_address(low_off);
-                    emit_load_word_from_hl();
-                }
-            }
-        } else { /* ARGUMENT */
-            int16_t low_off, high_off;
-            compute_local_offsets(sym, &low_off, &high_off);
-            
-            if (offsets_in_ix_range(low_off, high_off)) {
-                emit_instrln("ld l,(ix+%d)", low_off);
-                emit_instrln("ld h,(ix+%d)", high_off);
-            } else {
-                emit_compute_ix_address(low_off);
-                emit_load_word_from_hl();
-            }
+                return;
+            } 
         }
+
+        int16_t low_off, high_off;
+        compute_local_offsets(sym, &low_off, &high_off);
+        
+        if (offsets_in_ix_range(low_off, high_off)) {
+            emit_instrln("ld l,(ix%+d)", low_off);
+            emit_instrln("ld h,(ix%+d)", high_off);
+        } else {
+            emit_compute_ix_address(low_off);
+            emit_load_word_from_hl();
+        }             
     }
 }
 
@@ -522,17 +516,8 @@ void emit_ld_symaddr_offset(SYMBOL* sym, uint16_t offset) MYCC {
         emit_nl();
     }
     else if (sym->scope == LOCAL) {
-        int16_t bp_offset = 0;
-        if (sym->klass == VARIABLE) {
-            bp_offset = (uint8_t)sym->offset;
-            uint16_t var_size = type_size(type_id);
-            /* All local variables: address points to low byte
-             * Formula: -(offset + size) gives the IX-relative address of the low byte */
-            bp_offset = -(bp_offset + var_size);
-        }
-        else if (sym->klass == ARGUMENT) {
-            bp_offset = 2 + (func_argcount - sym->offset) * 2;            
-        }
+        /* Calculate base address of symbol (low byte) */
+        int16_t bp_offset = compute_symbol_base_offset(sym);
         
         /* Fold in any additional offset BEFORE range checking */
         bp_offset += (int16_t)offset;
@@ -600,13 +585,8 @@ void emit_store_sym(SYMBOL* sym) MYCC {
             compute_local_offsets(sym, &low_off, &high_off);
             
             if (offsets_in_ix_range(low_off, high_off)) {
-                if (sym->klass == VARIABLE) {
-                    emit_instrln("ld (ix%+d),l", low_off);
-                    emit_instrln("ld (ix%+d),h", high_off);
-                } else { /* ARGUMENT */
-                    emit_instrln("ld (ix+%d),l", low_off);
-                    emit_instrln("ld (ix+%d),h", high_off);
-                }
+                emit_instrln("ld (ix%+d),l", low_off);
+                emit_instrln("ld (ix%+d),h", high_off);
             } else {
                 emit_push();
                 emit_compute_ix_address(low_off);
