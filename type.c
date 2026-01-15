@@ -346,3 +346,20 @@ uint8_t far_types_are_compatible(uint8_t type_id1, uint8_t type_id2) MYCC {
 uint8_t type_check_compatible(uint8_t type_id1, uint8_t type_id2) MYCC {
     return far_types_are_compatible(type_id1, type_id2);
 }
+
+/* Named-type registry is implemented in banked typedata.c; wrappers below call
+ * the banked implementations. */
+extern int type_find_by_name_bank(const char* name) MYCC;
+extern void type_register_name_bank(const char* name, uint8_t type_id) MYCC;
+
+int type_find_by_name(const char* name) MYCC {
+    PROLOG(43)
+    int res = type_find_by_name_bank(name);
+    EPILOG_RETURN(res);
+}
+
+void type_register_name(const char* name, uint8_t type_id) MYCC {
+    PROLOG(43)
+    type_register_name_bank(name, type_id);
+    EPILOG
+}

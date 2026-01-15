@@ -20,6 +20,7 @@ typedef enum TOKEN {
     tokNumber,      // number
     tokString,      // string
     tokStruct,      // 'struct' keyword
+    tokDelegate,    // 'delegate' keyword
     tokMember,      // '.' member operator
 
     tokSemi,        // ;

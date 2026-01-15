@@ -53,6 +53,10 @@ uint8_t type_get_array_length(uint8_t array_type_id) MYCC;
 uint8_t type_get_struct_id(uint8_t struct_type_id) MYCC;
 uint8_t type_get_function_sig(uint8_t func_type_id) MYCC;
 
+/* Type name registry (for typedef-like named types such as delegates) */
+int type_find_by_name(const char* name) MYCC; /* returns type_id or -1 */
+void type_register_name(const char* name, uint8_t type_id) MYCC;
+
 /* Size calculation */
 uint16_t type_size(uint8_t type_id) MYCC;
 

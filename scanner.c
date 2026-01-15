@@ -47,6 +47,7 @@ KEYWORD keywords[] = {
     {"__asm__", tokAsm},
     {"include", tokInclude},
     {"struct", tokStruct},
+    {"delegate", tokDelegate},
 
     {"make", tokMake},
     {"raw", tokRaw},

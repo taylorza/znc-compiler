@@ -1013,7 +1013,7 @@ void far_parse_assign(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t 
             if (!type_is_const(element.type_id) && !is_func) error_expect_const();
 
             ++elementcount;
-            if (counter++ > 0) emit_ch(','); else emit_instr(bt == TK_INT ? "dw " : "db ");
+            if (counter++ > 0) emit_ch(','); else emit_instr(bt == TK_CHAR ? "db " : "dw ");
 
             if (is_func) {
                 /* Function address: emit symbol reference */
@@ -1117,7 +1117,21 @@ void far_parse_assign(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t 
 
         emit_push();        
     }
-    far_parse_expr(0);
+    EXPR_RESULT r_result = far_parse_expr(0);
+
+    /* If left-hand side is a delegate type (function pointer), ensure
+     * assigned function or function-pointer has a matching signature. */
+    if (type_is_function(type_get_element_type_id(type_id)) && type_get_indirection(type_id) == 1) {
+        if (r_result.has_sym && is_func_or_proto(&r_result.sym)) {
+            uint8_t left_sig = type_get_function_sig(type_get_element_type_id(type_id));
+            uint8_t right_sig = r_result.sym.signature_id;
+            if (left_sig == 0 || right_sig == 0xFF || left_sig != right_sig) {
+                error(errTypeError);
+            }
+        } else if (!type_check_compatible(type_id, r_result.type_id)) {
+            error(errTypeError);
+        }
+    }
 
     if (dereference) {
         emit_store(type_id);

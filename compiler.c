@@ -9,6 +9,7 @@ uint8_t infunc = 0;         // 1 if parsing a function
 uint8_t inbank = 0;         // 1 if in explicit bank
 
 uint8_t func_argcount;      // number of arguments for function being parsed
+static uint16_t _tmp_counter = 0;
 uint16_t locals_lbl;        // label of the EQU with the arg count
 uint8_t localcount;         // number of live local variables
 uint8_t maxlocalcount;      // highwater mark for local variables
@@ -24,6 +25,7 @@ uint8_t hash_if_depth = 0; // depth of #if/#ifdef statements
 
 SYMBOL declglb(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t value);
 SYMBOL declloc(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t offset);
+SYMBOL decl_in_scope(uint8_t type_id, SYM_CLASS klass, const char* name);
 
 void parse_type(uint8_t* type_id_out) MYCC;
 void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC;
@@ -50,6 +52,7 @@ void parse_switch(uint16_t contlbl) MYCC;
 
 /* Forward declaration for struct parser (defined later) */
 void parse_struct_def(void) MYCC;
+void parse_delegate_decl(void) MYCC;
 
 void parse_make(const char* outfilename) MYCC;
 
@@ -186,6 +189,12 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
             parse_decl();
             return;
         }
+        /* Also treat named types (e.g. delegate type names) as declarations */
+        int tid = type_find_by_name(token);
+        if (tid != -1) {
+            parse_decl();
+            return;
+        }
     }
 
     switch (tok) {
@@ -194,6 +203,9 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
         case tokChar:
         case tokInt:
             parse_decl();
+            break;
+        case tokDelegate:
+            parse_delegate_decl();
             break;
         case tokStruct:
             parse_struct_def();
@@ -288,18 +300,7 @@ void parse_decl(void) MYCC {
         if (type_is_void(type_id) && !type_is_pointer(type_id)) error(errSyntax);
 
         for (;;) {
-            if (infunc || is_scoped()) {
-                uint16_t size = type_size(type_id); 
-                sym = findloc(name);
-                if (is_defined(&sym)) error(errAlreadyDefined_s, name);
-                sym = declloc(type_id, VARIABLE, name, bp_lastlocal);
-                bp_lastlocal += size;
-                if (localbytes < bp_lastlocal) localbytes = bp_lastlocal;
-            } else {
-                sym = findglb(name);
-                if (is_defined(&sym)) error(errAlreadyDefined_s, name);
-                sym = declglb(type_id, VARIABLE, name, 0);
-            }
+            sym = decl_in_scope(type_id, VARIABLE, name);
                
             if (tok == tokAssign) {
                 parse_assign(0, sym, 0, type_id);
@@ -647,15 +648,20 @@ void parse_type(uint8_t *type_id_out) MYCC {
             base_type_id = TYPE_ID_INT;
             break;
         case tokIdent: {
-            /* Ident could be a struct type name */
+            /* Ident could be a struct type name or a registered named type (delegate) */
             int sid = find_struct(token);
             if (sid >= 0) {
                 struct_id = sid + 1; /* 1-based id */
                 base_type_id = type_make_struct(struct_id, is_const_flag);
             } else {
-                error(errSyntax);
-                tok = tokInt;
-                base_type_id = TYPE_ID_INT;
+                int t = type_find_by_name(token);
+                if (t != -1) {
+                    base_type_id = (uint8_t)t;
+                } else {
+                    error(errSyntax);
+                    tok = tokInt;
+                    base_type_id = TYPE_ID_INT;
+                }
             }
             break;
         }
@@ -718,9 +724,37 @@ static void clean_stack(int16_t bytes) MYCC {
 void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
     get_token(); // skip '('
     uint8_t argcount = 0;
-    uint8_t expected_count = is_func_or_proto(sym) ? sym->offset : 0xFF;
-    uint8_t sig_id = (is_func_or_proto(sym) && sym->signature_id != 0xFF) ? sym->signature_id : 0xFF;
+    uint8_t expected_count = 0xFF;
+    uint8_t sig_id = 0xFF;
+    if (is_func_or_proto(sym)) {
+        expected_count = sym->offset;
+        if (sym->signature_id != 0xFF) sig_id = sym->signature_id;
+    } else if (sym->klass == VARIABLE) {
+        /* If variable holds a function pointer (delegate), extract signature from its type */
+        uint8_t t = sym->type_id;
+        if (type_is_function(type_get_element_type_id(t)) && type_get_indirection(t) == 1) {
+            uint8_t ftype = type_get_element_type_id(t);
+            sig_id = type_get_function_sig(ftype);
+            expected_count = signature_get_arg_count(sig_id);
+        }
+    }
     
+    /* If pointer to call is already in HL, save it to a temp so it
+     * survives argument evaluation. We create a temporary variable (2 bytes)
+     * and store HL into it. We'll reload it after parsing args. */
+    SYMBOL tmp_sym;
+    uint8_t have_tmp = 0;
+    if (ptr_in_hl) {
+        char tmpname[MAX_IDENT_LEN + 1];
+        snprintf(tmpname, sizeof(tmpname), "tmp%u", _tmp_counter++);
+        tmp_sym = decl_in_scope(TYPE_ID_INT, VARIABLE, tmpname);
+        
+        /* Store HL (the pointer) into the temp variable */
+        emit_store_sym(&tmp_sym);
+        ptr_in_hl = 0; /* pointer now stored, will reload later */
+        have_tmp = 1;
+    }
+
     while (tok != tokRParen) {
         /* Check argument count inline */
         if (expected_count != 0xFF && argcount >= expected_count) {
@@ -761,8 +795,16 @@ void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
     
     expect_RParen();
 
+    /* If we saved the pointer, reload it now into HL */
+    if (have_tmp) {
+        emit_ld_symval(&tmp_sym);
+        ptr_in_hl = 1;
+    }
+
     emit_callsym(sym, ptr_in_hl);
-    clean_stack(sym->offset * 2);
+    /* Cleanup stack: prefer expected_count if known, otherwise actual argcount */
+    int cleanup_count = (expected_count != 0xFF) ? expected_count : argcount;
+    clean_stack(cleanup_count * 2);
 }
 
 void do_exit(EXPR_RESULT exit_expr) {
@@ -1026,6 +1068,23 @@ SYMBOL declloc(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t offse
     return lsym;
 }
 
+SYMBOL decl_in_scope(uint8_t type_id, SYM_CLASS klass, const char* name) {
+    SYMBOL sym;
+    if (infunc || is_scoped()) {
+        uint16_t size = type_size(type_id); 
+        sym = findloc(name);
+        if (is_defined(&sym)) error(errAlreadyDefined_s, name);
+        sym = declloc(type_id, VARIABLE, name, bp_lastlocal);
+        bp_lastlocal += size;
+        if (localbytes < bp_lastlocal) localbytes = bp_lastlocal;        
+    } else {
+        sym = findglb(name);
+        if (is_defined(&sym)) error(errAlreadyDefined_s, name);
+        sym = declglb(type_id, VARIABLE, name, 0);
+    }
+    return sym;
+}
+
 void compile(const char *filename, const char *asmfilename) MYCC {
     /* Initialize type system */
     type_init();
@@ -1051,4 +1110,48 @@ void compile(const char *filename, const char *asmfilename) MYCC {
     if (tokMakeType == tokNex) emit_nex(outfilename, start_lbl, stack_lbl, stack_size);
 
     asm_close();
+}
+
+void parse_delegate_decl(void) MYCC {
+    /* parse: delegate <return-type> IDENT '(' param_list ')' ';' */
+    get_token(); /* skip 'delegate' */
+    uint8_t return_type;
+    parse_type(&return_type);
+
+    if (tok != tokIdent) {
+        error(errSyntax);
+        return;
+    }
+    char name[MAX_IDENT_LEN+1];
+    strncpy(name, token, MAX_IDENT_LEN);
+    get_token(); /* skip typename */
+
+    expect_LParen();
+    uint8_t arg_types[MAX_FUNC_ARGS];
+    uint8_t argcount = 0;
+    if (tok != tokRParen) {
+        for (;;) {
+            uint8_t atype;
+            parse_type(&atype);
+            if (argcount < MAX_FUNC_ARGS) arg_types[argcount++] = atype;
+            else error(errTooManyTypes);
+
+            if (tok != tokComma) break;
+            get_token(); /* skip ',' */
+        }
+    }
+    expect_RParen();
+    expect_semi();
+
+    /* Create signature and function-pointer type */
+    uint8_t sig = signature_create(return_type, argcount, arg_types);
+    uint8_t ftype = type_make_function(sig);
+    uint8_t deleg_type = type_make_pointer(ftype, 1); /* indirection=1 */
+
+    /* Register the type name */
+    if (type_find_by_name(name) != -1) {
+        error(errAlreadyDefined_s, name);
+        return;
+    }
+    type_register_name(name, deleg_type);
 }
