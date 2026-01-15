@@ -14,7 +14,7 @@ uint8_t token_length;
 int16_t intval;
 
 typedef struct KEYWORD {
-    char name[MAX_IDENT_LEN + 1];
+    char *name;
     TOKEN tok;
 } KEYWORD;
 

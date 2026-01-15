@@ -118,6 +118,49 @@ static void emit_scale_de(uint16_t scale) MYCC {
     emit_scale_reg(scale, 0);
 }
 
+/* Helper: Parse and emit elements for brace-initializer expressions.
+ * Returns the number of elements processed.
+ * element_type_id: expected type for each element (0 = infer from data)
+ * is_char: true if emitting byte data, false for word data
+ */
+static uint16_t parse_brace_initializer_elements(uint8_t element_type_id) MYCC {
+    uint16_t counter = 0;
+    uint16_t elementcount = 0;
+    
+    uint8_t is_char = type_is_char(element_type_id);
+    while (tok != tokRBrace && tok != tokEOS) {
+        EXPR_RESULT element = far_parse_expr_delayconst(0, element_type_id);
+        uint8_t is_func = element.has_sym && is_func_or_proto(&element.sym);
+        if (!type_is_const(element.type_id) && !is_func) error_expect_const();
+
+        ++elementcount;
+        if (counter++ > 0) 
+            emit_ch(','); 
+        else 
+            emit_instr(is_char ? "db " : "dw ");
+
+        if (is_func) {
+            emit_sname(element.sym.name);
+        }
+        else if (is_char) {
+            emit_n(element.value & 0xff);
+        }
+        else {
+            emit_n(element.value);
+        }
+        
+        if (tok == tokRBrace) break;
+        expect_comma();
+        if (counter == 8) {
+            emit_nl();
+            counter = 0;
+        }
+    }
+    if (counter) emit_nl();
+    
+    return elementcount;
+}
+
 /* Helper: Compute address of sym+offset into HL (handles global folding) */
 static void emit_sym_address_with_offset(SYMBOL *sym, uint16_t offset) MYCC {
     if (type_is_pointer(sym->type_id)) {
@@ -405,41 +448,9 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             emit_jp(skiplbl);
             tmplbl = newlbl();
             emit_lbl(tmplbl);
-            while (tok != tokRBrace) {
-                EXPR_RESULT element = far_parse_expr_delayconst(0, element_type_id);
-
-                uint8_t is_func = element.has_sym && is_func_or_proto(&element.sym);
-                if (!type_is_const(element.type_id) && !is_func) error_expect_const();
-
-                uint8_t is_char = type_is_char(element_type_id);
-
-                if (counter++ > 0) 
-                    emit_ch(','); 
-                else {
-                    if (is_char)
-                        emit_instr("db ");
-                    else
-                        emit_instr("dw ");
-                }
-
-                if (is_func) {                    
-                    emit_sname(element.sym.name);
-                }
-                else if (is_char) {
-                    emit_n(element.value & 0xff);
-                }
-                else {
-                    emit_n(element.value);
-                }
-                
-                if (tok == tokRBrace) break;
-                expect_comma();
-                if (counter == 8) {
-                    emit_nl();                    
-                    counter = 0;
-                }
-            }
-            if (counter) emit_nl();
+                        
+            parse_brace_initializer_elements(element_type_id);
+            
             expect_RBrace();
             emit_lbl(skiplbl);
             emit_ld_immed(); emit_lblref(tmplbl); emit_nl();
@@ -1034,33 +1045,10 @@ void far_parse_assign(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t 
         emit_lbl(datalbl);
         emit_ch(' ');
         
-        while (tok != tokRBrace && tok != tokEOS) {
-            EXPR_RESULT element = far_parse_expr_delayconst(0, 0);
-            uint8_t is_func = element.has_sym && is_func_or_proto(&element.sym);
-            if (!type_is_const(element.type_id) && !is_func) error_expect_const();
-
-            ++elementcount;
-            if (counter++ > 0) emit_ch(','); else emit_instr(bt == TK_CHAR ? "db " : "dw ");
-
-            if (is_func) {
-                /* Function address: emit symbol reference */
-                emit_sname(element.sym.name);
-            } else if (bt == TK_INT) {
-                emit_n(element.value);
-            } else {
-                emit_n(element.value & 0xff);
-            }
-
-            if (tok == tokRBrace) break;
-            expect_comma();
-            if (counter == 8) {
-                emit_nl();
-                counter = 0;
-            }
-        }
-        if (counter) emit_nl();
+        elementcount = parse_brace_initializer_elements(type_id);
+        
         if (datalen != NO_LABEL) {
-            emit_lblequ16(datalen, elementcount * (bt == TK_INT ? 2 : 1));
+            emit_lblequ16(datalen, elementcount * type_size(type_id));
         }
         expect_RBrace();
 
