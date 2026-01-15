@@ -61,7 +61,7 @@ int8_t prec(TOKEN op) MYCC {
 }
 
 EXPR_RESULT parse_ternary(EXPR_RESULT expr_result, uint8_t prec) MYCC;
-EXPR_RESULT parse_factor(uint8_t dereference) MYCC;
+EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC;
 EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT ltyp, uint8_t prec) MYCC;
 EXPR_RESULT far_parse_expr(uint8_t minprec, uint8_t expected_type_id) MYCC;
 EXPR_RESULT far_parse_expr_delayconst(uint8_t minprec, uint8_t expected_type_id) MYCC;
@@ -142,7 +142,7 @@ static void emit_sym_address_with_offset(SYMBOL *sym, uint16_t offset) MYCC {
 /* Helper: Parse and scale array index expression. */
 static EXPR_RESULT parse_and_scale_index(uint8_t elemtype_id) MYCC {
     get_token();
-    EXPR_RESULT index_result = far_parse_expr_delayconst(0, 0);
+    EXPR_RESULT index_result = far_parse_expr_delayconst(0, TYPE_ID_INT);
     expect(tokRBrack, ']');
 
     uint16_t scale = (uint16_t)type_size(elemtype_id);
@@ -312,7 +312,7 @@ EXPR_RESULT far_parse_expr(uint8_t minprec, uint8_t expected_type_id) MYCC {
 }
 
 EXPR_RESULT far_parse_expr_delayconst(uint8_t minprec, uint8_t expected_type_id) MYCC {
-    EXPR_RESULT expr_result = parse_factor(0);
+    EXPR_RESULT expr_result = parse_factor(0, expected_type_id);
 
     uint8_t p;
     while ((p = prec(tok)) && p && p >= minprec) {
@@ -365,7 +365,7 @@ EXPR_RESULT parse_ternary(EXPR_RESULT expr_result, uint8_t prec) MYCC {
     return expr_result;
 }
 
-EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
+EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
     SYMBOL sym;
     EXPR_RESULT factor_result = { .type_id = TYPE_ID_INT, .has_sym = 0 };
     uint8_t prefix_inc = 0;
@@ -378,6 +378,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
     uint16_t skiplbl;
     uint16_t tmplbl;
     uint16_t counter = 0;
+    uint8_t element_type_id;
     
     /* Handle prefix ++/-- */
     while (tok == tokInc || tok == tokDec) {
@@ -395,16 +396,42 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
 
     switch (tok) {
         case tokLBrace:
+            if (!type_is_array(expected_type_id) 
+             && !type_is_pointer(expected_type_id)) error(errTypeError);
+
+            element_type_id = type_get_element_type_id(expected_type_id);
             get_token(); // skip '{'
             skiplbl = newlbl();
             emit_jp(skiplbl);
             tmplbl = newlbl();
             emit_lbl(tmplbl);
             while (tok != tokRBrace) {
-                EXPR_RESULT element = far_parse_expr_delayconst(0, 0);
-                if (!type_is_const(element.type_id)) error_expect_const();
-                if (counter++ > 0) emit_ch(','); else emit_instr("db ");
-                emit_n(element.value);
+                EXPR_RESULT element = far_parse_expr_delayconst(0, element_type_id);
+
+                uint8_t is_func = element.has_sym && is_func_or_proto(&element.sym);
+                if (!type_is_const(element.type_id) && !is_func) error_expect_const();
+
+                uint8_t is_char = type_is_char(element_type_id);
+
+                if (counter++ > 0) 
+                    emit_ch(','); 
+                else {
+                    if (is_char)
+                        emit_instr("db ");
+                    else
+                        emit_instr("dw ");
+                }
+
+                if (is_func) {                    
+                    emit_sname(element.sym.name);
+                }
+                else if (is_char) {
+                    emit_n(element.value & 0xff);
+                }
+                else {
+                    emit_n(element.value);
+                }
+                
                 if (tok == tokRBrace) break;
                 expect_comma();
                 if (counter == 8) {
@@ -416,7 +443,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
             expect_RBrace();
             emit_lbl(skiplbl);
             emit_ld_immed(); emit_lblref(tmplbl); emit_nl();
-            factor_result.type_id = TYPE_ID_CHAR_PTR;
+            factor_result.type_id = expected_type_id;
             break;
         case tokLParen:
             get_token(); // skip '('
@@ -426,7 +453,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 get_token(); // skip '*'
                 
                 /* Parse the pointer expression - this will load the pointer into HL */
-                EXPR_RESULT ptr_result = parse_factor(0);
+                EXPR_RESULT ptr_result = parse_factor(0, 0);
                 expect_RParen();
                 
                 /* Get element type */
@@ -447,7 +474,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 get_token(); // skip '*'
                 
                 /* Parse the pointer expression */
-                EXPR_RESULT ptr_result = parse_factor(0);
+                EXPR_RESULT ptr_result = parse_factor(0, 0);
                 expect_RParen();
                 
                 /* Get element type */
@@ -585,7 +612,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
 
         case tokStar:
             get_token();
-            factor_result = parse_factor(1);
+            factor_result = parse_factor(1, expected_type_id);
             if (type_is_const(factor_result.type_id)) {
                 emit_ld_const(factor_result.value);
                 uint8_t base_id = factor_result.type_id;
@@ -721,7 +748,7 @@ EXPR_RESULT parse_factor(uint8_t dereference) MYCC {
                 emit_push();
             }
             
-            EXPR_RESULT index_result = far_parse_expr_delayconst(0, 0);
+            EXPR_RESULT index_result = far_parse_expr_delayconst(0, TYPE_ID_INT);
             expect(tokRBrack, ']');
             
             uint16_t scale = (uint16_t)type_size(elemtype_id);
@@ -1044,7 +1071,7 @@ void far_parse_assign(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t 
 
     /* Handle struct assignment */
     if (type_is_struct(type_id) && !type_is_pointer(type_id)) {
-        EXPR_RESULT r = far_parse_expr(0, 0);
+        EXPR_RESULT r = far_parse_expr(0, type_id);
         
         /* Verify types match */
         if (!type_is_struct(r.type_id) || type_get_struct_id(r.type_id) != type_get_struct_id(type_id)) {
@@ -1117,7 +1144,7 @@ void far_parse_assign(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t 
 
         emit_push();        
     }
-    EXPR_RESULT r_result = far_parse_expr(0, 0);
+    EXPR_RESULT r_result = far_parse_expr(0, type_id);
 
     /* If left-hand side is a delegate type (function pointer), ensure
      * assigned function or function-pointer has a matching signature. */

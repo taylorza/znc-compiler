@@ -6,6 +6,7 @@ uint16_t retlbl = 0;        // function exit label
 TOKEN tokMakeType = tokRaw; // type of make command
 
 uint8_t infunc = 0;         // 1 if parsing a function
+uint8_t func_rettype = 0;   // return type of current function (0 = void)
 uint8_t inbank = 0;         // 1 if in explicit bank
 
 uint8_t func_argcount;      // number of arguments for function being parsed
@@ -353,7 +354,7 @@ void parse_struct_def(void) MYCC {
                     uint8_t elem_type = ftype_id;
                     ftype_id = type_make_pointer(elem_type, 1);
                 } else {
-                    EXPR_RESULT dim = parse_expr_delayconst(0, 0);
+                    EXPR_RESULT dim = parse_expr_delayconst(0, TYPE_ID_INT);
                     if (!type_is_const(dim.type_id)) error_expect_const();
                     if (dim.value > 0) {
                         uint8_t len = (dim.value > 255) ? 255 : (uint8_t)dim.value;
@@ -421,7 +422,7 @@ void parse_switch(uint16_t contlbl) MYCC {
         last_break = 0;
         if (tok == tokCase) {
             get_token(); // skip 'case'
-            EXPR_RESULT expr_result = parse_expr_delayconst(0, 0);
+            EXPR_RESULT expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
             if (!type_is_const(expr_result.type_id)) {
                 error_expect_const();
             }
@@ -682,7 +683,7 @@ void parse_type(uint8_t *type_id_out) MYCC {
         if (tok == tokRBrack) {
             base_type_id = type_make_pointer(base_type_id, 1);
         } else {
-            EXPR_RESULT dim = parse_expr_delayconst(0, 0);
+            EXPR_RESULT dim = parse_expr_delayconst(0, TYPE_ID_INT);
             if (!type_is_const(dim.type_id)) error_expect_const();
             if (dim.value > 0) {
                 if (base_type_id == TYPE_ID_VOID) error(errSyntax);
@@ -761,8 +762,10 @@ void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
             break;
         }
         
-        /* Parse the argument expression */
-        EXPR_RESULT arg_result = parse_expr(0, 0);
+        /* Parse the argument expression with expected type if known */
+        uint8_t expected_arg_type = (sig_id != 0xFF && argcount < MAX_FUNC_ARGS) 
+            ? signature_get_arg_type(sig_id, argcount) : 0;
+        EXPR_RESULT arg_result = parse_expr(0, expected_arg_type);
         
         /* Error if passing a struct by value - must use & to pass pointer */
         if (type_is_struct(arg_result.type_id) && !type_is_pointer(arg_result.type_id)) {
@@ -840,7 +843,7 @@ void parse_return(void) MYCC {
     get_token(); // skip 'return';
     
     if (tok != tokSemi) {
-        expr_result = parse_expr(0, 0);
+        expr_result = parse_expr(0, func_rettype);
     }
     expect_semi();
     if (infunc)
@@ -941,6 +944,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
 
         symfunc.klass = FUNCTION;
         infunc = 1;
+        func_rettype = rettype_id;
         uint16_t skiplbl = newlbl();
         emit_jp(skiplbl);
 
@@ -970,6 +974,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
 
         pop_frame(funcframe);
         infunc = 0;
+        func_rettype = TYPE_ID_VOID;
         retlbl = oldretlbl;
     }
     updatesym(&symfunc);
@@ -992,7 +997,7 @@ void parse_bank(void) MYCC {
     uint16_t offset = 0;
     expect_LParen();
 
-    EXPR_RESULT bankid_result = parse_expr_delayconst(0, 0);
+    EXPR_RESULT bankid_result = parse_expr_delayconst(0, TYPE_ID_INT);
     if (!type_is_const(bankid_result.type_id)) error_expect_const();
     if (bankid_result.value > 255) error(errInvalid_s, "bank");
     bankid = (uint8_t)bankid_result.value;
@@ -1000,7 +1005,7 @@ void parse_bank(void) MYCC {
     if (tok == tokComma) {
         get_token(); // skip ','
         
-        EXPR_RESULT offset_result = parse_expr_delayconst(0, 0);
+        EXPR_RESULT offset_result = parse_expr_delayconst(0, TYPE_ID_INT);
         if (!type_is_const(offset_result.type_id)) error_expect_const();
         offset = offset_result.value;
     }
@@ -1073,13 +1078,13 @@ SYMBOL decl_in_scope(uint8_t type_id, SYM_CLASS klass, const char* name) {
         uint16_t size = type_size(type_id); 
         sym = findloc(name);
         if (is_defined(&sym)) error(errAlreadyDefined_s, name);
-        sym = declloc(type_id, VARIABLE, name, bp_lastlocal);
+        sym = declloc(type_id, klass, name, bp_lastlocal);
         bp_lastlocal += size;
         if (localbytes < bp_lastlocal) localbytes = bp_lastlocal;        
     } else {
         sym = findglb(name);
         if (is_defined(&sym)) error(errAlreadyDefined_s, name);
-        sym = declglb(type_id, VARIABLE, name, 0);
+        sym = declglb(type_id, klass, name, 0);
     }
     return sym;
 }
