@@ -9,7 +9,6 @@ uint8_t infunc = 0;         // 1 if parsing a function
 uint8_t inbank = 0;         // 1 if in explicit bank
 
 uint8_t func_argcount;      // number of arguments for function being parsed
-static uint16_t _tmp_counter = 0;
 uint16_t locals_lbl;        // label of the EQU with the arg count
 uint8_t localcount;         // number of live local variables
 uint8_t maxlocalcount;      // highwater mark for local variables
@@ -158,7 +157,7 @@ EXPR_RESULT parse_onearg(void) MYCC {
     EXPR_RESULT expr;
     get_token(); // skip leading token
     expect_LParen();
-    expr = parse_expr(0);
+    expr = parse_expr(0, 0);
     expect_RParen();
     return expr;
 }
@@ -244,7 +243,7 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
             break;
 
         default:
-            parse_expr(0);
+            parse_expr(0, 0);
             expect_semi();
             break;
     }
@@ -354,7 +353,7 @@ void parse_struct_def(void) MYCC {
                     uint8_t elem_type = ftype_id;
                     ftype_id = type_make_pointer(elem_type, 1);
                 } else {
-                    EXPR_RESULT dim = parse_expr_delayconst(0);
+                    EXPR_RESULT dim = parse_expr_delayconst(0, 0);
                     if (!type_is_const(dim.type_id)) error_expect_const();
                     if (dim.value > 0) {
                         uint8_t len = (dim.value > 255) ? 255 : (uint8_t)dim.value;
@@ -422,7 +421,7 @@ void parse_switch(uint16_t contlbl) MYCC {
         last_break = 0;
         if (tok == tokCase) {
             get_token(); // skip 'case'
-            EXPR_RESULT expr_result = parse_expr_delayconst(0);
+            EXPR_RESULT expr_result = parse_expr_delayconst(0, 0);
             if (!type_is_const(expr_result.type_id)) {
                 error_expect_const();
             }
@@ -478,64 +477,64 @@ void parse_while(void) MYCC {
 }
 
 void parse_for(void) MYCC {
-    get_token(); // skip 'for'
-    expect_LParen();
+	get_token(); // skip 'for'
+	expect_LParen();
 
-    uint16_t blockframe = push_frame();
-    uint8_t old_localcount = localcount;
+	uint16_t blockframe = push_frame();
+	uint8_t old_localcount = localcount;
 
-    uint16_t lblCond=NO_LABEL;
-    uint16_t lblEndFor, brklbl;
-    uint16_t lblBody = newlbl();
-    uint16_t lblPost, contlbl;
+	uint16_t lblCond=NO_LABEL;
+	uint16_t lblEndFor, brklbl;
+	uint16_t lblBody = newlbl();
+	uint16_t lblPost, contlbl;
 
-    lblEndFor = brklbl = newlbl();
-    lblPost = contlbl = NO_LABEL;
+	lblEndFor = brklbl = newlbl();
+	lblPost = contlbl = NO_LABEL;
 
 
-    // parse initializer
-    if (tok == tokChar || tok == tokInt) {
-        parse_decl();
-    }
-    else {
-        if (tok != tokSemi) parse_expr(0);
-        expect_semi();
-    }
-    
-    // parse condition
-    if (tok != tokSemi) {
-        lblCond = newlbl();
-        emit_lbl(lblCond);
-        parse_expr(0); 
-        emit_jp_false(lblEndFor);
-    }
-    expect_semi();
+	// parse initializer
+	if (tok == tokChar || tok == tokInt) {
+		parse_decl();
+	}
+	else {
+		if (tok != tokSemi) parse_expr(0, 0);
+		expect_semi();
+	}
 
-    // parse post statement
-    if (tok != tokRParen) {
-        emit_jp(lblBody);
-        lblPost = contlbl = newlbl();
-        emit_lbl(lblPost);
-        parse_expr(0);
-        if (lblCond != NO_LABEL) emit_jp(lblCond);
-    } else {
-        contlbl = lblBody;
-    }
-    expect_RParen();
+	// parse condition
+	if (tok != tokSemi) {
+		lblCond = newlbl();
+		emit_lbl(lblCond);
+		parse_expr(0, 0); 
+		emit_jp_false(lblEndFor);
+	}
+	expect_semi();
 
-    emit_lbl(lblBody);
-    parse_statement(brklbl, contlbl);
-    if (lblPost != NO_LABEL)
-        emit_jp(lblPost);
-    else if (lblCond != NO_LABEL)
-        emit_jp(lblCond);
-    else
-        emit_jp(lblBody);
-    emit_lbl(lblEndFor);
+	// parse post statement
+	if (tok != tokRParen) {
+		emit_jp(lblBody);
+		lblPost = contlbl = newlbl();
+		emit_lbl(lblPost);
+		parse_expr(0, 0);
+		if (lblCond != NO_LABEL) emit_jp(lblCond);
+	} else {
+		contlbl = lblBody;
+	}
+	expect_RParen();
 
-    if (maxlocalcount < localcount) maxlocalcount = localcount;
-    localcount = old_localcount;
-    pop_frame(blockframe);    
+	emit_lbl(lblBody);
+	parse_statement(brklbl, contlbl);
+	if (lblPost != NO_LABEL)
+		emit_jp(lblPost);
+	else if (lblCond != NO_LABEL)
+		emit_jp(lblCond);
+	else
+		emit_jp(lblBody);
+	emit_lbl(lblEndFor);
+
+	if (maxlocalcount < localcount) maxlocalcount = localcount;
+	localcount = old_localcount;
+	pop_frame(blockframe);    
 }
 
 void parse_break(uint16_t brklbl) MYCC {
@@ -570,10 +569,10 @@ void parse_out(void) MYCC {
     get_token(); // skip 'out'
     expect_LParen();
    
-    parse_expr(0);
+    parse_expr(0, 0);
     emit_copy_hl_to_bc();
     expect_comma();
-    parse_expr(0);
+    parse_expr(0, 0);
     emit_instrln("out (c),l");
     expect_RParen();
     expect_semi();
@@ -583,10 +582,10 @@ void parse_nextreg(void) MYCC {
     get_token(); // skip 'nextreg'
     expect_LParen();
     
-    parse_expr(0);
+    parse_expr(0, 0);
     emit_push();
     expect_comma();
-    parse_expr(0);
+    parse_expr(0, 0);
     emit_pop_de();
 
     emit_instrln("ld bc,9275");
@@ -683,7 +682,7 @@ void parse_type(uint8_t *type_id_out) MYCC {
         if (tok == tokRBrack) {
             base_type_id = type_make_pointer(base_type_id, 1);
         } else {
-            EXPR_RESULT dim = parse_expr_delayconst(0);
+            EXPR_RESULT dim = parse_expr_delayconst(0, 0);
             if (!type_is_const(dim.type_id)) error_expect_const();
             if (dim.value > 0) {
                 if (base_type_id == TYPE_ID_VOID) error(errSyntax);
@@ -746,7 +745,7 @@ void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
     uint8_t have_tmp = 0;
     if (ptr_in_hl) {
         char tmpname[MAX_IDENT_LEN + 1];
-        snprintf(tmpname, sizeof(tmpname), "tmp%u", _tmp_counter++);
+        snprintf(tmpname, sizeof(tmpname), "t%u", newlbl());
         tmp_sym = decl_in_scope(TYPE_ID_INT, VARIABLE, tmpname);
         
         /* Store HL (the pointer) into the temp variable */
@@ -763,7 +762,7 @@ void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
         }
         
         /* Parse the argument expression */
-        EXPR_RESULT arg_result = parse_expr(0);
+        EXPR_RESULT arg_result = parse_expr(0, 0);
         
         /* Error if passing a struct by value - must use & to pass pointer */
         if (type_is_struct(arg_result.type_id) && !type_is_pointer(arg_result.type_id)) {
@@ -841,7 +840,7 @@ void parse_return(void) MYCC {
     get_token(); // skip 'return';
     
     if (tok != tokSemi) {
-        expr_result = parse_expr(0);
+        expr_result = parse_expr(0, 0);
     }
     expect_semi();
     if (infunc)
@@ -978,7 +977,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
 
 void parse_org(void) MYCC {
     get_token(); // skip 'org'
-    EXPR_RESULT expr_result = parse_expr_delayconst(0);
+    EXPR_RESULT expr_result = parse_expr_delayconst(0, 0);
     if (!type_is_const(expr_result.type_id)) error_expect_const();
     emit_org(expr_result.value);
     expect_semi();
@@ -993,7 +992,7 @@ void parse_bank(void) MYCC {
     uint16_t offset = 0;
     expect_LParen();
 
-    EXPR_RESULT bankid_result = parse_expr_delayconst(0);
+    EXPR_RESULT bankid_result = parse_expr_delayconst(0, 0);
     if (!type_is_const(bankid_result.type_id)) error_expect_const();
     if (bankid_result.value > 255) error(errInvalid_s, "bank");
     bankid = (uint8_t)bankid_result.value;
@@ -1001,7 +1000,7 @@ void parse_bank(void) MYCC {
     if (tok == tokComma) {
         get_token(); // skip ','
         
-        EXPR_RESULT offset_result = parse_expr_delayconst(0);
+        EXPR_RESULT offset_result = parse_expr_delayconst(0, 0);
         if (!type_is_const(offset_result.type_id)) error_expect_const();
         offset = offset_result.value;
     }
@@ -1041,7 +1040,7 @@ void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC {
         if (op == tokHashIfNDef) active = !active;
         get_token(); // skip identifier
     } else {
-        EXPR_RESULT expr_result = parse_expr_delayconst(0);
+        EXPR_RESULT expr_result = parse_expr_delayconst(0, 0);
         if (!type_is_const(expr_result.type_id)) error_expect_const();
         active = expr_result.value != 0;
     }
