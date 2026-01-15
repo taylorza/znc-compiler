@@ -35,7 +35,7 @@ const byte DT_SECS  = 5;
 //      Fc=1 if no RTC, or invalid date/time, and:
 //      BC=0, DE=0, HL undefined
 
-int getDateTime(int dt) __asm__ {
+int getDateTime(int[] dt) __asm__ {
   
   push ix
   ld ix,0

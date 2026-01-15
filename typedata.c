@@ -133,6 +133,20 @@ uint8_t types_are_compatible(uint8_t type_id1, uint8_t type_id2) MYCC {
         }
         return 1;
     }
+
+    /* Allow arrays to degrade to pointers of the same base type.
+     * e.g. `int[]` compatible with `int*` (pointer to element type).
+     */
+    if (kind1 == TK_ARRAY && indir2 > 0) {
+        uint8_t elem1 = t1.aux0; /* element type id for array */
+        uint8_t elem2 = type_get_element_type_id(type_id2); /* element type id for pointer */
+        if (elem1 == elem2) return 1;
+    }
+    if (kind2 == TK_ARRAY && indir1 > 0) {
+        uint8_t elem2 = t2.aux0;
+        uint8_t elem1 = type_get_element_type_id(type_id1);
+        if (elem1 == elem2) return 1;
+    }
     
     /* Allow integers to be assigned to pointers (e.g., p = 1234) */
     if ((indir1 > 0 && indir2 == 0) || (indir2 > 0 && indir1 == 0)) {

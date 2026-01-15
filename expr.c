@@ -454,7 +454,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             tmplbl = newlbl();
             emit_lbl(tmplbl);
                         
-            parse_brace_initializer_elements(element_type_id);
+            parse_brace_initializer_elements(expected_type_id);
             
             expect_RBrace();
             emit_lbl(skiplbl);
@@ -1057,7 +1057,12 @@ void far_parse_assign(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t 
         emit_lbl(datalbl);
         emit_ch(' ');
         
-        elementcount = parse_brace_initializer_elements(type_id);
+        uint8_t element_type_id = type_id;
+        if (type_is_array(type_id) || type_is_pointer(type_id)) {
+            element_type_id = type_get_element_type_id(type_id);
+        }
+        
+        elementcount = parse_brace_initializer_elements(element_type_id);
         
         if (datalen != NO_LABEL) {
             emit_lblequ16(datalen, elementcount * type_size(type_id));

@@ -610,12 +610,17 @@ void emit_store(uint8_t type_id) MYCC {
 } 
 
 void emit_load(uint8_t type_id) MYCC {
-    /* Load the value pointed to by HL. If the base type is char (including
-     * pointers to char), load a byte and sign-extend. Otherwise load a 16-bit
-     * value (word) from memory.
+    /* Load the value pointed to by HL. If the effective element type is char
+     * (including pointers/arrays to char), load a byte and sign-extend.
+     * Otherwise load a 16-bit value (word) from memory.
      */
-    uint8_t elem_type = type_get_element_type_id(type_id);
-    if (type_is_char(elem_type)) {
+    uint8_t effective_type = type_id;
+    if (type_is_pointer(type_id) || type_is_array(type_id)) {
+        uint8_t elem = type_get_element_type_id(type_id);
+        if (elem != TYPE_ID_VOID) effective_type = elem;
+    }
+
+    if (type_is_void(effective_type) || type_is_char(effective_type)) {
         emit_instrln("ld a,(hl)");
         emit_rtl("ccsxt");
     } else {
