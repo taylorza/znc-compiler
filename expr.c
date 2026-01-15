@@ -3,6 +3,7 @@
 #include "shared.h"
 
 #define ASSIGN_PREC 1
+#define COND_PREC 3
 #define OR_PREC 5
 #define AND_PREC 10
 #define BIT_OR_PREC 15
@@ -13,7 +14,7 @@
 #define SHIFT_OP_PREC 40
 #define ADD_PREC 45
 #define MUL_PREC 50
-#define COND_PREC 3
+
 
 typedef struct OP_PREC {
     TOKEN op;
@@ -354,21 +355,25 @@ EXPR_RESULT far_parse_expr(uint8_t minprec, uint8_t expected_type_id) MYCC {
     return expr_result;
 }
 
-EXPR_RESULT far_parse_expr_delayconst(uint8_t minprec, uint8_t expected_type_id) MYCC {
-    EXPR_RESULT expr_result = parse_factor(0, expected_type_id);
-
+EXPR_RESULT parse_op_right(EXPR_RESULT left, uint8_t minprec, uint8_t expected_type_id) {
     uint8_t p;
     while ((p = prec(tok)) && p && p >= minprec) {
         TOKEN op = tok;
         get_token(); // skip op
 
         if (op == tokCond) {
-            expr_result = parse_ternary(expr_result, p);
+            left = parse_ternary(left, p);
         }
         else {
-            expr_result = parse_binop(op, expr_result, p);
+            left = parse_binop(op, left, p);
         }
     }
+    return left;
+}
+
+EXPR_RESULT far_parse_expr_delayconst(uint8_t minprec, uint8_t expected_type_id) MYCC {
+    EXPR_RESULT expr_result = parse_factor(0, expected_type_id);
+    expr_result = parse_op_right(expr_result, minprec, expected_type_id);
     return expr_result;
 }
 
@@ -486,16 +491,23 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
                 
                 /* Parse the pointer expression */
                 EXPR_RESULT ptr_result = parse_factor(0, 0);
-                expect_RParen();
-                
-                /* Get element type */
-                uint8_t elem_type_id = type_get_element_type_id(ptr_result.type_id);
-                factor_result.type_id = elem_type_id;
-                
-                /* Don't load the value yet - leave address in HL for potential postfix operator */
-                /* The postfix loop will handle ++ or --, or the normal path will load if needed */
-                addr_in_hl = 1;
-                dereference = 1;
+                if (tok == tokRParen) {
+                    get_token(); // skip ')'
+
+                    /* Get element type */
+                    uint8_t elem_type_id = type_get_element_type_id(ptr_result.type_id);
+                    factor_result.type_id = elem_type_id;
+
+                    /* Don't load the value yet - leave address in HL for potential postfix operator */
+                    /* The postfix loop will handle ++ or --, or the normal path will load if needed */
+                    addr_in_hl = 1;
+                    dereference = 1;                    
+                }
+                else {
+                    emit_load(ptr_result.type_id);
+                    factor_result = parse_op_right(ptr_result, 0, expected_type_id);
+                    expect_RParen();                    
+                }
                 break;
             }
             

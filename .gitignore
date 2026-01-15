@@ -1,6 +1,7 @@
 /output
 /znc.map
 /*.bin
+*.lis
 znc
 
 znc.zip

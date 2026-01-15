@@ -11,7 +11,7 @@ CFLAGS = -m -c -clib=sdcc_iy -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLO
 AFLAGS =
 LFLAGS = -m -startup=30 -clib=sdcc_iy -subtype=dotn -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLOCS) -pragma-include:zpragma.inc -create-app
 
-SOURCES = strtbl_stub.c sym_stub.c rtl_stub.c expr_stub.c errordata_stub.c shared.c typedata.c errordata.c struct_stub.c struct.c strtbl.c codegen.c compiler.c dataarea.c error.c expr.c type.c main.c rtl.c scanner.c sym.c util.c 
+SOURCES = strtbl_stub.c sym_stub.c rtl_stub.c expr_stub.c errordata_stub.c shared.c typedata.c errordata.c struct_stub.c struct.c strtbl.c codegen.c compiler.c dataarea.c error.c expr.c type.c main.c rtl.c scanner.c scannerdata.c sym.c util.c 
 
 OBJFILES = $(patsubst %.c,$(OUTPUT_DIR)/%.o,$(SOURCES))
 
@@ -53,6 +53,11 @@ $(OUTPUT_DIR)/rtl.o: rtl.c $(RTL_INCS) | $(OUTPUT_DIR)
 
 $(OUTPUT_DIR)/errordata.o: errordata.c | $(OUTPUT_DIR)
 	@echo "Compiling BANK 42 (error strings)"
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_42 --codesegBANK_42 --constsegBANK_42 --bsssegBANK_42
+	@echo "-> Generated $@"
+
+$(OUTPUT_DIR)/scannerdata.o: scannerdata.c | $(OUTPUT_DIR)
+	@echo "Compiling BANK 42 (scanner data)"
 	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_42 --codesegBANK_42 --constsegBANK_42 --bsssegBANK_42
 	@echo "-> Generated $@"
 
