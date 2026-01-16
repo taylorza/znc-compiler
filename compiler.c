@@ -441,7 +441,7 @@ void parse_switch(uint16_t contlbl) MYCC {
         if (tok == tokLBrace) 
             parse_statement_block(lblDone, contlbl);
         else
-            while (tok != tokEOS && tok != tokBreak && tok != tokCase && tok != tokRBrace) {
+            while (tok != tokEOS && tok != tokBreak && tok != tokCase && tok != tokRBrace && tok != tokDefault) {
                 parse_statement(lblDone, contlbl);
             }
         if (tok == tokBreak) {
@@ -841,11 +841,19 @@ void parse_return(void) MYCC {
     EXPR_RESULT expr_result = { .type_id = TYPE_ID_VOID };
 
     get_token(); // skip 'return';
+
+    if (type_is_void(func_rettype)) {
+        expect_semi();
+    } 
+    else {
+        if (tok == tokSemi) error(errReturnValueExpected);
+        expr_result = parse_expr(0, func_rettype);        
+        if (!type_check_compatible(func_rettype, expr_result.type_id)) {
+            error(errTypeError);
+        }        
+        expect_semi();
+    }    
     
-    if (tok != tokSemi) {
-        expr_result = parse_expr(0, func_rettype);
-    }
-    expect_semi();
     if (infunc)
         emit_jp(retlbl);
     else {

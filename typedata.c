@@ -86,7 +86,7 @@ uint8_t signature_intern(uint8_t return_type_id, uint8_t arg_count, const uint8_
 
 /* BANK_43: Type compatibility checking */
 /* This function must be in BANK_43 as it directly accesses type_table */
-uint8_t types_are_compatible(uint8_t type_id1, uint8_t type_id2) MYCC {
+uint8_t far_type_check_compatible(uint8_t type_id1, uint8_t type_id2) MYCC {
     TypeEntry t1, t2;
     uint8_t indir1, indir2;
     uint8_t kind1, kind2;

@@ -19,6 +19,7 @@ static const char* errmsg[] = {
     "Out of memory in arena",
     "Too many types",
     "Too many pointer indirections",
+    "Return value expected",
 };
 
 /* Banked function to copy error message to buffer */

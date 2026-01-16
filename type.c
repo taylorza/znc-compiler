@@ -171,6 +171,10 @@ uint8_t type_is_function(uint8_t type_id) MYCC {
     return type_get_kind(type_id) == TK_FUNCTION && type_get_indirection(type_id) == 0;
 }
 
+uint8_t type_is_delegate(uint8_t type_id) MYCC {
+    return type_get_kind(type_id) == TK_FUNCTION && type_get_indirection(type_id) > 0;
+}
+
 /* Accessors */
 uint8_t type_get_element_type(uint8_t array_type_id) MYCC {
     TypeEntry entry = type_get(array_type_id);
@@ -334,17 +338,28 @@ uint8_t signature_get_arg_type(uint8_t sig_id, uint8_t arg_index) MYCC {
     return sig.arg_types[arg_index];
 }
 
-/* Type compatibility checking */
-extern uint8_t types_are_compatible(uint8_t type_id1, uint8_t type_id2) MYCC;
+uint8_t signature_check(uint8_t sig_id1, uint8_t sig_id2) MYCC {
+    if (sig_id1 >= signature_count || sig_id2 >= signature_count) return 0;
+    FuncSignature sig1 = signature_read_from_bank(sig_id1);
+    FuncSignature sig2 = signature_read_from_bank(sig_id2);
+    
+    if (sig1.arg_count != sig2.arg_count) return 0;
 
-uint8_t far_types_are_compatible(uint8_t type_id1, uint8_t type_id2) MYCC {
-    PROLOG(43)
-    uint8_t result = types_are_compatible(type_id1, type_id2);
-    EPILOG_RETURN(result);
+    if (!type_check_compatible(sig1.return_type_id, sig2.return_type_id)) return 0;        
+    
+    for (uint8_t i = 0; i < sig1.arg_count; i++) {
+        if (!type_check_compatible(sig1.arg_types[i], sig2.arg_types[i])) return 0;
+    }
+    
+    return 1; /* Signatures match */
 }
 
+/* Type compatibility checking */
+extern uint8_t far_type_check_compatible(uint8_t type_id1, uint8_t type_id2) MYCC;
 uint8_t type_check_compatible(uint8_t type_id1, uint8_t type_id2) MYCC {
-    return far_types_are_compatible(type_id1, type_id2);
+    PROLOG(43)
+    uint8_t result = far_type_check_compatible(type_id1, type_id2);
+    EPILOG_RETURN(result);
 }
 
 /* Named-type registry is implemented in banked typedata.c; wrappers below call

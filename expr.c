@@ -61,7 +61,7 @@ int8_t prec(TOKEN op) MYCC {
     return 0;
 }
 
-EXPR_RESULT parse_ternary(EXPR_RESULT expr_result, uint8_t prec) MYCC;
+EXPR_RESULT parse_ternary(EXPR_RESULT expr_result, uint8_t prec, uint8_t expected_type_id) MYCC;
 EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC;
 EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT ltyp, uint8_t prec) MYCC;
 EXPR_RESULT far_parse_expr(uint8_t minprec, uint8_t expected_type_id) MYCC;
@@ -128,12 +128,28 @@ static uint16_t parse_brace_initializer_elements(uint8_t element_type_id) MYCC {
     uint16_t counter = 0;
     uint16_t elementcount = 0;
     
+    uint8_t delegate_sig_id = 0xFF;
+    uint8_t is_delegate = type_is_delegate(element_type_id);
+    if (is_delegate) {
+        delegate_sig_id = type_get_function_sig(element_type_id);
+    }
+
     uint8_t is_char = type_is_char(element_type_id);
     while (tok != tokRBrace && tok != tokEOS) {
         EXPR_RESULT element = far_parse_expr_delayconst(0, element_type_id);
         uint8_t is_func = element.has_sym && is_func_or_proto(&element.sym);
         if (!type_is_const(element.type_id) && !is_func) error_expect_const();
 
+        if (is_delegate) {
+            if (!is_func) error(errTypeError);
+            if (!signature_check(delegate_sig_id, element.sym.signature_id)) {
+                error(errTypeError);
+            }
+        }
+        else if (!type_check_compatible(element_type_id, element.type_id) && element_type_id != 0) {
+            error(errTypeError);
+        }
+        
         ++elementcount;
         if (counter++ > 0) 
             emit_ch(','); 
@@ -362,7 +378,7 @@ EXPR_RESULT parse_op_right(EXPR_RESULT left, uint8_t minprec, uint8_t expected_t
         get_token(); // skip op
 
         if (op == tokCond) {
-            left = parse_ternary(left, p);
+            left = parse_ternary(left, p, expected_type_id);
         }
         else {
             left = parse_binop(op, left, p);
@@ -377,7 +393,7 @@ EXPR_RESULT far_parse_expr_delayconst(uint8_t minprec, uint8_t expected_type_id)
     return expr_result;
 }
 
-EXPR_RESULT parse_ternary(EXPR_RESULT expr_result, uint8_t prec) MYCC {
+EXPR_RESULT parse_ternary(EXPR_RESULT expr_result, uint8_t prec, uint8_t expected_type_id) MYCC {
     uint16_t altlbl = newlbl();
     uint16_t donelbl = newlbl();
 
@@ -385,29 +401,16 @@ EXPR_RESULT parse_ternary(EXPR_RESULT expr_result, uint8_t prec) MYCC {
         emit_ld_const(expr_result.value);
     }
     emit_jp_false(altlbl);
-    EXPR_RESULT ptyp = far_parse_expr(0, 0);  // primary expression
+    EXPR_RESULT ptyp = far_parse_expr(0, expected_type_id);  // primary expression
+    if (!type_check_compatible(ptyp.type_id, expected_type_id)) error(errTypeError);
     emit_jp(donelbl);
     expect(tokColon, ':' );
     emit_lbl(altlbl);
-    EXPR_RESULT atyp = far_parse_expr(prec, 0); // alternate expresion
+    EXPR_RESULT atyp = far_parse_expr(prec, expected_type_id); // alternate expresion
+    if (!type_check_compatible(atyp.type_id, expected_type_id)) error(errTypeError);
     emit_lbl(donelbl);
 
-    TypeKind ptyp_kind = type_get_kind(ptyp.type_id);
-    TypeKind atyp_kind = type_get_kind(atyp.type_id);
-    if (ptyp_kind != atyp_kind) error(errTypeError);
-    
-    /* Result type is the primary branch type, but mark as non-const since
-     * we've already emitted the conditional code to compute the result in HL
-     */
-    if (ptyp_kind == TK_CHAR) {
-        expr_result.type_id = TYPE_ID_CHAR;
-    } else if (ptyp_kind == TK_INT) {
-        expr_result.type_id = TYPE_ID_INT;
-    } else {
-        expr_result.type_id = ptyp.type_id;
-    }
-    
-    /* Ternary result is computed, not a direct symbol reference */
+    expr_result.type_id = expected_type_id;
     expr_result.has_sym = 0;
 
     return expr_result;
@@ -711,7 +714,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
              * to emit the symbol reference directly (e.g., for initializers).
              */
             if (is_func_or_proto(&sym) && tok != tokLParen && tok != tokLBrack) {
-                factor_result.value = 0;  /* Functions don't have a numeric value */
+                factor_result.value = 0;                  /* Functions don't have a numeric value */
                 return factor_result;
             }
             
