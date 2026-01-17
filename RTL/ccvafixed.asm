@@ -1,0 +1,11 @@
+ ld l,(ix+4)
+ ld h,0
+ add hl,hl
+ add hl,de
+ push ix
+ pop de
+ add hl,de
+ ld e,(hl)
+ inc hl
+ ld d,(hl)
+ ex de,hl

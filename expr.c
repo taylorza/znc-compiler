@@ -544,6 +544,39 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             factor_result.type_id = TYPE_ID_CHAR;
             break;
 
+        case tokVaCount:
+            /* __va_count() - returns count of variadic args from (ix+4) */
+            get_token(); // skip '__va_count'
+            expect_LParen();
+            expect_RParen();
+            /* Load count from (ix+4) and sign-extend to int */
+            emit_instrln("ld l,(ix+4)");
+            emit_instrln("ld h,0");
+            factor_result.type_id = TYPE_ID_INT;
+            break;
+
+        case tokVaArg:
+            /* __va_arg(index) - returns variadic arg at index from (ix+6+2*index) */
+            get_token(); // skip '__va_arg'
+            expect_LParen();
+            {
+                EXPR_RESULT idx_result = far_parse_expr(0, TYPE_ID_INT);
+                
+                /* If index is a compile-time constant, emit optimized code */
+                if (type_is_const(idx_result.type_id)) {
+                    uint16_t offset = 6 + 2 * idx_result.value;
+                    emit_instrln("ld l,(ix+%d)", offset);
+                    emit_instrln("ld h,(ix+%d)", offset + 1);
+                } else {
+                    /* Dynamic index: use RTL helper */
+                    /* HL already contains the index value */
+                    emit_rtl("ccvaarg");
+                }
+            }
+            expect_RParen();
+            factor_result.type_id = TYPE_ID_INT;
+            break;
+
         case tokString: {
             factor_result.type_id = TYPE_ID_CHAR_PTR;
             ARENA_MARKER _am = arena_get_marker();

@@ -433,6 +433,33 @@ static void emit_compute_ix_address(int16_t offset) MYCC {
     emit_instrln("add hl,de");
 }
 
+
+/* Helper: Emit code to load a variadic function argument value */
+static void emit_load_variadic_arg(SYMBOL *sym) MYCC {
+    uint8_t offset_factor = func_argcount - sym->offset;
+    uint16_t constant_offset = 4 + 2 * offset_factor;
+    emit_ldde_immed_n(constant_offset);
+    emit_rtl("ccvafixed");
+}
+
+/* Helper: Emit code to load address of a variadic function argument */
+static void emit_load_variadic_arg_addr(SYMBOL *sym) MYCC {
+    uint8_t offset_factor = func_argcount - sym->offset;
+    uint16_t constant_offset = 4 + 2 * offset_factor;
+    emit_ldde_immed_n(constant_offset);
+    emit_rtl("ccvafixedaddr");
+}
+
+/* Helper: Emit code to store to a variadic function argument */
+static void emit_store_variadic_arg(SYMBOL *sym) MYCC {
+    emit_push();
+    emit_load_variadic_arg_addr(sym);
+    emit_instrln("pop de");
+    emit_instrln("ld (hl),e");
+    emit_instrln("inc hl");
+    emit_instrln("ld (hl),d");
+}
+
 void emit_ld_symval(SYMBOL* sym) MYCC {
     uint8_t type_id = sym->type_id;
 
@@ -457,6 +484,12 @@ void emit_ld_symval(SYMBOL* sym) MYCC {
         }
     }
     else if (sym->scope == LOCAL) {
+        /* For variadic functions, ARGUMENT parameters need dynamic offset calculation */
+        if (sym->klass == ARGUMENT && func_is_variadic) {
+            emit_load_variadic_arg(sym);
+            return;
+        }
+        
         if (sym->klass == VARIABLE) {
             if (type_is_array(type_id) || type_is_struct(type_id)) {
                 /* Arrays and structs: load their address */
@@ -516,6 +549,16 @@ void emit_ld_symaddr_offset(SYMBOL* sym, uint16_t offset) MYCC {
         emit_nl();
     }
     else if (sym->scope == LOCAL) {
+        /* For variadic functions, ARGUMENT parameters need dynamic offset calculation */
+        if (sym->klass == ARGUMENT && func_is_variadic) {
+            emit_load_variadic_arg_addr(sym);
+            if (offset) {
+                emit_ldde_immed_n(offset);
+                emit_add16();
+            }
+            return;
+        }
+        
         /* Calculate base address of symbol (low byte) */
         int16_t bp_offset = compute_symbol_base_offset(sym);
         
@@ -523,6 +566,7 @@ void emit_ld_symaddr_offset(SYMBOL* sym, uint16_t offset) MYCC {
         bp_offset += (int16_t)offset;
         
         /* OPTIMIZATION: If final offset is in IX+d range, compute optimally */
+        /* IMPORTANT: Do NOT use DE register - callers may need it preserved! */
         if (bp_offset >= -128 && bp_offset <= 127) {
             if (bp_offset == 0) {
                 /* Special case: offset 0 - just copy IX */
@@ -532,17 +576,17 @@ void emit_ld_symaddr_offset(SYMBOL* sym, uint16_t offset) MYCC {
                 emit_copy_ix_to_hl();
                 emit_add_hl_small(bp_offset);
             } else {
-                /* Medium offset: still in range, use add */
+                /* Medium offset: use BC to avoid clobbering DE */
                 emit_copy_ix_to_hl();
-                emit_ldde_immed_n((uint16_t)bp_offset);
-                emit_add16();
+                emit_instrln("ld bc,%d", (uint16_t)bp_offset);
+                emit_instrln("add hl,bc");
             }
         } else {
-            /* Out of range: compute manually */
+            /* Out of range: use BC to avoid clobbering DE */
             emit_instrln("ld hl,%d", bp_offset);
-            emit_instrln("ld d,ixh");
-            emit_instrln("ld e,ixl");
-            emit_instrln("add hl,de");
+            emit_instrln("ld b,ixh");
+            emit_instrln("ld c,ixl");
+            emit_instrln("add hl,bc");
         }
     }
 }
@@ -565,6 +609,12 @@ void emit_store_sym(SYMBOL* sym) MYCC {
         }
     }
     else if (sym->scope == LOCAL) {
+        /* For variadic functions, ARGUMENT parameters need dynamic offset calculation */
+        if (sym->klass == ARGUMENT && func_is_variadic) {
+            emit_store_variadic_arg(sym);
+            return;
+        }
+        
         if (sym->klass == VARIABLE && !type_is_pointer(type_id) && type_is_char(type_id)) {
             /* Char/byte scalar: store single byte */
             int8_t bp_offset = (uint8_t)sym->offset;

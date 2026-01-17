@@ -286,7 +286,8 @@ uint8_t far_type_intern(TypeEntry entry) MYCC {
 
 typedef struct FuncSignature {
     uint8_t return_type_id;
-    uint8_t arg_count;
+    uint8_t arg_count;           /* Fixed argument count (does not include variadic args) */
+    uint8_t is_variadic;         /* 1 if function is variadic, 0 otherwise */
     uint8_t arg_types[MAX_FUNC_ARGS];
 } FuncSignature;
 
@@ -295,6 +296,7 @@ extern uint8_t signature_count;
 
 /* Stub functions to access signature table in BANK_43 */
 extern uint8_t signature_intern(uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC;
+extern uint8_t signature_intern_variadic(uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC;
 
 /* Read a signature entry from the banked signature table */
 FuncSignature signature_read_from_bank(uint8_t sig_id) MYCC {
@@ -310,6 +312,13 @@ uint8_t far_signature_intern(uint8_t return_type_id, uint8_t arg_count, const ui
     EPILOG_RETURN(result);
 }
 
+/* Wrapper to call signature_intern_variadic from other banks */
+uint8_t far_signature_intern_variadic(uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC {
+    PROLOG(43)
+    uint8_t result = signature_intern_variadic(return_type_id, arg_count, arg_types);
+    EPILOG_RETURN(result);
+}
+
 /* Function signature API */
 uint8_t signature_create(uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC {
     if (arg_count > MAX_FUNC_ARGS) {
@@ -317,6 +326,14 @@ uint8_t signature_create(uint8_t return_type_id, uint8_t arg_count, const uint8_
         arg_count = MAX_FUNC_ARGS;
     }
     return far_signature_intern(return_type_id, arg_count, arg_types);
+}
+
+uint8_t signature_create_variadic(uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC {
+    if (arg_count > MAX_FUNC_ARGS) {
+        error(errTooManyTypes);  /* Reuse error for now */
+        arg_count = MAX_FUNC_ARGS;
+    }
+    return far_signature_intern_variadic(return_type_id, arg_count, arg_types);
 }
 
 uint8_t signature_get_return_type(uint8_t sig_id) MYCC {
@@ -336,6 +353,12 @@ uint8_t signature_get_arg_type(uint8_t sig_id, uint8_t arg_index) MYCC {
     FuncSignature sig = signature_read_from_bank(sig_id);
     if (arg_index >= sig.arg_count) return TYPE_ID_VOID;
     return sig.arg_types[arg_index];
+}
+
+uint8_t signature_is_variadic(uint8_t sig_id) MYCC {
+    if (sig_id >= signature_count) return 0;
+    FuncSignature sig = signature_read_from_bank(sig_id);
+    return sig.is_variadic;
 }
 
 uint8_t signature_check(uint8_t sig_id1, uint8_t sig_id2) MYCC {

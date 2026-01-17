@@ -67,9 +67,11 @@ uint8_t type_get_element_type_id(uint8_t ptr_or_array_type_id) MYCC;
 /* Function signature API */
 #define MAX_FUNC_ARGS 8
 uint8_t signature_create(uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC;
+uint8_t signature_create_variadic(uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC;
 uint8_t signature_get_return_type(uint8_t sig_id) MYCC;
 uint8_t signature_get_arg_count(uint8_t sig_id) MYCC;
 uint8_t signature_get_arg_type(uint8_t sig_id, uint8_t arg_index) MYCC;
+uint8_t signature_is_variadic(uint8_t sig_id) MYCC;
 uint8_t signature_check(uint8_t sig_id1, uint8_t sig_id2) MYCC;
 
 /* Type compatibility checking

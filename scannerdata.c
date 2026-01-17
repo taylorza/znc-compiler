@@ -29,6 +29,8 @@ KEYWORD keywords[] = {
     {"out", tokOut},
     {"nextreg", tokNextReg},
     {"readreg", tokReadReg},
+    {"__va_count", tokVaCount},
+    {"__va_arg", tokVaArg},
     {"__asm__", tokAsm},
     {"include", tokInclude},
     {"struct", tokStruct},
@@ -309,7 +311,17 @@ get_token_start:
             case ']': tok = tokRBrack; break;
             case '?': tok = tokCond; break;
             case ':': tok = tokColon; break;
-            case '.': tok = tokMember; break;
+            case '.': 
+                /* Check for ... (ellipsis) */
+                if (ch() == '.' && *(code+1) == '.') {
+                    *temp++ = gnc(); /* consume second '.' */
+                    *temp++ = gnc(); /* consume third '.' */
+                    *temp = '\0';
+                    tok = tokEllipsis;
+                } else {
+                    tok = tokMember;
+                }
+                break;
             default:
                 error(errSyntax);
                 break;

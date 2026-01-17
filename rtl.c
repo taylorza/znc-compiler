@@ -163,6 +163,21 @@ RTLREC rtltbl[] = {
         NULL,
         FLAG_RTL_NONE
     },
+    { "ccvaarg",
+#include "RTL/generated/ccvaarg.inc"
+        NULL,
+        FLAG_RTL_NONE
+    },
+    { "ccvafixed",
+#include "RTL/generated/ccvafixed.inc"
+        NULL,
+        FLAG_RTL_NONE
+    },
+    { "ccvafixedaddr",
+#include "RTL/generated/ccvafixedaddr.inc"
+        NULL,
+        FLAG_RTL_NONE
+    },
         {
             "ccswitch",
 #include "RTL/generated/ccswitch.inc"

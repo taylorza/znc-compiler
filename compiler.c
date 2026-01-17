@@ -10,6 +10,7 @@ uint8_t func_rettype = 0;   // return type of current function (0 = void)
 uint8_t inbank = 0;         // 1 if in explicit bank
 
 uint8_t func_argcount;      // number of arguments for function being parsed
+uint8_t func_is_variadic = 0; // 1 if current function is variadic
 uint16_t locals_lbl;        // label of the EQU with the arg count
 uint8_t localcount;         // number of live local variables
 uint8_t maxlocalcount;      // highwater mark for local variables
@@ -726,6 +727,8 @@ void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
     uint8_t argcount = 0;
     uint8_t expected_count = 0xFF;
     uint8_t sig_id = 0xFF;
+    uint8_t is_variadic = 0;
+    
     if (is_func_or_proto(sym)) {
         expected_count = sym->offset;
         if (sym->signature_id != 0xFF) sig_id = sym->signature_id;
@@ -737,6 +740,11 @@ void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
             sig_id = type_get_function_sig(ftype);
             expected_count = signature_get_arg_count(sig_id);
         }
+    }
+    
+    /* Check if function is variadic */
+    if (sig_id != 0xFF) {
+        is_variadic = signature_is_variadic(sig_id);
     }
     
     /* If pointer to call is already in HL, save it to a temp so it
@@ -756,8 +764,9 @@ void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
     }
 
     while (tok != tokRParen) {
-        /* Check argument count inline */
-        if (expected_count != 0xFF && argcount >= expected_count) {
+        /* For variadic functions, allow more args than expected_count
+         * For non-variadic, check argument count inline */
+        if (!is_variadic && expected_count != 0xFF && argcount >= expected_count) {
             error(errArgMismatch);
             break;
         }
@@ -775,8 +784,8 @@ void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
             error(errTypeError);
         }
         
-        /* Check argument type inline if signature available */
-        if (sig_id != 0xFF && argcount < MAX_FUNC_ARGS) {
+        /* Check argument type inline if signature available and within fixed params */
+        if (sig_id != 0xFF && argcount < expected_count && argcount < MAX_FUNC_ARGS) {
             uint8_t expected_type = signature_get_arg_type(sig_id, argcount);
             /* Prefer the original symbol type if this argument started as a simple
              * identifier (peeked earlier). This ensures we preserve array types
@@ -805,8 +814,23 @@ void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
         get_token(); // skip ','
     }
     
-    /* Final argument count check */
-    if (expected_count != 0xFF && argcount != expected_count) {
+    /* Calculate variadic argument count */
+    uint8_t variadic_count = 0;
+    if (is_variadic && expected_count != 0xFF) {
+        if (argcount < expected_count) {
+            error(errArgMismatch);
+        }
+        variadic_count = argcount - expected_count;
+    }
+    
+    /* For variadic functions, push the count of variadic args */
+    if (is_variadic) {
+        emit_ld_immed_n(variadic_count);
+        emit_push();
+    }
+    
+    /* Final argument count check for non-variadic functions */
+    if (!is_variadic && expected_count != 0xFF && argcount != expected_count) {
         error(errArgMismatch);
     }
     
@@ -819,8 +843,11 @@ void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
     }
 
     emit_callsym(sym, ptr_in_hl);
-    /* Cleanup stack: prefer expected_count if known, otherwise actual argcount */
+    /* Cleanup stack: for variadic functions, also account for pushed count */
     int cleanup_count = (expected_count != 0xFF) ? expected_count : argcount;
+    if (is_variadic) {
+        cleanup_count = argcount + 1;  /* +1 for the count itself */
+    }
     clean_stack(cleanup_count * 2);
 }
 
@@ -901,9 +928,10 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
     retlbl = newlbl(); 
     uint16_t funcframe = push_frame();
     func_argcount = 0;
+    uint8_t is_variadic = 0;
     
     /* Parse arguments and collect their types */
-    while (tok != tokRParen) {
+    while (tok != tokRParen && tok != tokEllipsis) {
         parse_type(&argtype_id);
         /* Preserve parsed type for the function signature; convert arrays to pointers
          * only for the local argument variable storage.
@@ -928,8 +956,15 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
         strncpy(argName, token, MAX_IDENT_LEN);
         declloc(argtype_id, ARGUMENT, argName, func_argcount++);
         get_token(); // skip arg name
-        if (tok == tokComma) get_token(); // skip ',',,
+        if (tok == tokComma) get_token(); // skip ','
     }
+    
+    /* Check for variadic function (...)  */
+    if (tok == tokEllipsis) {
+        is_variadic = 1;
+        get_token(); // skip '...'
+    }
+    
     expect_RParen();
    
     /* Check signature compatibility if already declared */
@@ -937,9 +972,10 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
         if (func_argcount != symfunc.offset) {
             error(errDeclMismatch);
         } else if (symfunc.signature_id != 0xFF) {
-            /* Verify argument types match */
+            /* Verify argument types and variadic flag match */
             uint8_t match = 1;
-            if (signature_get_arg_count(symfunc.signature_id) == func_argcount) {
+            if (signature_get_arg_count(symfunc.signature_id) == func_argcount &&
+                signature_is_variadic(symfunc.signature_id) == is_variadic) {
                 for (uint8_t i = 0; i < func_argcount; i++) {
                     if (signature_get_arg_type(symfunc.signature_id, i) != arg_types[i]) {
                         match = 0;
@@ -957,7 +993,11 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
 
     /* Store function signature if not already stored */
     if (symfunc.signature_id == 0xFF) {
-        symfunc.signature_id = signature_create(rettype_id, func_argcount, arg_types);
+        if (is_variadic) {
+            symfunc.signature_id = signature_create_variadic(rettype_id, func_argcount, arg_types);
+        } else {
+            symfunc.signature_id = signature_create(rettype_id, func_argcount, arg_types);
+        }
         if (symfunc.signature_id == 0xFF) {
             error(errTooManySymbols);
         }
@@ -972,6 +1012,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
         symfunc.klass = FUNCTION;
         infunc = 1;
         func_rettype = rettype_id;
+        func_is_variadic = is_variadic;
         uint16_t skiplbl = newlbl();
         emit_jp(skiplbl);
 
@@ -1002,6 +1043,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
         pop_frame(funcframe);
         infunc = 0;
         func_rettype = TYPE_ID_VOID;
+        func_is_variadic = 0;
         retlbl = oldretlbl;
     }
     updatesym(&symfunc);
