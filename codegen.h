@@ -84,6 +84,10 @@ void emit_frame_epilogue(uint8_t toplevel, uint16_t exit_lbl) MYCC;
 void emit_neg(void) MYCC;
 void emit_mul2(void) MYCC;
 void emit_mulDE2(void) MYCC;
+void emit_div_pow2(uint8_t shift_count) MYCC;
+void emit_mod_pow2(uint16_t divisor) MYCC;
+void emit_div_const_optimized(uint16_t divisor) MYCC;
+void emit_mod_const_optimized(uint16_t divisor) MYCC;
 
 void emit_org(uint16_t address) MYCC;
 void emit_bank(uint8_t bank16, uint16_t offset) MYCC;

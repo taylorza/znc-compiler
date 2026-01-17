@@ -1356,14 +1356,29 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
             emit_sub16();
             break;
         case tokStar:
-            emit_rtl("ccmult");
+            /* Optimize: multiplication by constant */
+            if (type_is_const(r_result.type_id)) {
+                emit_mul_const_optimized(r_result.value);
+            } else {
+                emit_rtl("ccmult");
+            }
             break;
         case tokDiv:
-            emit_rtl("ccdiv");
+            /* Optimize: division by constant */
+            if (type_is_const(r_result.type_id)) {
+                emit_div_const_optimized(r_result.value);
+            } else {
+                emit_rtl("ccdiv");
+            }
             break;
         case tokMod:
-            emit_rtl("ccdiv");
-            emit_swap();
+            /* Optimize: modulo by constant */
+            if (type_is_const(r_result.type_id)) {
+                emit_mod_const_optimized(r_result.value);
+            } else {
+                emit_rtl("ccdiv");
+                emit_swap();
+            }
             break;
         case tokShl:
             emit_instrln("ld b,l");
