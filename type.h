@@ -72,8 +72,11 @@ uint8_t signature_get_arg_count(uint8_t sig_id) MYCC;
 uint8_t signature_get_arg_type(uint8_t sig_id, uint8_t arg_index) MYCC;
 uint8_t signature_check(uint8_t sig_id1, uint8_t sig_id2) MYCC;
 
-/* Type compatibility checking */
-uint8_t type_check_compatible(uint8_t type_id1, uint8_t type_id2) MYCC;
+/* Type compatibility checking
+ * Checks whether a value of `from_type_id` can be assigned to a target of
+ * `to_type_id` (i.e., is `from` compatible with `to` without an explicit cast)
+ */
+uint8_t type_check_compatible(uint8_t from_type_id, uint8_t to_type_id) MYCC;
 
 /* Predefined type IDs (initialized by type_init) */
 extern uint8_t TYPE_ID_VOID;

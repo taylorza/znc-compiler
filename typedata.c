@@ -84,98 +84,106 @@ uint8_t signature_intern(uint8_t return_type_id, uint8_t arg_count, const uint8_
     return signature_count++;
 }
 
-/* BANK_43: Type compatibility checking */
-/* This function must be in BANK_43 as it directly accesses type_table */
-uint8_t far_type_check_compatible(uint8_t type_id1, uint8_t type_id2) MYCC {
+/* BANK_43: Type compatibility checking
+ * to_type_id: target type (assignment destination)
+ * from_type_id: source type (value being assigned)
+ * This function must be in BANK_43 as it directly accesses type_table */
+uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC {
     TypeEntry t1, t2;
-    uint8_t indir1, indir2;
-    uint8_t kind1, kind2;
+    uint8_t indir_to, indir_from;
+    uint8_t kind_to, kind_from;
     
     /* Same type ID is always compatible */
-    if (type_id1 == type_id2) {
-        return 1;
-    }
-    
-    /* Validate type IDs */
-    if (type_id1 >= type_count) {
-        return 0;
-    }
-    if (type_id2 >= type_count) {
-        return 0;
-    }
-    
-    /* Get type entries */
-    t1 = type_table[type_id1];
-    t2 = type_table[type_id2];
-    
-    /* Extract indirection level and kind */
-    indir1 = t1.kind_and_flags & 0x0F;
-    indir2 = t2.kind_and_flags & 0x0F;
-    kind1 = (t1.kind_and_flags >> 5) & 0x07;
-    kind2 = (t2.kind_and_flags >> 5) & 0x07;
-    
-    /* Allow void* to be compatible with any pointer type */
-    if (indir1 > 0 && indir2 > 0) {
-        /* Both are pointers */
-        if (kind1 == TK_VOID || kind2 == TK_VOID) {
-            /* One is void* - compatible with any pointer */
-            return 1;
-        }
-        /* Non-void pointers must match exactly */
-        if (t1.kind_and_flags != t2.kind_and_flags) {
-            return 0;
-        }
-        if (t1.aux0 != t2.aux0) {
-            return 0;
-        }
-        if (t1.aux1 != t2.aux1) {
-            return 0;
-        }
+    if (to_type_id == from_type_id) {
         return 1;
     }
 
-    /* Allow arrays to degrade to pointers of the same base type.
-     * e.g. `int[]` compatible with `int*` (pointer to element type).
-     */
-    if (kind1 == TK_ARRAY && indir2 > 0) {
-        uint8_t elem1 = t1.aux0; /* element type id for array */
-        uint8_t elem2 = type_get_element_type_id(type_id2); /* element type id for pointer */
-        if (elem1 == elem2) return 1;
+    /* Validate type IDs */
+    if (to_type_id >= type_count) return 0;
+    if (from_type_id >= type_count) return 0;
+
+    /* Get type entries */
+    t1 = type_table[to_type_id];
+    t2 = type_table[from_type_id];
+
+    /* Extract indirection level and kind */
+    indir_to = t1.kind_and_flags & 0x0F;
+    indir_from = t2.kind_and_flags & 0x0F;
+    kind_to = (t1.kind_and_flags >> 5) & 0x07;
+    kind_from = (t2.kind_and_flags >> 5) & 0x07;
+    
+    /* Detect arrays regardless of indirection (arrays may degrade to pointers) */
+    uint8_t is_array_to = (kind_to == TK_ARRAY) ? 1 : 0;
+    uint8_t is_array_from = (kind_from == TK_ARRAY) ? 1 : 0;
+
+    /* Array-to-array: require exact match of element type AND length */
+    if (is_array_to && is_array_from) {
+        if (t1.aux0 == t2.aux0 && t1.aux1 == t2.aux1) return 1;
+        return 0;
     }
-    if (kind2 == TK_ARRAY && indir1 > 0) {
-        uint8_t elem2 = t2.aux0;
-        uint8_t elem1 = type_get_element_type_id(type_id1);
-        if (elem1 == elem2) return 1;
+
+    /* Reject passing a non-array, non-pointer value to an array parameter */
+    if (is_array_to && !is_array_from && indir_from == 0) return 0;
+    if (is_array_from && !is_array_to && indir_to == 0) return 0;
+
+    /* Array <-> Pointer: allow if element/base types match */
+    /* Do NOT allow a pointer to be passed to an array parameter. Arrays may
+     * be passed to pointer parameters (array->pointer decay), but pointer->array
+     * is not allowed. */
+    if (is_array_to && indir_from > 0) {
+        /* If the source is a pointer (not an array), reject */
+        if (!is_array_from) return 0;
+        /* If the source is itself an array with extra indirection, require element match */
+        uint8_t elem_to = t1.aux0;
+        uint8_t elem_from = t2.aux0;
+        if (elem_to == elem_from) return 1;
+    }
+    if (is_array_from && indir_to > 0) {
+        uint8_t elem_from = t2.aux0;
+        uint8_t elem_to = type_get_element_type_id(to_type_id);
+        if (elem_to == elem_from) return 1;
+    }
+
+    /* Pointer-pointer compatibility */
+    if (indir_to > 0 && indir_from > 0) {
+        if (kind_to == TK_VOID || kind_from == TK_VOID) return 1;
+        if (indir_to != indir_from) return 0;
+
+        uint8_t base_to = to_type_id;
+        uint8_t base_from = from_type_id;
+        while (type_get_indirection(base_to) > 0) base_to = type_get_element_type_id(base_to);
+        while (type_get_indirection(base_from) > 0) base_from = type_get_element_type_id(base_from);
+        if (base_to == base_from) return 1;
+        return 0;
     }
     
-    /* Allow integers to be assigned to pointers (e.g., p = 1234) */
-    if ((indir1 > 0 && indir2 == 0) || (indir2 > 0 && indir1 == 0)) {
-        /* One is a pointer, one is not */
-        uint8_t scalar_kind = (indir1 > 0) ? kind2 : kind1;
-        /* Allow if the non-pointer is a scalar (char or int) */
-        if (scalar_kind == TK_CHAR || scalar_kind == TK_INT) {
-            return 1;
-        }
+    /* Pointer<->non-pointer combinations
+     * - Allow assigning a scalar (char/int) to a pointer (e.g., p = 1234)
+     *   because we treat integers as addresses when initializing pointers.
+     * - Do NOT allow assigning a pointer to a scalar (e.g., int p; x = p)
+     *   as that would drop the pointer value into a scalar type.
+     */
+    if (indir_to > 0 && indir_from == 0) {
+        /* Target is pointer, source is non-pointer: allow scalar -> pointer */
+        if (kind_from == TK_CHAR || kind_from == TK_INT) return 1;
+        return 0;
+    }
+    if (indir_from > 0 && indir_to == 0) {
+        /* Source is pointer, target is non-pointer: disallow */
         return 0;
     }
     
     /* Both are non-pointer types */
     /* For scalars (char/int), allow compatibility between them */
-    if ((kind1 == TK_CHAR || kind1 == TK_INT) && (kind2 == TK_CHAR || kind2 == TK_INT)) {
+    if ((kind_to == TK_CHAR || kind_to == TK_INT) && (kind_from == TK_CHAR || kind_from == TK_INT)) {
         /* TK_CHAR and TK_INT are compatible */
         return 1;
     }
     
     /* Structs and other types must be exact matches */
-    if (t1.kind_and_flags != t2.kind_and_flags) {
-        return 0;
-    }
-    if (t1.aux0 != t2.aux0) {
-        return 0;
-    }
-    if (t1.aux1 != t2.aux1) {
-        return 0;
-    }
+    if (t1.kind_and_flags != t2.kind_and_flags) return 0;
+    if (t1.aux0 != t2.aux0) return 0;
+    if (t1.aux1 != t2.aux1) return 0;
     
     return 1;
 }

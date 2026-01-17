@@ -146,7 +146,7 @@ static uint16_t parse_brace_initializer_elements(uint8_t element_type_id) MYCC {
                 error(errTypeError);
             }
         }
-        else if (!type_check_compatible(element_type_id, element.type_id) && element_type_id != 0) {
+        else if (!type_check_compatible(element.type_id, element_type_id) && element_type_id != 0) {
             error(errTypeError);
         }
         

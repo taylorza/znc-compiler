@@ -345,20 +345,21 @@ uint8_t signature_check(uint8_t sig_id1, uint8_t sig_id2) MYCC {
     
     if (sig1.arg_count != sig2.arg_count) return 0;
 
-    if (!type_check_compatible(sig1.return_type_id, sig2.return_type_id)) return 0;        
-    
+    /* Check if sig2 (from) is compatible with sig1 (to) */
+    if (!type_check_compatible(sig2.return_type_id, sig1.return_type_id)) return 0;
+
     for (uint8_t i = 0; i < sig1.arg_count; i++) {
-        if (!type_check_compatible(sig1.arg_types[i], sig2.arg_types[i])) return 0;
+        if (!type_check_compatible(sig2.arg_types[i], sig1.arg_types[i])) return 0;
     }
     
     return 1; /* Signatures match */
 }
 
 /* Type compatibility checking */
-extern uint8_t far_type_check_compatible(uint8_t type_id1, uint8_t type_id2) MYCC;
-uint8_t type_check_compatible(uint8_t type_id1, uint8_t type_id2) MYCC {
+extern uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC;
+uint8_t type_check_compatible(uint8_t from_type_id, uint8_t to_type_id) MYCC {
     PROLOG(43)
-    uint8_t result = far_type_check_compatible(type_id1, type_id2);
+    uint8_t result = far_type_check_compatible(to_type_id, from_type_id);
     EPILOG_RETURN(result);
 }
 

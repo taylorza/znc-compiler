@@ -762,10 +762,13 @@ void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
             break;
         }
         
-        /* Parse the argument expression with expected type if known */
-        uint8_t expected_arg_type = (sig_id != 0xFF && argcount < MAX_FUNC_ARGS) 
-            ? signature_get_arg_type(sig_id, argcount) : 0;
-        EXPR_RESULT arg_result = parse_expr(0, expected_arg_type);
+        /* Parse the argument expression without an expected type so we get the
+         * actual declared/static type of the expression. The parsed
+         * `arg_result` contains a copy of the symbol when the expression is a
+         * simple identifier (arg_result.has_sym) which we use for compatibility
+         * checks below.
+         */
+        EXPR_RESULT arg_result = parse_expr(0, 0);
         
         /* Error if passing a struct by value - must use & to pass pointer */
         if (type_is_struct(arg_result.type_id) && !type_is_pointer(arg_result.type_id)) {
@@ -775,10 +778,22 @@ void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
         /* Check argument type inline if signature available */
         if (sig_id != 0xFF && argcount < MAX_FUNC_ARGS) {
             uint8_t expected_type = signature_get_arg_type(sig_id, argcount);
+            /* Prefer the original symbol type if this argument started as a simple
+             * identifier (peeked earlier). This ensures we preserve array types
+             * declared on the identifier even if parse_expr loads or decays them.
+             */
+            /* Use the expression's resolved type. If the expression is a simple
+             * identifier, prefer the symbol's declared type (arg_result.has_sym).
+             * Do NOT use the peeked identifier's type blindly: for member
+             * accesses like `obj.member` the token stream starts with an
+             * identifier but the overall expression's type is the member's
+             * type, which is already reflected in arg_result.type_id.
+             */
             uint8_t actual_type = arg_result.type_id;
-            
-            /* Use type compatibility checker */
-            if (!type_check_compatible(expected_type, actual_type)) {
+            if (arg_result.has_sym) actual_type = arg_result.sym.type_id;
+
+            /* Use the central compatibility checker (from=actual, to=expected). */
+            if (!type_check_compatible(actual_type, expected_type)) {
                 error(errTypeError);
             }
         }
@@ -848,7 +863,7 @@ void parse_return(void) MYCC {
     else {
         if (tok == tokSemi) error(errReturnValueExpected);
         expr_result = parse_expr(0, func_rettype);        
-        if (!type_check_compatible(func_rettype, expr_result.type_id)) {
+        if (!type_check_compatible(expr_result.type_id, func_rettype)) {
             error(errTypeError);
         }        
         expect_semi();
@@ -890,23 +905,27 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
     /* Parse arguments and collect their types */
     while (tok != tokRParen) {
         parse_type(&argtype_id);
+        /* Preserve parsed type for the function signature; convert arrays to pointers
+         * only for the local argument variable storage.
+         */
+        uint8_t sig_arg_type = argtype_id;
         if (type_is_array(argtype_id)) {
-            /* Convert array to pointer */
+            /* Convert array to pointer for the declared/local argument */
             uint8_t elem_type = type_get_element_type(argtype_id);
             argtype_id = type_make_pointer(elem_type, 1);
         }
-        
+
         /* ERROR: Struct parameters must be declared as pointers explicitly */
         if (type_is_struct(argtype_id) && !type_is_pointer(argtype_id)) {
             error(errTypeError);
         }
-        
-        /* Store argument type */
+
+        /* Store argument type for signature (preserve arrays as arrays) */
         if (func_argcount < MAX_FUNC_ARGS) {
-            arg_types[func_argcount] = argtype_id;
+            arg_types[func_argcount] = sig_arg_type;
         }
-        
-        strncpy(argName, token, MAX_IDENT_LEN);           
+
+        strncpy(argName, token, MAX_IDENT_LEN);
         declloc(argtype_id, ARGUMENT, argName, func_argcount++);
         get_token(); // skip arg name
         if (tok == tokComma) get_token(); // skip ',',,
