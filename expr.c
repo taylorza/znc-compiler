@@ -76,36 +76,11 @@ static void emit_scale_reg(uint16_t scale, uint8_t is_hl) MYCC {
     }
     
     if (is_hl) {
-        /* HL scaling */
-        if (scale <= 16 && (scale == 2 || scale == 3 || scale == 4 || 
-                            scale == 5 || scale == 6 || scale == 8 || 
-                            scale == 10 || scale == 16)) {
-            emit_mul_const_optimized(scale);
-        } else if ((scale & (scale - 1)) == 0) {
-            /* power of two: use repeated doubling */
-            uint16_t s = scale;
-            while (s > 1) { emit_mul2(); s >>= 1; }
-        } else {
-            /* arbitrary scale: use multiplication */
-            emit_ldde_immed_n(scale);
-            emit_rtl("ccmult");
-        }
+        emit_mul_const_optimized(scale);        
     } else {
-        /* DE scaling */
-        if (scale == 2) {
-            emit_mulDE2();
-        } else if ((scale & (scale - 1)) == 0) {
-            /* power of two: use repeated doubling */
-            uint16_t s = scale;
-            while (s > 1) { emit_mulDE2(); s >>= 1; }
-        } else {
-            /* General case: swap, multiply HL, swap back */
-            emit_copy_hl_to_bc();
-            emit_swap();
-            emit_mul_const_optimized(scale);
-            emit_swap();
-            emit_copy_bc_to_hl();
-        }
+        emit_swap();
+        emit_mul_const_optimized(scale);
+        emit_swap();
     }
 }
 
@@ -607,74 +582,130 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
         }
 
         case tokAmp:
+            /* Address-of operator: &expr
+             * Manually parse identifier and postfix operators ([], .), computing address in HL.
+             * Avoid dereference to keep the address itself.
+             */
             get_token(); // skip '&'
             if (tok != tokIdent) error(errNotlvalue);
             sym = lookupIdent(token);
             if (not_defined(&sym)) {
                 error(errNotDefined_s, token);
             }
-                
+            
             get_token(); // skip identifier
             factor_result.type_id = sym.type_id;
-
-            if (tok == tokLBrack) {
-                if (type_is_pointer(factor_result.type_id)) {
-                    emit_ld_symval(&sym);
-                    emit_push();  /* Save base before parse_and_scale_index overwrites HL */
-                    uint8_t elem_type_id = type_get_element_type_id(factor_result.type_id);
-                    EXPR_RESULT idx = parse_and_scale_index(elem_type_id);
-                    if (type_is_const(idx.type_id)) {
-                        /* Optimize: add constant offset directly */
-                        emit_pop_de();  /* Restore base */
-                        if (idx.value != 0) {
-                            emit_ldde_immed_n(idx.value);
-                            emit_add16();
+            factor_result.has_sym = 1;
+            factor_result.sym = sym;
+            
+            /* Manually handle postfix [], and . operators for address-of.
+             * Build address in HL without final dereference.
+             */
+            uint8_t addr_base_sym = 1;  /* Track if base is still a symbol */
+            
+            while (tok == tokLBrack || tok == tokMember) {
+                if (tok == tokLBrack) {
+                    /* Array/pointer indexing: &name[i] or &name.arr[i] */
+                    uint8_t elemtype_id = type_get_element_type_id(factor_result.type_id);
+                    uint16_t scale = (uint16_t)type_size(elemtype_id);
+                    
+                    get_token(); // skip '['
+                    EXPR_RESULT index_result = far_parse_expr_delayconst(0, TYPE_ID_INT);
+                    expect(tokRBrack, ']');
+                    
+                    if (addr_base_sym) {
+                        /* Base is still a symbol - compute address directly */
+                        if (type_is_const(index_result.type_id)) {
+                            /* Constant index: emit ld hl,sym+offset directly */
+                            uint16_t total_offset = index_result.value * scale;
+                            emit_ld_symaddr_offset(&sym, total_offset);
                         } else {
-                            emit_swap();  /* Base to HL */
+                            /* Variable index: scale it, then add to symbol address */
+                            if (scale > 1) {
+                                emit_scale_hl(scale);
+                            }
+                            emit_swap();  /* DE = scaled index */
+                            emit_ld_symaddr(&sym);  /* HL = base address */
+                            emit_add16();  /* HL = base + scaled_index */
                         }
+                        addr_base_sym = 0;
                     } else {
-                        /* Variable index: HL has scaled index, DE has base */
-                        emit_pop_de();
-                        emit_add16();
+                        /* Base address already in HL from previous operation, save it */
+                        emit_push();
+                        if (type_is_const(index_result.type_id)) {
+                            uint16_t offset = index_result.value * scale;
+                            if (offset) {
+                                emit_pop_de();  /* Restore base to DE */
+                                emit_ldde_immed_n(offset);
+                                emit_add16();
+                            } else {
+                                emit_pop_hl();  /* No offset, just restore */
+                            }
+                        } else {
+                            /* Variable index: HL has index, need to scale and add */
+                            if (scale > 1) {
+                                emit_scale_hl(scale);
+                            }
+                            emit_pop_de();  /* DE = base */
+                            emit_add16();   /* HL = base + scaled_index */
+                        }
                     }
-                } else if (type_is_array(factor_result.type_id)) {
-                    emit_ld_symaddr(&sym);
-                    emit_push();  /* Save base before parse_and_scale_index overwrites HL */
-                    uint8_t elem_type_id = type_get_element_type_id(factor_result.type_id);
-                    factor_result.type_id = type_make_pointer(elem_type_id, 1);
-                    EXPR_RESULT idx = parse_and_scale_index(elem_type_id);
-                    if (type_is_const(idx.type_id)) {
-                        /* Optimize: ld hl,_arr+offset */
-                        emit_pop_de();  /* Discard saved base */
-                        emit_ld_symaddr_offset(&sym, idx.value);
+                    
+                    factor_result.type_id = elemtype_id;
+                } 
+                else if (tok == tokMember) {
+                    /* Struct member access: &name.member or &name[i].member */
+                    get_token();
+                    
+                    uint8_t check_type_id = factor_result.type_id;
+                    if (type_is_pointer(check_type_id)) {
+                        check_type_id = type_get_element_type_id(check_type_id);
+                    }
+                    if (!type_is_struct(check_type_id)) {
+                        error(errSyntax);
+                        break;
+                    }
+                    if (tok != tokIdent) {
+                        error(errSyntax);
+                        break;
+                    }
+                    
+                    char fname[MAX_IDENT_LEN+1];
+                    strncpy(fname, token, MAX_IDENT_LEN);
+                    int sid = (int)type_get_struct_id(check_type_id) - 1;
+                    int fid = find_struct_field(sid, fname);
+                    if (fid < 0) error(errNotDefined_s, fname);
+                    
+                    FIELDINFO fi = get_struct_field(sid, fid);
+                    uint16_t offset = fi.offset;
+                    get_token();
+                    
+                    /* Add offset to base address */
+                    if (addr_base_sym) {
+                        emit_sym_address_with_offset(&sym, offset);
+                        addr_base_sym = 0;
                     } else {
-                        /* Variable index: HL has scaled index, DE will have base */
-                        emit_pop_de();
-                        emit_add16();
+                        /* Address already in HL, add offset */
+                        if (offset) {
+                            emit_ldde_immed_n(offset);
+                            emit_add16();
+                        }
                     }
-                } else if (sym.klass == FUNCTION) {
-                    emit_ld_symaddr(&sym);
-                    emit_push();  /* Save base before parse_and_scale_index overwrites HL */
-                    uint8_t elem_type_id = type_get_element_type_id(factor_result.type_id);
-                    factor_result.type_id = type_make_pointer(elem_type_id, 1);
-                    EXPR_RESULT idx = parse_and_scale_index(elem_type_id);
-                    if (type_is_const(idx.type_id)) {
-                        /* Optimize: ld hl,_func+offset */
-                        emit_pop_de();  /* Discard saved base */
-                        emit_ld_symaddr_offset(&sym, idx.value);
-                    } else {
-                        /* Variable index: HL has scaled index, DE will have base */
-                        emit_pop_de();
-                        emit_add16();
-                    }
-                } else {
-                    error(errSyntax);
+                    
+                    factor_result.type_id = fi.type_id;
                 }
-            } else {
-                emit_ld_symaddr(&sym);
-                /* Taking address: add one level of indirection to the type */
-                factor_result.type_id = type_make_pointer(factor_result.type_id, 1);
             }
+            
+            /* Ensure address is in HL */
+            if (addr_base_sym) {
+                emit_ld_symaddr(&sym);
+            }
+            
+            /* Result: address in HL, type is pointer to the element */
+            factor_result.type_id = type_make_pointer(factor_result.type_id, 1);
+            factor_result.has_sym = 0;
+            dereference = 0;
+            addr_in_hl = 1;
             break;
 
         case tokStar:
@@ -1237,6 +1268,7 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
             emit_jp(short_circuit_lbl);
         }
         l_result = far_parse_expr(opprec + 1, 0);
+        //(op == tokOr) ? emit_jp_true(short_circuit_lbl) : emit_jp_false(short_circuit_lbl);
         emit_lbl(short_circuit_lbl);
         return short_circuit_result;
     }
