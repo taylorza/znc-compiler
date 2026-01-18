@@ -754,7 +754,6 @@ void emit_mod_pow2(uint16_t divisor) MYCC {
     /* x % power_of_2 = x & (power_of_2 - 1) */
     emit_instrln("ld hl,%d", mask);
     emit_rtl("ccand");
-    emit_swap();  /* Result ends up in HL for consistency */
 }
 
 /* Optimized division - detects power of 2 and uses shift, otherwise uses RTL

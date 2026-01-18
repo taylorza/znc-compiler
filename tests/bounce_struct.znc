@@ -7,16 +7,19 @@ struct Obj {
   int y;
   int dx;
   int dy;
+  char c;
 };
 
+const int N=21;
 
-Obj[5] balls;
+Obj[N] balls;
 
-for (int i=0; i<5; ++i) {
+for (int i=0; i<N; ++i) {
   balls[i].x = i;
   balls[i].y = i;
   balls[i].dx = 1;
   balls[i].dy = 1;
+  balls[i].c = 'A' + i;
 }
 
 void move(Obj *o) {
@@ -27,18 +30,19 @@ void move(Obj *o) {
   if (o.y == 0 || o.y == 21) o.dy = -o.dy;
 }
 
-nextreg(7,0);
+nextreg(7,3);
+Obj *ball;
 
 for(;;) {
-  __asm__ {
-    halt;
-  }
-  for(int i=0; i<5; ++i) {
-    gotoxy(balls[i].x, balls[i].y);
-    putc(' ');
-    move(&balls[i]);
-    gotoxy(balls[i].x, balls[i].y);
-    putc('@');  
+  ball = &balls[0];
+  gotoxy(ball.x, ball.y);
+  putc(' ');
+  
+  for(int i=0; i<N; ++i) {
+    ball = &balls[i];
+    move(ball);
+    gotoxy(ball.x, ball.y);
+    putc(ball.c);  
   }
   if ((in(0x7ffe) & 1) == 0) break;
 }

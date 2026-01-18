@@ -13,6 +13,7 @@
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/rnd.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/sprite.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/string.znc /zdev/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/printf.znc /zdev/
 
 rem Libraries used with permission from Iáń Júkéś
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/datetime.znc /zdev/

@@ -1,0 +1,72 @@
+#ifndef MOUSE__
+const byte PRINTF__=0x01; 
+
+void printf(char *fmt, ...) {
+    int count = __va_count();
+    int arg_index = 0;
+
+    int i = 0;
+    while (fmt[i] != 0) {
+        char ch = fmt[i];
+
+        if (ch != '%') {
+            putc(ch);
+            ++i;
+            continue;
+        }
+
+        ++i;
+        char code = fmt[i];
+
+        if (code == '%') {
+            putc('%');
+            ++i;
+            continue;
+        }
+        
+        int val = 0;
+        if (arg_index < count) {
+            val = __va_arg(arg_index);
+            ++arg_index;
+        }
+
+        if (code == 'd') {
+            int x = val;
+
+            if (x < 0) {
+                putc('-');
+                x = -x;
+            }
+
+            char[6] buf;
+            int p = 0;
+
+            if (x == 0) {
+                buf[p++] = '0';                
+            } else {
+                while (x > 0) {
+                    int digit = x % 10;
+                    buf[p++] = '0' + digit;                    
+                    x = x / 10;
+                }
+            }
+
+            while (p > 0) {                
+                putc(buf[--p]);
+            }
+
+        } else if (code == 'c') {
+            putc(val & 0xFF);
+
+        } else if (code == 's') {
+            puts(val);            
+        } else {
+            putc('%');
+            putc(code);
+        }
+
+        ++i;
+    }
+}
+
+#endif
