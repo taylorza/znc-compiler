@@ -54,6 +54,15 @@ void type_init(void) MYCC {
     TYPE_ID_CHAR_PTR = type_make_pointer(TYPE_ID_CHAR, 1);
 }
 
+uint8_t type_as_const(uint8_t type_id) MYCC {
+    TypeEntry entry = type_get(type_id);
+    if (!TYPE_IS_CONST(&entry)) {
+        TYPE_SET_CONST(entry.kind_and_flags);
+        return far_type_intern(entry);
+    }
+    return type_id;  /* Already const */
+}   
+
 /* Type constructors */
 uint8_t type_make_char(uint8_t is_const) MYCC {
     TypeEntry entry = {0};
@@ -282,7 +291,6 @@ uint8_t far_type_intern(TypeEntry entry) MYCC {
 
 /* Function signature storage - MAX_FUNC_ARGS and MAX_SIGNATURES defined in typedata.c */
 #define MAX_FUNC_ARGS 8
-#define MAX_SIGNATURES 128
 
 typedef struct FuncSignature {
     uint8_t return_type_id;
@@ -291,7 +299,7 @@ typedef struct FuncSignature {
     uint8_t arg_types[MAX_FUNC_ARGS];
 } FuncSignature;
 
-extern FuncSignature signature_table[MAX_SIGNATURES];
+extern FuncSignature signature_table[];
 extern uint8_t signature_count;
 
 /* Stub functions to access signature table in BANK_43 */

@@ -119,6 +119,24 @@ static void emit_scale_de(uint16_t scale) MYCC {
     emit_scale_reg(scale, 0);
 }
 
+/* Helper: Parse one or more adjacent string tokens ("a" "b") and return string id */
+static uint16_t parse_concat_string_literal(void) MYCC {
+    ARENA_MARKER _am = arena_get_marker();
+    char *sbuf = NULL;
+    size_t slen = 0;
+    while (tok == tokString) {
+        sbuf = arena_strappend(sbuf, slen, token, token_length);
+        if (!sbuf) error(errTooManySymbols);
+        slen += token_length;
+        get_token();
+    }
+    if (!sbuf) sbuf = arena_strdup("", 0);
+    uint16_t sid = lookupstr(sbuf, (uint8_t)slen);
+    arena_free_to_marker(_am);
+    intval = sid; /* keep global consistent with previous behavior */
+    return sid;
+}
+
 /* Helper: Parse and emit elements for brace-initializer expressions.
  * Returns the number of elements processed.
  * element_type_id: expected type for each element (0 = infer from data)
@@ -136,34 +154,48 @@ static uint16_t parse_brace_initializer_elements(uint8_t element_type_id) MYCC {
 
     uint8_t is_char = type_is_char(element_type_id);
     while (tok != tokRBrace && tok != tokEOS) {
-        EXPR_RESULT element = far_parse_expr_delayconst(0, element_type_id);
-        uint8_t is_func = element.has_sym && is_func_or_proto(&element.sym);
-        if (!type_is_const(element.type_id) && !is_func) error_expect_const();
+        /* Special-case string literals: emit DW str+offset directly without loading HL */
+        if (tok == tokString && (element_type_id == 0 || type_is_pointer(element_type_id))) {
+            /* Only valid when element type expects a pointer (e.g., char*) or is inferred */
+            uint16_t sid = parse_concat_string_literal();
+            ++elementcount;
+            if (counter++ > 0)
+                emit_ch(',');
+            else
+                emit_instr(is_char ? "db " : "dw ");
 
-        if (is_delegate) {
-            if (!is_func) error(errTypeError);
-            if (!signature_check(delegate_sig_id, element.sym.signature_id)) {
+            /* Emit string label reference (e.g., str+nn) */
+            emit_strref(sid);
+        } else {
+            EXPR_RESULT element = far_parse_expr_delayconst(0, element_type_id);
+            uint8_t is_func = element.has_sym && is_func_or_proto(&element.sym);
+            if (!type_is_const(element.type_id) && !is_func) error_expect_const();
+
+            if (is_delegate) {
+                if (!is_func) error(errTypeError);
+                if (!signature_check(delegate_sig_id, element.sym.signature_id)) {
+                    error(errTypeError);
+                }
+            }
+            else if (!type_check_compatible(element.type_id, element_type_id) && element_type_id != 0) {
                 error(errTypeError);
             }
-        }
-        else if (!type_check_compatible(element.type_id, element_type_id) && element_type_id != 0) {
-            error(errTypeError);
-        }
-        
-        ++elementcount;
-        if (counter++ > 0) 
-            emit_ch(','); 
-        else 
-            emit_instr(is_char ? "db " : "dw ");
+            
+            ++elementcount;
+            if (counter++ > 0) 
+                emit_ch(','); 
+            else 
+                emit_instr(is_char ? "db " : "dw ");
 
-        if (is_func) {
-            emit_sname(element.sym.name);
-        }
-        else if (is_char) {
-            emit_n(element.value & 0xff);
-        }
-        else {
-            emit_n(element.value);
+            if (is_func) {
+                emit_sname(element.sym.name);
+            }
+            else if (is_char) {
+                emit_n(element.value & 0xff);
+            }
+            else {
+                emit_n(element.value);
+            }
         }
         
         if (tok == tokRBrace) break;
@@ -560,18 +592,8 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             get_token(); // skip '__va_arg'
             expect_LParen();
             {
-                EXPR_RESULT idx_result = far_parse_expr(0, TYPE_ID_INT);
-                
-                /* If index is a compile-time constant, emit optimized code */
-                if (type_is_const(idx_result.type_id)) {
-                    uint16_t offset = 6 + 2 * idx_result.value;
-                    emit_instrln("ld l,(ix+%d)", offset);
-                    emit_instrln("ld h,(ix+%d)", offset + 1);
-                } else {
-                    /* Dynamic index: use RTL helper */
-                    /* HL already contains the index value */
-                    emit_rtl("ccvaarg");
-                }
+                EXPR_RESULT idx_result = far_parse_expr(0, TYPE_ID_INT);                        
+                emit_rtl("ccvaarg");                
             }
             expect_RParen();
             factor_result.type_id = TYPE_ID_INT;
@@ -579,22 +601,8 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
 
         case tokString: {
             factor_result.type_id = TYPE_ID_CHAR_PTR;
-            ARENA_MARKER _am = arena_get_marker();
-            char *sbuf = NULL;
-            size_t slen = 0;
-            
-            while (tok == tokString) {
-                sbuf = arena_strappend(sbuf, slen, token, token_length);
-                if (!sbuf) error(errTooManySymbols);
-                slen += token_length;
-                get_token();
-            }
-
-            if (!sbuf) sbuf = arena_strdup("", 0);
-            intval = lookupstr(sbuf, (uint8_t)slen);
-            emit_ld_immed(); emit_strref(intval); emit_nl();
-
-            arena_free_to_marker(_am);
+            uint16_t sid = parse_concat_string_literal();
+            emit_ld_immed(); emit_strref(sid); emit_nl();            
             break;
         }
 

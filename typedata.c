@@ -159,15 +159,28 @@ uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC
 
     /* Pointer-pointer compatibility */
     if (indir_to > 0 && indir_from > 0) {
+        /* Allow any pointer to or from void* */
         if (kind_to == TK_VOID || kind_from == TK_VOID) return 1;
+        /* Indirection levels must match */
         if (indir_to != indir_from) return 0;
 
+        /* Compare base types ignoring const qualification */
         uint8_t base_to = to_type_id;
         uint8_t base_from = from_type_id;
         while (type_get_indirection(base_to) > 0) base_to = type_get_element_type_id(base_to);
         while (type_get_indirection(base_from) > 0) base_from = type_get_element_type_id(base_from);
-        if (base_to == base_from) return 1;
-        return 0;
+
+        TypeEntry bt = type_table[base_to];
+        TypeEntry bf = type_table[base_from];
+        uint8_t bt_kind = (bt.kind_and_flags >> 5) & 0x07;
+        uint8_t bf_kind = (bf.kind_and_flags >> 5) & 0x07;
+        if (bt_kind != bf_kind) return 0;
+        /* For structs, ensure struct ids match */
+        if (bt_kind == TK_STRUCT && bt.aux0 != bf.aux0) return 0;
+        /* For arrays as base (rare), require identical element types */
+        if (bt_kind == TK_ARRAY && (bt.aux0 != bf.aux0 || bt.aux1 != bf.aux1)) return 0;
+        /* For scalars (char/int), kinds already match; ignore const bit */
+        return 1;
     }
     
     /* Pointer<->non-pointer combinations

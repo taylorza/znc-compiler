@@ -1,3 +1,10 @@
+2026/01/19 - Version 0.3
+- Delegates (typed function pointers)
+- Stronger type checking
+- Variadic functions (you can write functions like printf)
+- Structs
+- Multiple levels of indirection eg. char*[] = {"Tom", "Tim"};
+
 2025/12/30 - Version 0.2f
 - Support concatenation of sequencial string literals
 - Support hex character code escape sequences

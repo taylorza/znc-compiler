@@ -289,13 +289,14 @@ void emit_store_byte_at_hl(void) MYCC {
 }
 
 void emit_copy_hl_to_bc(void) MYCC {
-    emit_instrln("ld b,h");
-    emit_instrln("ld c,l");
+    emit_instrln("ld c,l"); 
+    emit_instrln("ld b,h");    
 }
 
 void emit_copy_bc_to_hl(void) MYCC {
-    emit_instrln("ld h,b");
     emit_instrln("ld l,c");
+    emit_instrln("ld h,b");
+    
 }
 
 /* Helper: Copy IX register to HL */
@@ -428,8 +429,8 @@ static void compute_local_offsets(SYMBOL *sym, int16_t *low_off, int16_t *high_o
 /* Helper: Emit code to compute address in HL when offsets out of range */
 static void emit_compute_ix_address(int16_t offset) MYCC {
     emit_instrln("ld hl,%d", offset);
-    emit_instrln("ld d,ixh");
     emit_instrln("ld e,ixl");
+    emit_instrln("ld d,ixh");    
     emit_instrln("add hl,de");
 }
 
@@ -584,8 +585,8 @@ void emit_ld_symaddr_offset(SYMBOL* sym, uint16_t offset) MYCC {
         } else {
             /* Out of range: use BC to avoid clobbering DE */
             emit_instrln("ld hl,%d", bp_offset);
-            emit_instrln("ld b,ixh");
             emit_instrln("ld c,ixl");
+            emit_instrln("ld b,ixh");            
             emit_instrln("add hl,bc");
         }
     }
@@ -660,12 +661,15 @@ void emit_store(uint8_t type_id) MYCC {
 } 
 
 void emit_load(uint8_t type_id) MYCC {
-    /* Load the value pointed to by HL. If the effective element type is char
-     * (including pointers/arrays to char), load a byte and sign-extend.
-     * Otherwise load a 16-bit value (word) from memory.
+    /* Load the value at the address in HL.
+     * For pointers: load the 2-byte pointer value (not what it points to)
+     * For arrays: load the element from the array
+     * For scalars: load the scalar value (char as 1 byte, int as 2 bytes)
      */
     uint8_t effective_type = type_id;
-    if (type_is_pointer(type_id) || type_is_array(type_id)) {
+    
+    /* For arrays (but not pointers), extract element type to determine load width */
+    if (type_is_array(type_id) && !type_is_pointer(type_id)) {
         uint8_t elem = type_get_element_type_id(type_id);
         if (elem != TYPE_ID_VOID) effective_type = elem;
     }

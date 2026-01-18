@@ -347,25 +347,7 @@ void parse_struct_def(void) MYCC {
             strncpy(fname, token, MAX_IDENT_LEN);
             get_token(); // skip field name
 
-            /* optional array suffix */
-            if (tok == tokLBrack) {
-                get_token(); // skip '['
-                if (tok == tokRBrack) {
-                    /* treat [] as pointer */
-                    uint8_t elem_type = ftype_id;
-                    ftype_id = type_make_pointer(elem_type, 1);
-                } else {
-                    EXPR_RESULT dim = parse_expr_delayconst(0, TYPE_ID_INT);
-                    if (!type_is_const(dim.type_id)) error_expect_const();
-                    if (dim.value > 0) {
-                        uint8_t len = (dim.value > 255) ? 255 : (uint8_t)dim.value;
-                        ftype_id = type_make_array(ftype_id, len);
-                    } else {
-                        ftype_id = type_make_pointer(ftype_id, 1);
-                    }
-                }
-                expect(tokRBrack, errSyntax);
-            }
+            /* parse_type() already handles all pointer/array suffixes */
 
             add_struct_field(sid, fname, ftype_id);
 
@@ -675,26 +657,29 @@ void parse_type(uint8_t *type_id_out) MYCC {
 
     get_token(); // skip base type or identifier
 
-    /* Handle single pointer/array suffix */
-    if (tok == tokStar) {
-        get_token(); // skip '*'
-        base_type_id = type_make_pointer(base_type_id, 1);
-    } else if (tok == tokLBrack) {
-        get_token(); // skip '['
-        if (tok == tokRBrack) {
+    /* Handle multiple levels of pointer/array suffixes */
+    while (tok == tokStar || tok == tokLBrack) {
+        if (tok == tokStar) {
+            get_token(); // skip '*'
             base_type_id = type_make_pointer(base_type_id, 1);
-        } else {
-            EXPR_RESULT dim = parse_expr_delayconst(0, TYPE_ID_INT);
-            if (!type_is_const(dim.type_id)) error_expect_const();
-            if (dim.value > 0) {
-                if (base_type_id == TYPE_ID_VOID) error(errSyntax);
-                uint8_t length = (dim.value > 255) ? 255 : (uint8_t)dim.value;
-                base_type_id = type_make_array(base_type_id, length);
+        } else if (tok == tokLBrack) {
+            get_token(); // skip '['
+            if (tok == tokRBrack) {
+                /* Empty brackets [] means pointer */
+                base_type_id = type_make_pointer(base_type_id, 1);
             } else {
-                base_type_id = type_make_pointer(base_type_id, 1); // zero means pointer
+                EXPR_RESULT dim = parse_expr_delayconst(0, TYPE_ID_INT);
+                if (!type_is_const(dim.type_id)) error_expect_const();
+                if (dim.value > 0) {
+                    if (base_type_id == TYPE_ID_VOID) error(errSyntax);
+                    uint8_t length = (dim.value > 255) ? 255 : (uint8_t)dim.value;
+                    base_type_id = type_make_array(base_type_id, length);
+                } else {
+                    base_type_id = type_make_pointer(base_type_id, 1); // zero means pointer
+                }
             }
+            expect(tokRBrack, errSyntax);
         }
-        expect(tokRBrack, errSyntax);
     }
     
     *type_id_out = base_type_id;

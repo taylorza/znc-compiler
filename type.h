@@ -26,6 +26,7 @@ typedef struct TypeEntry {
 void type_init(void) MYCC;
 
 /* Type constructors - return type_id (uint8_t) */
+uint8_t type_as_const(uint8_t type_id) MYCC;
 uint8_t type_make_char(uint8_t is_const) MYCC;
 uint8_t type_make_int(uint8_t is_const) MYCC;
 uint8_t type_make_void(void) MYCC;
