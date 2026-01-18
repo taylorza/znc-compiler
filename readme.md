@@ -308,11 +308,12 @@ Variables can be declared at any point in the code
 <stmnt_block>     ::= "{" { <statement> } "}"
 
 (* Declarations *)
-<decl>            ::= <vardecl> | <funcdecl> | <funcproto> | <structdef>
+<decl>            ::= <vardecl> | <funcdecl> | <funcproto> | <structdef> | <delegatedef>
 <structdef>       ::= "struct" <ident> "{" { <vardecl_no_semicolon> } "}" [ ";" ]
+<delegatedef>     ::= "delegate" <rettype> <ident> "(" [ <arglist> ] ")" ";"
 
-<funcproto>       ::= <rettype> <ident> "(" [ <arglist> ] ")" ";"
-<funcdecl>        ::= <rettype> <ident> "(" [ <arglist> ] ")" ( <asm> | <stmnt_block> )
+<funcproto>       ::= <rettype> <ident> "(" [ <arglist> ] [ "..." ] ")" ";"
+<funcdecl>        ::= <rettype> <ident> "(" [ <arglist> ] [ "..." ] ")" ( <asm> | <stmnt_block> )
 
 (* Variable declarations: optional const, each variable can have its own initializer *)
 <vardecl>         ::= [ "const" ] <type> <var_declarator> { "," <var_declarator> } ";"
@@ -321,9 +322,9 @@ Variables can be declared at any point in the code
 
 <rettype>         ::= "void" | <type>
 
-(* Types: scalar base, optional single pointer or array suffix. Structural types supported via 'struct' identifier. *)
+(* Types: scalar base, optional single pointer or array suffix. Structural and named types supported via identifiers. *)
 <type>            ::= <basetype> [ "*" | "[" [ <expr> ] "]" ]
-<basetype>        ::= "char" | "byte" | "int" | "string" | <ident>   (* ident may be a struct name *)
+<basetype>        ::= "char" | "byte" | "int" | "void" | <ident>   (* ident may be a struct or a named type such as a delegate *)
 
 <arglist>         ::= <arg> { "," <arg> }
 <arg>             ::= <type> <ident>
