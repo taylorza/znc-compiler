@@ -11,7 +11,7 @@ extern uint16_t localbytes;
 
 void compile(const char *filename, const char *asmfilename) MYCC;
 
-void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC;
+void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC;
 uint8_t try_handle_variadic_intrinsic(const char* name) MYCC;
 
 #endif //COMPILER_H_

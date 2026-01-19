@@ -712,7 +712,7 @@ static void clean_stack(int16_t bytes) MYCC {
     }
 }
 
-void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
+void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
     get_token(); // skip '('
     uint8_t argcount = 0;
     uint8_t expected_count = 0xFF;
@@ -742,7 +742,7 @@ void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
      * and store HL into it. We'll reload it after parsing args. */
     SYMBOL tmp_sym;
     uint8_t have_tmp = 0;
-    if (ptr_in_hl) {
+    if (ptr_loc == PTR_IN_HL) {
         ARENA_MARKER marker = arena_get_marker();
         char *tmpname = arena_alloc(8);
         snprintf(tmpname, sizeof(tmpname), "t%d", newlbl());
@@ -750,7 +750,7 @@ void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
         
         /* Store HL (the pointer) into the temp variable */
         emit_store_sym(&tmp_sym);
-        ptr_in_hl = 0; /* pointer now stored, will reload later */
+        ptr_loc = PTR_IN_SYMBOL; /* pointer now stored, will reload later */
         have_tmp = 1;
         arena_free_to_marker(marker);
     }
@@ -831,10 +831,10 @@ void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
     /* If we saved the pointer, reload it now into HL */
     if (have_tmp) {
         emit_ld_symval(&tmp_sym);
-        ptr_in_hl = 1;
+        ptr_loc = PTR_IN_HL;
     }
 
-    emit_callsym(sym, ptr_in_hl);
+    emit_callsym(sym, ptr_loc);
     /* Cleanup stack: for variadic functions, also account for pushed count */
     int cleanup_count = (expected_count != 0xFF) ? expected_count : argcount;
     if (is_variadic) {

@@ -1126,9 +1126,9 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             }
             
             /* Determine if pointer is already in HL or if we have a direct function symbol */
-            uint8_t ptr_in_hl = !had_sym;  /* If no symbol, value is in HL */
+            PTR_LOCATION ptr_loc = had_sym ? PTR_IN_SYMBOL : PTR_IN_HL;
             
-            parse_funccall(&call_sym, ptr_in_hl);
+            parse_funccall(&call_sym, ptr_loc);
             
             /* Function return value is in HL - get the return type from signature */
             if (had_sym && is_func_or_proto(&call_sym) && call_sym.signature_id != 0xFF) {

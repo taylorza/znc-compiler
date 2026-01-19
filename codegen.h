@@ -1,6 +1,12 @@
 #ifndef CODEGEN_H_
 #define CODEGEN_H_
 
+typedef enum {
+    PTR_IN_SYMBOL = 0,
+    PTR_IN_HL = 1
+} PTR_LOCATION;
+
+
 uint8_t asm_open(const char *asmfilename) MYCC;
 void asm_close(void) MYCC;
 
@@ -57,7 +63,7 @@ void emit_sub16(void) MYCC;
 
 void emit_rtl(const char* name) MYCC;
 void emit_call(const char *name) MYCC;
-void emit_callsym(SYMBOL* sym, uint8_t ptr_in_hl) MYCC;
+void emit_callsym(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC;
 void emit_ret(void) MYCC;
 void emit_jp(uint16_t lbl) MYCC;
 void emit_jp_true(uint16_t lbl) MYCC;
