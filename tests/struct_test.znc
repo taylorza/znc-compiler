@@ -5,11 +5,11 @@ struct Point {
 
 Point p;
 
-void f(Point p) {
+void f(Point* p) {
 	return;
 }
 
 void main() {
 	Point q;
-	f(q);
+	f(&q);
 }

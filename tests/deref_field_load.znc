@@ -1,7 +1,7 @@
 make dot "/dot/test-deref";
 
 /* Array-field case */
-struct Point { char name[4]; };
+struct Point { char[4] name; };
 Point p;
 *p.name = 'A';
 

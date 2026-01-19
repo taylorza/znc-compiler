@@ -1,7 +1,7 @@
 // Test local arrays - element 0 should be at lowest memory address
 
 void main() {
-    int arr[3];
+    int[3] arr;
     
     // Element 0 at lowest address
     arr[0] = 10;

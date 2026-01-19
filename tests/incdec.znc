@@ -12,7 +12,7 @@ y = x--;
 z = --x;
 
 // indexed tests
-int a[4];
+int[4] a;
 a[0] = 1;
 int i;
 i = 0;

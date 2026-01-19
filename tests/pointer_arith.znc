@@ -1,6 +1,6 @@
 struct S { int a; int b; };
 
-S arr[10];
+S[10] arr;
 S *p;
 
 void main() {
