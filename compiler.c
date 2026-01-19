@@ -263,6 +263,22 @@ void parse_include(void) MYCC {
     get_token(); // skip filename    
 }
 
+/* Helper: Convert type to const version, checking for validity */
+static uint8_t make_const_type(uint8_t type_id) MYCC {
+    if (type_is_void(type_id)) error(errSyntax);
+    if (type_is_pointer(type_id)) error(errSyntax);
+    if (type_is_array(type_id)) error(errSyntax);
+    
+    TypeKind kind = type_get_kind(type_id);
+    if (kind == TK_CHAR) return type_make_char(1);
+    else if (kind == TK_INT) return type_make_int(1);
+    else if (kind == TK_STRUCT) {
+        uint8_t sid = type_get_struct_id(type_id);
+        return type_make_struct(sid, 1);
+    }
+    return type_id;
+}
+
 void parse_decl(void) MYCC {
     uint8_t type_id;
 
@@ -274,17 +290,7 @@ void parse_decl(void) MYCC {
 
     parse_type(&type_id);
     if (constdecl) {
-        if (type_is_void(type_id)) error(errSyntax);
-        if (type_is_pointer(type_id)) error(errSyntax);
-        if (type_is_array(type_id)) error(errSyntax);
-        /* Make const version */
-        TypeKind kind = type_get_kind(type_id);
-        if (kind == TK_CHAR) type_id = type_make_char(1);
-        else if (kind == TK_INT) type_id = type_make_int(1);
-        else if (kind == TK_STRUCT) {
-            uint8_t sid = type_get_struct_id(type_id);
-            type_id = type_make_struct(sid, 1);
-        }
+        type_id = make_const_type(type_id);
     }
 
     if (tok != tokIdent) error(errSyntax);
