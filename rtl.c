@@ -163,6 +163,26 @@ RTLREC rtltbl[] = {
         NULL,
         FLAG_RTL_NONE
     },
+    { "ccvaarg",
+#include "RTL/generated/ccvaarg.inc"
+        NULL,
+        FLAG_RTL_NONE
+    },
+    { "ccvafirst",
+#include "RTL/generated/ccvafirst.inc"
+        NULL,
+        FLAG_RTL_NONE
+    },
+    { "ccvafixed",
+#include "RTL/generated/ccvafixed.inc"
+        NULL,
+        FLAG_RTL_NONE
+    },
+    { "ccvafixedaddr",
+#include "RTL/generated/ccvafixedaddr.inc"
+        NULL,
+        FLAG_RTL_NONE
+    },
         {
             "ccswitch",
 #include "RTL/generated/ccswitch.inc"
@@ -195,7 +215,7 @@ uint8_t far_inc_rtl(const char* fn) {
                     }
                     if (*curr == ',') ++curr;
                     *p = '\0';
-                    inc_rtl(depname);
+                    far_inc_rtl(depname);
                 }
             }
             if (rtl->flags & FLAG_RTL_INLINE) {

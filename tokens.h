@@ -12,6 +12,7 @@ typedef enum TOKEN {
     tokSwitch, tokCase, tokDefault,
     tokReturn, tokBreak, tokContinue, tokExit,
     tokIn, tokOut, tokNextReg, tokReadReg,
+    tokVaStart, tokVaArg, tokVaEnd,
     tokPutc, tokPuts,
     tokAsm, tokInclude,
     tokIdent, 
@@ -19,6 +20,9 @@ typedef enum TOKEN {
     
     tokNumber,      // number
     tokString,      // string
+    tokStruct,      // 'struct' keyword
+    tokDelegate,    // 'delegate' keyword
+    tokMember,      // '.' member operator
 
     tokSemi,        // ;
     tokLParen,      // (
@@ -63,6 +67,7 @@ typedef enum TOKEN {
 
     tokCond,        // ?
     tokColon,       // :
+    tokEllipsis,    // ...
 
     tokEOS          // End of source
 } TOKEN;

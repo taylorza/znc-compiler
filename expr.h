@@ -6,15 +6,15 @@
 #define CLASS_POINTER 0x80
 
 typedef struct EXPR_RESULT {
-    TYPEREC type;
+    uint8_t type_id;
     uint16_t value;
+    SYMBOL sym;    /* copy of symbol when expression is a simple identifier */
+    uint8_t has_sym; /* whether sym is valid */
 } EXPR_RESULT;
 
-int8_t prec(TOKEN op) MYCC;
+EXPR_RESULT parse_expr(uint8_t minprec, uint8_t expected_type_id) MYCC;
+EXPR_RESULT parse_expr_delayconst(uint8_t minprec, uint8_t expected_type_id) MYCC;
 
-EXPR_RESULT parse_expr(uint8_t minprec) MYCC;
-EXPR_RESULT parse_expr_delayconst(uint8_t minprec) MYCC;
-
-void parse_assign(uint8_t dereference, SYMBOL* sym, uint8_t indexed, TYPEREC typ) MYCC;
+void parse_assign(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t type_id) MYCC;
 
 #endif // EXPR_H_

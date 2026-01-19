@@ -1,0 +1,9 @@
+struct S { int a; int b; };
+
+S[10] arr;
+S *p;
+
+void main() {
+    p = arr;
+    p = p + 2; // should scale by sizeof(S)=4 => add 8
+}

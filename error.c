@@ -2,30 +2,29 @@
 
 #include "znc.h"
 
+/* External function to get error message from banked memory */
+void get_error_msg(ERROR err, char *buf, uint8_t bufsize) MYCC;
+
 int errcnt = 0;
 void error(ERROR err, ...) {
-    static const char* errmsg[] = {
-        "Syntax",
-        "Expected '%c'",
-        "Too long",
-        "Too many symbols",
-        "Aready defined '%s'",
-        "Not defined '%s'",
-        "Not an lvalue",
-        "Type Error",
-        "File error",
-        "Argument mismatch",
-        "Definition mismatch",
-        "Invalid %s",
-        "Expected %s",
-    };
-    
-    char buf[64];
+    static char errmsg[32];  /* Error message template buffer */
+    static char buf[64];     /* Final formatted message buffer */
     va_list v;
+/*
+#ifdef __ZXNEXT
+    __asm
+        db 0xfd, 0x00
+    __endasm;
+#endif
+*/  
+    /* Retrieve error message template from banked memory */
+    get_error_msg(err, errmsg, sizeof(errmsg));
+    
+    /* Format the message with variadic arguments */
     va_start(v, err);
-    vsnprintf(buf, sizeof(buf), (char*)errmsg[err], v);
+    vsnprintf(buf, sizeof(buf), errmsg, v);
     va_end(v);
-
+    
     printf("%c%s(%d,%d): error: %s%c", NL, loc[fileid].filename, token_line, token_col, buf, NL);
     exit(1);
     ++errcnt;

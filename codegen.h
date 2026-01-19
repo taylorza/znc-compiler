@@ -1,6 +1,12 @@
 #ifndef CODEGEN_H_
 #define CODEGEN_H_
 
+typedef enum {
+    PTR_IN_SYMBOL = 0,
+    PTR_IN_HL = 1
+} PTR_LOCATION;
+
+
 uint8_t asm_open(const char *asmfilename) MYCC;
 void asm_close(void) MYCC;
 
@@ -33,15 +39,21 @@ void emit_ld_immed_n(uint16_t n) MYCC;
 void emit_ldbc_immed_n(uint16_t n) MYCC;
 void emit_ldde_immed_n(uint16_t n) MYCC;
 
+/* Actually beneficial optimizations: */
+void emit_add_hl_small(int16_t n) MYCC;
+void emit_mul_const_optimized(uint16_t factor) MYCC;
+
 void emit_load_word_from_hl(void) MYCC;
-void emit_store_word_at_de(void) MYCC;
-void emit_store_byte_at_de(void) MYCC;
+void emit_store_word_at_hl(void) MYCC;
+void emit_store_byte_at_hl(void) MYCC;
 void emit_copy_hl_to_bc(void) MYCC;
 void emit_copy_bc_to_hl(void) MYCC;
+void emit_copy_ix_to_hl(void) MYCC;
 
 void emit_push(void) MYCC;
 
-void emit_pop(void) MYCC;
+void emit_pop_de(void) MYCC;
+void emit_pop_hl(void) MYCC;
 
 void emit_swap(void) MYCC;
 
@@ -51,7 +63,7 @@ void emit_sub16(void) MYCC;
 
 void emit_rtl(const char* name) MYCC;
 void emit_call(const char *name) MYCC;
-void emit_callsym(SYMBOL* sym) MYCC;
+void emit_callsym(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC;
 void emit_ret(void) MYCC;
 void emit_jp(uint16_t lbl) MYCC;
 void emit_jp_true(uint16_t lbl) MYCC;
@@ -61,9 +73,10 @@ void emit_sname(const char* name) MYCC;
 
 void emit_ld_symval(SYMBOL* sym) MYCC;
 void emit_ld_symaddr(SYMBOL* sym) MYCC;
+void emit_ld_symaddr_offset(SYMBOL* sym, uint16_t offset) MYCC;
 void emit_store_sym(SYMBOL* sym) MYCC;
-void emit_store(TYPEREC typ) MYCC;
-void emit_load(TYPEREC typ) MYCC;
+void emit_store(uint8_t type_id) MYCC;
+void emit_load(uint8_t type_id) MYCC;
 
 uint16_t emit_alloclocals(void) MYCC;
 void emit_lblequ16(uint16_t lbl, uint16_t value) MYCC;
@@ -77,6 +90,10 @@ void emit_frame_epilogue(uint8_t toplevel, uint16_t exit_lbl) MYCC;
 void emit_neg(void) MYCC;
 void emit_mul2(void) MYCC;
 void emit_mulDE2(void) MYCC;
+void emit_div_pow2(uint8_t shift_count) MYCC;
+void emit_mod_pow2(uint16_t divisor) MYCC;
+void emit_div_const_optimized(uint16_t divisor) MYCC;
+void emit_mod_const_optimized(uint16_t divisor) MYCC;
 
 void emit_org(uint16_t address) MYCC;
 void emit_bank(uint8_t bank16, uint16_t offset) MYCC;
@@ -86,4 +103,4 @@ void emit_ld_const(uint16_t value) MYCC;
 
 void emit_zopt(void);
 
-#endif //CODEGEN_H_
+#endif //CODEGEN_H_#endif //CODEGEN_H_

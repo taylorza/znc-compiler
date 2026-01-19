@@ -38,17 +38,17 @@ SYMBOL* far_lookupIdent(const char* name) MYCC {
     return NULL;
 }
 
-void far_updatesym(SYMBOL* from) MYCC {
+void far_updatesym(SYMBOL from) MYCC {
     SYMBOL* sym;
-    if (from->scope == LOCAL)
-        sym = far_findloc(from->name);
+    if (from.scope == LOCAL)
+        sym = far_findloc(from.name);
     else
-        sym = far_findglb(from->name);
+        sym = far_findglb(from.name);
 
-    if (sym) *sym = *from;
+    if (sym) *sym = from;
 }
 
-SYMBOL* far_addglb(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC {
+SYMBOL* far_addglb(const char* name, SYM_CLASS klass, uint8_t type_id, int16_t value) MYCC {
     SYMBOL *sym = far_findglb(name);
     if (sym) return sym;
 
@@ -60,15 +60,16 @@ SYMBOL* far_addglb(const char* name, SYM_CLASS klass, TYPEREC type, int16_t valu
     sym = &symtab[lastgbl];
     strncpy(sym->name, name, MAX_IDENT_LEN);
     sym->klass = klass;
-    sym->type = type;
+    sym->type_id = type_id;
     sym->scope = GLOBAL;
     sym->offset = value;
     sym->flags = 0;
+    sym->signature_id = 0xFF;  // No signature by default
     ++lastgbl;
     return sym;
 }
 
-SYMBOL* far_addloc(const char* name, SYM_CLASS klass, TYPEREC type, int16_t value) MYCC {
+SYMBOL* far_addloc(const char* name, SYM_CLASS klass, uint8_t type_id, int16_t value) MYCC {
     SYMBOL *sym = far_findloc(name);
     if (sym) return sym;
 
@@ -80,9 +81,10 @@ SYMBOL* far_addloc(const char* name, SYM_CLASS klass, TYPEREC type, int16_t valu
     sym = &symtab[--lastloc];
     strncpy(sym->name, name, MAX_IDENT_LEN);
     sym->klass = klass;
-    sym->type = type;
+    sym->type_id = type_id;
     sym->scope = LOCAL;
     sym->offset = value;
+    sym->signature_id = 0xFF;  // No signature by default
     return sym;
 }
 
@@ -103,17 +105,22 @@ uint8_t far_is_scoped(void) MYCC {
 void far_dump_globals(void) MYCC {
     for (uint16_t i = 0; i < lastgbl; ++i) {
         SYMBOL* sym = &symtab[i];
-        if (sym->klass == FUNCTION_PROTO) error(errNotDefined_s, sym->name);
+        if (sym->klass == FUNCTION_PROTO) {
+            /* Copy banked symbol name into main-bank token buffer so printf/error can print it
+             * without allocating on the stack.
+             */
+            strncpy(token, sym->name, MAX_STR_LEN);
+            token[MAX_STR_LEN] = '\0';
+            error(errNotDefined_s, token);
+        }
         /* If symbol was emitted with an initializer earlier (marked via
          * `SYM_FLAG_INITIALIZED`), skip auto allocation here. Also skip
          * functions and consts as before.
          */
-        if (sym->klass == FUNCTION || is_const(&sym->type) || (sym->flags & SYM_FLAG_INITIALIZED)) continue; // skip functions, consts, inited
-        TYPEREC* ptype = &sym->type;
+        if (sym->klass == FUNCTION || type_is_const(sym->type_id) || (sym->flags & SYM_FLAG_INITIALIZED)) continue; // skip functions, consts, inited
         emit_sname(sym->name);
         emit_ch(' ');
-        uint16_t size = is_int(ptype) || is_ptr(ptype) ? 2 : 1;
-        if (is_array(ptype)) size *= -ptype->dim;
+        uint16_t size = type_size(sym->type_id);
         switch(size) {
             case 1:
                 emit_str("db 0");

@@ -1,13 +1,17 @@
 #include "znc.h"
+#include "struct.h"
+#include "shared.h"
 
 uint16_t retlbl = 0;        // function exit label
 
 TOKEN tokMakeType = tokRaw; // type of make command
 
 uint8_t infunc = 0;         // 1 if parsing a function
+uint8_t func_rettype = 0;   // return type of current function (0 = void)
 uint8_t inbank = 0;         // 1 if in explicit bank
 
 uint8_t func_argcount;      // number of arguments for function being parsed
+uint8_t func_is_variadic = 0; // 1 if current function is variadic
 uint16_t locals_lbl;        // label of the EQU with the arg count
 uint8_t localcount;         // number of live local variables
 uint8_t maxlocalcount;      // highwater mark for local variables
@@ -21,11 +25,12 @@ uint16_t stack_size = 256;  // stack size
 
 uint8_t hash_if_depth = 0; // depth of #if/#ifdef statements
 
-SYMBOL declglb(TYPEREC type, SYM_CLASS klass, const char* name, int16_t value);
-SYMBOL declloc(TYPEREC type, SYM_CLASS klass, const char* name, int16_t offset);
+SYMBOL declglb(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t value);
+SYMBOL declloc(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t offset);
+SYMBOL decl_in_scope(uint8_t type_id, SYM_CLASS klass, const char* name);
 
-void parse_type(TYPEREC* type) MYCC;
-void parse_funcdecl(TYPEREC rettype, const char* name) MYCC;
+void parse_type(uint8_t* type_id_out) MYCC;
+void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC;
 
 void parse_include(void) MYCC;
 void parse_decl(void) MYCC;
@@ -38,7 +43,6 @@ void parse_continue(uint16_t contlbl) MYCC;
 void parse_return(void) MYCC;
 void parse_exit(void) MYCC;
 void parse_putc(void) MYCC; 
-void parse_puts(void) MYCC;
 void parse_out(void) MYCC;
 void parse_nextreg(void) MYCC;
 void parse_asm(int asmcol) MYCC;
@@ -46,6 +50,12 @@ void parse_org(void) MYCC;
 void parse_bank(void) MYCC;
 void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC;
 void parse_switch(uint16_t contlbl) MYCC;
+void parse_vastart(void) MYCC;
+void parse_vaend(void) MYCC;
+
+/* Forward declaration for struct parser (defined later) */
+void parse_struct_def(void) MYCC;
+void parse_delegate_decl(void) MYCC;
 
 void parse_make(const char* outfilename) MYCC;
 
@@ -96,13 +106,12 @@ static void parse(const char* sourcefile, const char* outfilename, uint8_t entry
 }
 
 void emit_make_defines(TOKEN outputTok) {
-    TYPEREC type = { .basetype = CHAR };
-    make_const(&type);
+    uint8_t const_char_type = type_make_char(1);
 
     switch (outputTok) {
-        case tokNex: declglb(type, VARIABLE, "__NEX", 1);  break;
-        case tokDot: declglb(type, VARIABLE, "__DOT", 1);  break;
-        case tokRaw: declglb(type, VARIABLE, "__RAW", 1);  break;
+        case tokNex: declglb(const_char_type, VARIABLE, "__NEX", 1);  break;
+        case tokDot: declglb(const_char_type, VARIABLE, "__DOT", 1);  break;
+        case tokRaw: declglb(const_char_type, VARIABLE, "__RAW", 1);  break;
     }
 
     emit_strln("__NEX equ %d", outputTok == tokNex ? 1 : 0);
@@ -152,7 +161,7 @@ EXPR_RESULT parse_onearg(void) MYCC {
     EXPR_RESULT expr;
     get_token(); // skip leading token
     expect_LParen();
-    expr = parse_expr(0);
+    expr = parse_expr(0, 0);
     expect_RParen();
     return expr;
 }
@@ -173,12 +182,36 @@ static void parse_statement_block(uint16_t brklbl, uint16_t contlbl) MYCC {
 }
 
 void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
+    /* If the current token is an identifier that is a known struct type, treat this
+     * as a declaration (e.g. `Point p;`). This must be checked before falling back
+     * to expression parsing so type names can be used like in C++.
+     */
+    if (tok == tokIdent) {
+        int sid = find_struct(token);
+        if (sid >= 0) {
+            parse_decl();
+            return;
+        }
+        /* Also treat named types (e.g. delegate type names) as declarations */
+        int tid = type_find_by_name(token);
+        if (tid != -1) {
+            parse_decl();
+            return;
+        }
+    }
+
     switch (tok) {
         case tokConst:
         case tokVoid:
         case tokChar:
         case tokInt:
             parse_decl();
+            break;
+        case tokDelegate:
+            parse_delegate_decl();
+            break;
+        case tokStruct:
+            parse_struct_def();
             break;
 
         case tokLBrace:
@@ -192,8 +225,9 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
         case tokContinue: parse_continue(contlbl); break;
         case tokReturn: parse_return(); break;
         case tokExit: parse_exit(); break;
-        case tokPutc: parse_putc(); break;  
-        case tokPuts: parse_puts(); break;
+        case tokPutc: parse_putc(); break;
+        case tokVaStart: parse_vastart(); break;
+        case tokVaEnd: parse_vaend(); break;
         case tokOut: parse_out(); break;
         case tokNextReg: parse_nextreg(); break;
         case tokAsm: parse_asm(0); break;
@@ -214,7 +248,7 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
             break;
 
         default:
-            parse_expr(0);
+            parse_expr(0, 0);
             expect_semi();
             break;
     }
@@ -229,8 +263,24 @@ void parse_include(void) MYCC {
     get_token(); // skip filename    
 }
 
+/* Helper: Convert type to const version, checking for validity */
+static uint8_t make_const_type(uint8_t type_id) MYCC {
+    if (type_is_void(type_id)) error(errSyntax);
+    if (type_is_pointer(type_id)) error(errSyntax);
+    if (type_is_array(type_id)) error(errSyntax);
+    
+    TypeKind kind = type_get_kind(type_id);
+    if (kind == TK_CHAR) return type_make_char(1);
+    else if (kind == TK_INT) return type_make_int(1);
+    else if (kind == TK_STRUCT) {
+        uint8_t sid = type_get_struct_id(type_id);
+        return type_make_struct(sid, 1);
+    }
+    return type_id;
+}
+
 void parse_decl(void) MYCC {
-    TYPEREC type;
+    uint8_t type_id;
 
     uint8_t constdecl = 0;
     if (tok == tokConst) {
@@ -238,12 +288,9 @@ void parse_decl(void) MYCC {
         get_token(); // skip 'const'
     }
 
-    parse_type(&type);
+    parse_type(&type_id);
     if (constdecl) {
-        if (is_void(&type)) error(errSyntax);
-        if (is_ptr(&type)) error(errSyntax);
-        if (is_array(&type)) error(errSyntax);
-        make_const(&type);
+        type_id = make_const_type(type_id);
     }
 
     if (tok != tokIdent) error(errSyntax);
@@ -255,29 +302,18 @@ void parse_decl(void) MYCC {
 
     if (tok == tokLParen) {
         if (infunc || constdecl) error(errSyntax);
-        parse_funcdecl(type, name);
+        parse_funcdecl(type_id, name);
     }
     else {
         SYMBOL sym;
 
-        if (is_void(&type) && !is_ptr(&type)) error(errSyntax);
+        if (type_is_void(type_id) && !type_is_pointer(type_id)) error(errSyntax);
 
         for (;;) {
-            if (infunc || is_scoped()) {
-                uint16_t size = type_size(&type); 
-                sym = findloc(name);
-                if (is_defined(&sym)) error(errAlreadyDefined_s, name);
-                sym = declloc(type, VARIABLE, name, bp_lastlocal);
-                bp_lastlocal += size;
-                if (localbytes < bp_lastlocal) localbytes = bp_lastlocal;
-            } else {
-                sym = findglb(name);
-                if (is_defined(&sym)) error(errAlreadyDefined_s, name);
-                sym = declglb(type, VARIABLE, name, 0);
-            }
+            sym = decl_in_scope(type_id, VARIABLE, name);
                
             if (tok == tokAssign) {
-                parse_assign(0, &sym, 0, type);
+                parse_assign(0, sym, 0, type_id);
             }
             else if (constdecl) error(errSyntax);
 
@@ -290,6 +326,52 @@ void parse_decl(void) MYCC {
     }
 }
 
+void parse_struct_def(void) MYCC {
+    static char name[MAX_IDENT_LEN+1];
+
+    /* parse: struct Name { <field-decls> } ; */
+    get_token(); // skip 'struct'
+    if (tok != tokIdent) {
+        error(errSyntax);
+        return;
+    }
+    
+    if (find_struct(token) != -1) {
+        error(errAlreadyDefined_s, token);
+        return;
+    }
+
+    int sid = add_struct(token);
+
+    get_token(); // skip name
+    expect_LBrace();
+
+    while (tok != tokRBrace && tok != tokEOS) {
+        uint8_t ftype_id;
+        parse_type(&ftype_id);
+
+        for (;;) {
+            if (tok != tokIdent) error(errSyntax);
+            strncpy(name, token, MAX_IDENT_LEN);
+            get_token(); // skip field name
+
+            /* parse_type() already handles all pointer/array suffixes */
+
+            add_struct_field(sid, name, ftype_id);
+
+            if (tok == tokComma) {
+                get_token(); // skip ',' and continue
+                continue;
+            }
+            break;
+        }
+        expect_semi();
+    }
+
+    expect_RBrace();
+    if (tok == tokSemi) get_token(); // optional semicolon
+}
+
 void parse_if(uint16_t brklbl, uint16_t contlbl) MYCC {
     uint16_t lblEndIf = NO_LABEL;
     uint16_t lblFalse = newlbl();
@@ -300,19 +382,17 @@ void parse_if(uint16_t brklbl, uint16_t contlbl) MYCC {
 
     if (tok == tokElse) {
         get_token(); // skip 'else'
-        if (lblEndIf == NO_LABEL) lblEndIf = newlbl();
+        lblEndIf = newlbl();
         emit_jp(lblEndIf);
-    }        
+    }
     emit_lbl(lblFalse);
-    
-    if (lblEndIf != NO_LABEL)
-    {
+
+    if (lblEndIf != NO_LABEL) {
         parse_statement(brklbl, contlbl);
-        if (lblEndIf) {
-            emit_lbl(lblEndIf);
-            lblEndIf = 0;
-        }
-    }    
+        emit_lbl(lblEndIf);
+        lblEndIf = NO_LABEL;
+    }
+    
 }
 
 void parse_switch(uint16_t contlbl) MYCC {
@@ -320,8 +400,11 @@ void parse_switch(uint16_t contlbl) MYCC {
     uint16_t lblDefault = NO_LABEL;
     uint16_t lblDone = newlbl();
     
-    uint16_t values[MAX_CASE];
-    uint16_t labels[MAX_CASE];
+    uint16_t mark = arena_get_marker();
+
+    uint16_t* values = arena_alloc(sizeof(uint16_t) * MAX_CASE); // space for case values
+    uint16_t* labels = arena_alloc(sizeof(uint16_t) * MAX_CASE); // space for case labels
+    
     uint8_t case_count = 0;
     uint8_t last_break = 0;
 
@@ -333,8 +416,8 @@ void parse_switch(uint16_t contlbl) MYCC {
         last_break = 0;
         if (tok == tokCase) {
             get_token(); // skip 'case'
-            EXPR_RESULT expr_result = parse_expr_delayconst(0);
-            if (!is_const(&expr_result.type)) {
+            EXPR_RESULT expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
+            if (!type_is_const(expr_result.type_id)) {
                 error_expect_const();
             }
             uint16_t lblCase = newlbl();
@@ -352,7 +435,7 @@ void parse_switch(uint16_t contlbl) MYCC {
         if (tok == tokLBrace) 
             parse_statement_block(lblDone, contlbl);
         else
-            while (tok != tokEOS && tok != tokBreak && tok != tokCase && tok != tokRBrace) {
+            while (tok != tokEOS && tok != tokBreak && tok != tokCase && tok != tokRBrace && tok != tokDefault) {
                 parse_statement(lblDone, contlbl);
             }
         if (tok == tokBreak) {
@@ -371,6 +454,7 @@ void parse_switch(uint16_t contlbl) MYCC {
     }
     if (lblDefault != NO_LABEL) emit_jp(lblDefault);
     emit_lbl(lblDone);
+    arena_free_to_marker(mark);
 }
 
 void parse_while(void) MYCC {
@@ -389,64 +473,64 @@ void parse_while(void) MYCC {
 }
 
 void parse_for(void) MYCC {
-    get_token(); // skip 'for'
-    expect_LParen();
+	get_token(); // skip 'for'
+	expect_LParen();
 
-    uint16_t blockframe = push_frame();
-    uint8_t old_localcount = localcount;
+	uint16_t blockframe = push_frame();
+	uint8_t old_localcount = localcount;
 
-    uint16_t lblCond=NO_LABEL;
-    uint16_t lblEndFor, brklbl;
-    uint16_t lblBody = newlbl();
-    uint16_t lblPost, contlbl;
+	uint16_t lblCond=NO_LABEL;
+	uint16_t lblEndFor, brklbl;
+	uint16_t lblBody = newlbl();
+	uint16_t lblPost, contlbl;
 
-    lblEndFor = brklbl = newlbl();
-    lblPost = contlbl = NO_LABEL;
+	lblEndFor = brklbl = newlbl();
+	lblPost = contlbl = NO_LABEL;
 
 
-    // parse initializer
-    if (tok == tokChar || tok == tokInt) {
-        parse_decl();
-    }
-    else {
-        if (tok != tokSemi) parse_expr(0);
-        expect_semi();
-    }
-    
-    // parse condition
-    if (tok != tokSemi) {
-        lblCond = newlbl();
-        emit_lbl(lblCond);
-        parse_expr(0); 
-        emit_jp_false(lblEndFor);
-    }
-    expect_semi();
+	// parse initializer
+	if (tok == tokChar || tok == tokInt) {
+		parse_decl();
+	}
+	else {
+		if (tok != tokSemi) parse_expr(0, 0);
+		expect_semi();
+	}
 
-    // parse post statement
-    if (tok != tokRParen) {
-        emit_jp(lblBody);
-        lblPost = contlbl = newlbl();
-        emit_lbl(lblPost);
-        parse_expr(0);
-        if (lblCond != NO_LABEL) emit_jp(lblCond);
-    } else {
-        contlbl = lblBody;
-    }
-    expect_RParen();
+	// parse condition
+	if (tok != tokSemi) {
+		lblCond = newlbl();
+		emit_lbl(lblCond);
+		parse_expr(0, 0); 
+		emit_jp_false(lblEndFor);
+	}
+	expect_semi();
 
-    emit_lbl(lblBody);
-    parse_statement(brklbl, contlbl);
-    if (lblPost != NO_LABEL)
-        emit_jp(lblPost);
-    else if (lblCond != NO_LABEL)
-        emit_jp(lblCond);
-    else
-        emit_jp(lblBody);
-    emit_lbl(lblEndFor);
+	// parse post statement
+	if (tok != tokRParen) {
+		emit_jp(lblBody);
+		lblPost = contlbl = newlbl();
+		emit_lbl(lblPost);
+		parse_expr(0, 0);
+		if (lblCond != NO_LABEL) emit_jp(lblCond);
+	} else {
+		contlbl = lblBody;
+	}
+	expect_RParen();
 
-    if (maxlocalcount < localcount) maxlocalcount = localcount;
-    localcount = old_localcount;
-    pop_frame(blockframe);    
+	emit_lbl(lblBody);
+	parse_statement(brklbl, contlbl);
+	if (lblPost != NO_LABEL)
+		emit_jp(lblPost);
+	else if (lblCond != NO_LABEL)
+		emit_jp(lblCond);
+	else
+		emit_jp(lblBody);
+	emit_lbl(lblEndFor);
+
+	if (maxlocalcount < localcount) maxlocalcount = localcount;
+	localcount = old_localcount;
+	pop_frame(blockframe);    
 }
 
 void parse_break(uint16_t brklbl) MYCC {
@@ -470,21 +554,14 @@ void parse_putc(void) MYCC {
     emit_rtl("putc");
 }
 
-void parse_puts(void) MYCC {
-    parse_onearg(); // (expr)
-    expect_semi();
-
-    emit_rtl("puts");   
-}
-
 void parse_out(void) MYCC {
     get_token(); // skip 'out'
     expect_LParen();
    
-    parse_expr(0);
+    parse_expr(0, 0);
     emit_copy_hl_to_bc();
     expect_comma();
-    parse_expr(0);
+    parse_expr(0, 0);
     emit_instrln("out (c),l");
     expect_RParen();
     expect_semi();
@@ -494,11 +571,11 @@ void parse_nextreg(void) MYCC {
     get_token(); // skip 'nextreg'
     expect_LParen();
     
-    parse_expr(0);
+    parse_expr(0, 0);
     emit_push();
     expect_comma();
-    parse_expr(0);
-    emit_pop();
+    parse_expr(0, 0);
+    emit_pop_de();
 
     emit_instrln("ld bc,9275");
     emit_instrln("out (c),e");
@@ -542,39 +619,75 @@ void parse_asm(int asmcol) MYCC {
     expect_RBrace();    
 }
 
-void parse_type(TYPEREC *type) MYCC {
-    switch (tok) {
-        case tokVoid: type->basetype = VOID; break;
-        case tokChar: type->basetype = CHAR; break;
-        case tokInt: type->basetype = INT; break;
-        default: 
-            error(errSyntax); 
-            tok = tokInt;
-            break;
-    }    
-    make_scalar(type);
-    
-    get_token(); // skip type
+void parse_type(uint8_t *type_id_out) MYCC {
+    /* Initialize to void */
+    uint8_t base_type_id = TYPE_ID_VOID;
+    uint8_t is_const_flag = 0;
+    uint8_t struct_id = 0;
 
-    if (tok == tokStar) {
-        get_token(); // skip '*'
-        make_ptr(type); // set as pointer
-    }
-    else if (tok == tokLBrack) {
-        get_token(); // skip '['
-        if (tok == tokRBrack) {
-            make_ptr(type);
-        } else {
-            EXPR_RESULT dim = parse_expr_delayconst(0);
-            if (!is_const(&dim.type)) error_expect_const();
-            if (dim.value > 0) {
-                if (is_void(type)) error(errSyntax);
-                make_array(type, dim.value);
+    switch (tok) {
+        case tokVoid: 
+            base_type_id = TYPE_ID_VOID;
+            break;
+        case tokChar: 
+            base_type_id = TYPE_ID_CHAR;
+            break;
+        case tokInt: 
+            base_type_id = TYPE_ID_INT;
+            break;
+        case tokIdent: {
+            /* Ident could be a struct type name or a registered named type (delegate) */
+            int sid = find_struct(token);
+            if (sid >= 0) {
+                struct_id = sid + 1; /* 1-based id */
+                base_type_id = type_make_struct(struct_id, is_const_flag);
+            } else {
+                int t = type_find_by_name(token);
+                if (t != -1) {
+                    base_type_id = (uint8_t)t;
+                } else {
+                    error(errSyntax);
+                    tok = tokInt;
+                    base_type_id = TYPE_ID_INT;
+                }
             }
-            else make_ptr(type); // 0 size array is a pointer
+            break;
         }
-        expect(tokRBrack, errSyntax);       
+        default:
+            error(errSyntax);
+            tok = tokInt;
+            base_type_id = TYPE_ID_INT;
+            break;
     }
+
+    get_token(); // skip base type or identifier
+
+    /* Handle multiple levels of pointer/array suffixes */
+    while (tok == tokStar || tok == tokLBrack) {
+        if (tok == tokStar) {
+            get_token(); // skip '*'
+            base_type_id = type_make_pointer(base_type_id, 1);
+        } else if (tok == tokLBrack) {
+            get_token(); // skip '['
+            if (tok == tokRBrack) {
+                /* Empty brackets [] means pointer */
+                base_type_id = type_make_pointer(base_type_id, 1);
+            } else {
+                EXPR_RESULT dim = parse_expr_delayconst(0, TYPE_ID_INT);
+                if (!type_is_const(dim.type_id)) error_expect_const();
+                if (dim.value > 0) {
+                    if (base_type_id == TYPE_ID_VOID) error(errSyntax);
+                    uint8_t length = (dim.value > 255) ? 255 : (uint8_t)dim.value;
+                    base_type_id = type_make_array(base_type_id, length);
+                } else {
+                    base_type_id = type_make_pointer(base_type_id, 1); // zero means pointer
+                }
+            }
+            expect(tokRBrack, errSyntax);
+        }
+    }
+    
+    *type_id_out = base_type_id;
 }
 
 static void clean_stack(int16_t bytes) MYCC {
@@ -582,7 +695,7 @@ static void clean_stack(int16_t bytes) MYCC {
     
     if (bytes < 8) {
         while ((bytes-2) >= 0) {
-            emit_instrln("pop bc");
+            emit_instrln("pop af");
             bytes -= 2;
         }
         while (bytes) {
@@ -592,38 +705,151 @@ static void clean_stack(int16_t bytes) MYCC {
         return;
     } else  {
         emit_swap();
-        emit_ld_immed(); emit_n(bytes); emit_nl();
+        emit_ld_immed_n(bytes);        
         emit_instrln("add hl,sp");
         emit_instrln("ld sp,hl");        
         emit_swap();
     }
 }
 
-void parse_funccall(SYMBOL* sym) MYCC {
+void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
     get_token(); // skip '('
     uint8_t argcount = 0;
+    uint8_t expected_count = 0xFF;
+    uint8_t sig_id = 0xFF;
+    uint8_t is_variadic = 0;
+    
+    if (is_func_or_proto(sym)) {
+        expected_count = sym->offset;
+        if (sym->signature_id != 0xFF) sig_id = sym->signature_id;
+    } else if (sym->klass == VARIABLE) {
+        /* If variable holds a function pointer (delegate), extract signature from its type */
+        uint8_t t = sym->type_id;
+        if (type_is_function(type_get_element_type_id(t)) && type_get_indirection(t) == 1) {
+            uint8_t ftype = type_get_element_type_id(t);
+            sig_id = type_get_function_sig(ftype);
+            expected_count = signature_get_arg_count(sig_id);
+        }
+    }
+    
+    /* Check if function is variadic */
+    if (sig_id != 0xFF) {
+        is_variadic = signature_is_variadic(sig_id);
+    }
+    
+    /* If pointer to call is already in HL, save it to a temp so it
+     * survives argument evaluation. We create a temporary variable (2 bytes)
+     * and store HL into it. We'll reload it after parsing args. */
+    SYMBOL tmp_sym;
+    uint8_t have_tmp = 0;
+    if (ptr_loc == PTR_IN_HL) {
+        ARENA_MARKER marker = arena_get_marker();
+        char *tmpname = arena_alloc(8);
+        snprintf(tmpname, sizeof(tmpname), "t%d", newlbl());
+        tmp_sym = decl_in_scope(TYPE_ID_INT, VARIABLE, tmpname);
+        
+        /* Store HL (the pointer) into the temp variable */
+        emit_store_sym(&tmp_sym);
+        ptr_loc = PTR_IN_SYMBOL; /* pointer now stored, will reload later */
+        have_tmp = 1;
+        arena_free_to_marker(marker);
+    }
+
     while (tok != tokRParen) {
+        /* For variadic functions, allow more args than expected_count
+         * For non-variadic, check argument count inline */
+        if (!is_variadic && expected_count != 0xFF && argcount >= expected_count) {
+            error(errArgMismatch);
+            break;
+        }
+        
+        /* Parse the argument expression without an expected type so we get the
+         * actual declared/static type of the expression. The parsed
+         * `arg_result` contains a copy of the symbol when the expression is a
+         * simple identifier (arg_result.has_sym) which we use for compatibility
+         * checks below.
+         */
+        EXPR_RESULT arg_result = parse_expr(0, 0);
+        
+        /* Error if passing a struct by value - must use & to pass pointer */
+        if (type_is_struct(arg_result.type_id) && !type_is_pointer(arg_result.type_id)) {
+            error(errTypeError);
+        }
+        
+        /* Check argument type inline if signature available and within fixed params */
+        if (sig_id != 0xFF && argcount < expected_count && argcount < MAX_FUNC_ARGS) {
+            uint8_t expected_type = signature_get_arg_type(sig_id, argcount);
+            /* Prefer the original symbol type if this argument started as a simple
+             * identifier (peeked earlier). This ensures we preserve array types
+             * declared on the identifier even if parse_expr loads or decays them.
+             */
+            /* Use the expression's resolved type. If the expression is a simple
+             * identifier, prefer the symbol's declared type (arg_result.has_sym).
+             * Do NOT use the peeked identifier's type blindly: for member
+             * accesses like `obj.member` the token stream starts with an
+             * identifier but the overall expression's type is the member's
+             * type, which is already reflected in arg_result.type_id.
+             */
+            uint8_t actual_type = arg_result.type_id;
+            if (arg_result.has_sym) actual_type = arg_result.sym.type_id;
+
+            /* Use the central compatibility checker (from=actual, to=expected). */
+            if (!type_check_compatible(actual_type, expected_type)) {
+                error(errTypeError);
+            }
+        }
+        
+        emit_push();
         ++argcount;
-        parse_expr(0);
-        emit_push();        
+        
         if (tok != tokComma) break;
         get_token(); // skip ','
     }
-    if (is_func_or_proto(sym) && argcount != sym->offset) error(errArgMismatch);
+    
+    /* Calculate variadic argument count */
+    uint8_t variadic_count = 0;
+    if (is_variadic && expected_count != 0xFF) {
+        if (argcount < expected_count) {
+            error(errArgMismatch);
+        }
+        variadic_count = argcount - expected_count;
+    }
+    
+    /* For variadic functions, push the count of variadic args */
+    if (is_variadic) {
+        emit_ld_immed_n(variadic_count);
+        emit_push();
+    }
+    
+    /* Final argument count check for non-variadic functions */
+    if (!is_variadic && expected_count != 0xFF && argcount != expected_count) {
+        error(errArgMismatch);
+    }
+    
     expect_RParen();
 
-    emit_callsym(sym);
-    clean_stack(sym->offset * 2);
+    /* If we saved the pointer, reload it now into HL */
+    if (have_tmp) {
+        emit_ld_symval(&tmp_sym);
+        ptr_loc = PTR_IN_HL;
+    }
+
+    emit_callsym(sym, ptr_loc);
+    /* Cleanup stack: for variadic functions, also account for pushed count */
+    int cleanup_count = (expected_count != 0xFF) ? expected_count : argcount;
+    if (is_variadic) {
+        cleanup_count = argcount + 1;  /* +1 for the count itself */
+    }
+    clean_stack(cleanup_count * 2);
 }
 
 void do_exit(EXPR_RESULT exit_expr) {
     switch(tokMakeType) {
         case tokDot:                
-            if (is_void(&exit_expr.type) || (is_const(&exit_expr.type) && exit_expr.value == 0)) {
+            if (type_is_void(exit_expr.type_id) || (type_is_const(exit_expr.type_id) && exit_expr.value == 0)) {
                 emit_instrln("xor a");                            
             } else {
-                if ((is_ptr(&exit_expr.type) && is_char(&exit_expr.type)) 
-                        || is_string(&exit_expr.type)) {
+                if ((type_is_pointer(exit_expr.type_id) && type_is_char(type_get_element_type_id(exit_expr.type_id)))) {
                 emit_rtl("ccpstr"); // convert C string to BASIC string
                 emit_instrln("xor a");                      
                 } else {
@@ -633,7 +859,7 @@ void do_exit(EXPR_RESULT exit_expr) {
             }
             break;
         case tokRaw:
-            if (is_void(&exit_expr.type)) {
+            if (type_is_void(exit_expr.type_id)) {
                 emit_instr("xor a");
                 emit_instrln("ld b,a");
                 emit_instrln("ld c,a");
@@ -646,14 +872,22 @@ void do_exit(EXPR_RESULT exit_expr) {
 }
 
 void parse_return(void) MYCC {
-    EXPR_RESULT expr_result = { .type = void_type };
+    EXPR_RESULT expr_result = { .type_id = TYPE_ID_VOID };
 
     get_token(); // skip 'return';
+
+    if (type_is_void(func_rettype)) {
+        expect_semi();
+    } 
+    else {
+        if (tok == tokSemi) error(errReturnValueExpected);
+        expr_result = parse_expr(0, func_rettype);        
+        if (!type_check_compatible(expr_result.type_id, func_rettype)) {
+            error(errTypeError);
+        }        
+        expect_semi();
+    }    
     
-    if (tok != tokSemi) {
-        expr_result = parse_expr(0);
-    }
-    expect_semi();
     if (infunc)
         emit_jp(retlbl);
     else {
@@ -666,17 +900,61 @@ void parse_exit(void) MYCC {
     do_exit(expr_result);
 }
 
-void parse_funcdecl(TYPEREC rettype, const char* name) MYCC {
+void parse_vastart(void) MYCC {
+    get_token(); // skip 'va_start'
+    expect_LParen();
+    SYMBOL valist = lookupIdent(token);
+    if (valist.klass != VARIABLE) {
+        error(errSyntax);
+    }
+    get_token(); // skip valist
+    if (tok == tokComma) {
+        get_token(); // skip ','
+        SYMBOL last_fixed = lookupIdent(token);
+        if (last_fixed.klass != ARGUMENT) {
+            error(errSyntax);
+        }
+        get_token(); // skip last_fixed
+        emit_ld_symaddr(&last_fixed);
+    }
+    else {
+        emit_rtl("ccvafirst");
+        emit_instrln("inc de");
+        emit_instrln("inc de"); // Point to just before the first variadic argument
+    }
+    expect_RParen();
+    expect_semi(); 
+    emit_store_sym(&valist);
+}
+
+void parse_vaend(void) MYCC {
+    get_token(); // skip 'va_end'
+    expect_LParen();
+    SYMBOL valist = lookupIdent(token);
+    if (valist.klass != VARIABLE) {
+        error(errSyntax);
+    }
+    get_token(); // skip valist
+    expect_RParen();
+    expect_semi();
+}
+
+void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
+    /* ERROR: Struct return types must be declared as pointers explicitly */
+    if (type_is_struct(rettype_id) && !type_is_pointer(rettype_id)) {
+        error(errTypeError);
+    }
+
     get_token(); // skip '('
 
-    TYPEREC argtype;
-    char argName[MAX_IDENT_LEN + 1];
+    uint8_t argtype_id;
+    static uint8_t arg_types[MAX_FUNC_ARGS];  // Collect argument types
 
     SYMBOL symfunc = lookupIdent(name);
     uint8_t defined = 0;
 
     if (not_defined(&symfunc)) {
-        symfunc = declglb(rettype, FUNCTION, name, 0);
+        symfunc = declglb(rettype_id, FUNCTION, name, 0);
     } else if (symfunc.klass != FUNCTION_PROTO) {
         defined = 1;
     }
@@ -685,18 +963,78 @@ void parse_funcdecl(TYPEREC rettype, const char* name) MYCC {
     retlbl = newlbl(); 
     uint16_t funcframe = push_frame();
     func_argcount = 0;
-    while (tok != tokRParen) {
-        parse_type(&argtype);
-        if (is_array(&argtype)) make_ptr(&argtype);        
-        strncpy(argName, token, MAX_IDENT_LEN);           
-        declloc(argtype, ARGUMENT, argName, func_argcount++);
+    uint8_t is_variadic = 0;
+    
+    /* Parse arguments and collect their types */
+    while (tok != tokRParen && tok != tokEllipsis) {
+        parse_type(&argtype_id);
+        /* Preserve parsed type for the function signature; convert arrays to pointers
+         * only for the local argument variable storage.
+         */
+        uint8_t sig_arg_type = argtype_id;
+        if (type_is_array(argtype_id)) {
+            /* Convert array to pointer for the declared/local argument */
+            uint8_t elem_type = type_get_element_type(argtype_id);
+            argtype_id = type_make_pointer(elem_type, 1);
+        }
+
+        /* ERROR: Struct parameters must be declared as pointers explicitly */
+        if (type_is_struct(argtype_id) && !type_is_pointer(argtype_id)) {
+            error(errTypeError);
+        }
+
+        /* Store argument type for signature (preserve arrays as arrays) */
+        if (func_argcount < MAX_FUNC_ARGS) {
+            arg_types[func_argcount] = sig_arg_type;
+        }
+        
+        declloc(argtype_id, ARGUMENT, token, func_argcount++);
         get_token(); // skip arg name
         if (tok == tokComma) get_token(); // skip ','
     }
+    
+    /* Check for variadic function (...)  */
+    if (tok == tokEllipsis) {
+        is_variadic = 1;
+        get_token(); // skip '...'
+    }
+    
     expect_RParen();
    
+    /* Check signature compatibility if already declared */
     if (defined || symfunc.klass == FUNCTION_PROTO) {
-        if (func_argcount != symfunc.offset) error(errDeclMismatch);
+        if (func_argcount != symfunc.offset) {
+            error(errDeclMismatch);
+        } else if (symfunc.signature_id != 0xFF) {
+            /* Verify argument types and variadic flag match */
+            uint8_t match = 1;
+            if (signature_get_arg_count(symfunc.signature_id) == func_argcount &&
+                signature_is_variadic(symfunc.signature_id) == is_variadic) {
+                for (uint8_t i = 0; i < func_argcount; i++) {
+                    if (signature_get_arg_type(symfunc.signature_id, i) != arg_types[i]) {
+                        match = 0;
+                        break;
+                    }
+                }
+            } else {
+                match = 0;
+            }
+            if (!match) {
+                error(errDeclMismatch);
+            }
+        }
+    }
+
+    /* Store function signature if not already stored */
+    if (symfunc.signature_id == 0xFF) {
+        if (is_variadic) {
+            symfunc.signature_id = signature_create_variadic(rettype_id, func_argcount, arg_types);
+        } else {
+            symfunc.signature_id = signature_create(rettype_id, func_argcount, arg_types);
+        }
+        if (symfunc.signature_id == 0xFF) {
+            error(errTooManySymbols);
+        }
     }
 
     symfunc.offset = func_argcount;
@@ -707,6 +1045,8 @@ void parse_funcdecl(TYPEREC rettype, const char* name) MYCC {
 
         symfunc.klass = FUNCTION;
         infunc = 1;
+        func_rettype = rettype_id;
+        func_is_variadic = is_variadic;
         uint16_t skiplbl = newlbl();
         emit_jp(skiplbl);
 
@@ -736,6 +1076,8 @@ void parse_funcdecl(TYPEREC rettype, const char* name) MYCC {
 
         pop_frame(funcframe);
         infunc = 0;
+        func_rettype = TYPE_ID_VOID;
+        func_is_variadic = 0;
         retlbl = oldretlbl;
     }
     updatesym(&symfunc);
@@ -743,8 +1085,8 @@ void parse_funcdecl(TYPEREC rettype, const char* name) MYCC {
 
 void parse_org(void) MYCC {
     get_token(); // skip 'org'
-    EXPR_RESULT expr_result = parse_expr_delayconst(0);
-    if (!is_const(&expr_result.type)) error_expect_const();
+    EXPR_RESULT expr_result = parse_expr_delayconst(0, 0);
+    if (!type_is_const(expr_result.type_id)) error_expect_const();
     emit_org(expr_result.value);
     expect_semi();
 }
@@ -758,16 +1100,16 @@ void parse_bank(void) MYCC {
     uint16_t offset = 0;
     expect_LParen();
 
-    EXPR_RESULT bankid_result = parse_expr_delayconst(0);
-    if (!is_const(&bankid_result.type)) error_expect_const();
+    EXPR_RESULT bankid_result = parse_expr_delayconst(0, TYPE_ID_INT);
+    if (!type_is_const(bankid_result.type_id)) error_expect_const();
     if (bankid_result.value > 255) error(errInvalid_s, "bank");
     bankid = (uint8_t)bankid_result.value;
  
     if (tok == tokComma) {
         get_token(); // skip ','
         
-        EXPR_RESULT offset_result = parse_expr_delayconst(0);
-        if (!is_const(&offset_result.type)) error_expect_const();
+        EXPR_RESULT offset_result = parse_expr_delayconst(0, TYPE_ID_INT);
+        if (!type_is_const(offset_result.type_id)) error_expect_const();
         offset = offset_result.value;
     }
     expect_RParen();
@@ -806,8 +1148,8 @@ void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC {
         if (op == tokHashIfNDef) active = !active;
         get_token(); // skip identifier
     } else {
-        EXPR_RESULT expr_result = parse_expr_delayconst(0);
-        if (!is_const(&expr_result.type)) error_expect_const();
+        EXPR_RESULT expr_result = parse_expr_delayconst(0, 0);
+        if (!type_is_const(expr_result.type_id)) error_expect_const();
         active = expr_result.value != 0;
     }
 
@@ -823,17 +1165,37 @@ void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC {
     get_token(); // skip '#endif'
 }
 
-SYMBOL declglb(TYPEREC type, SYM_CLASS klass, const char* name, int16_t value) {
-    SYMBOL lsym = addglb(name, klass, type, value);
+SYMBOL declglb(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t value) {
+    SYMBOL lsym = addglb(name, klass, type_id, value);
     return lsym;
 }
 
-SYMBOL declloc(TYPEREC type, SYM_CLASS klass, const char* name, int16_t offset) {
-    SYMBOL lsym = addloc(name, klass, type, offset);
+SYMBOL declloc(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t offset) {
+    SYMBOL lsym = addloc(name, klass, type_id, offset);
     return lsym;
+}
+
+SYMBOL decl_in_scope(uint8_t type_id, SYM_CLASS klass, const char* name) {
+    SYMBOL sym;
+    if (infunc || is_scoped()) {
+        uint16_t size = type_size(type_id); 
+        sym = findloc(name);
+        if (is_defined(&sym)) error(errAlreadyDefined_s, name);
+        sym = declloc(type_id, klass, name, bp_lastlocal);
+        bp_lastlocal += size;
+        if (localbytes < bp_lastlocal) localbytes = bp_lastlocal;        
+    } else {
+        sym = findglb(name);
+        if (is_defined(&sym)) error(errAlreadyDefined_s, name);
+        sym = declglb(type_id, klass, name, 0);
+    }
+    return sym;
 }
 
 void compile(const char *filename, const char *asmfilename) MYCC {
+    /* Initialize type system */
+    type_init();
+    
     if (!asm_open(asmfilename)) {
         src_close();
         printf("can't create '%s'", asmfilename);
@@ -841,8 +1203,10 @@ void compile(const char *filename, const char *asmfilename) MYCC {
     }
    
     // quick and dirty remove extension
-    char *dot = strrchr(asmfilename, '.');
-    if (dot) *dot='\0';
+    if (asmfilename != NULL) {
+        char* dot = strrchr(asmfilename, '.');
+        if (dot) *dot = '\0';
+    }
     
     parse(filename, asmfilename, 1);
     
@@ -853,4 +1217,57 @@ void compile(const char *filename, const char *asmfilename) MYCC {
     if (tokMakeType == tokNex) emit_nex(outfilename, start_lbl, stack_lbl, stack_size);
 
     asm_close();
+}
+
+void parse_delegate_decl(void) MYCC {
+    /* parse: delegate <return-type> IDENT '(' param_list ')' ';' */
+    get_token(); /* skip 'delegate' */
+    uint8_t return_type;
+    parse_type(&return_type);
+
+    /* ERROR: Struct return types must be declared as pointers explicitly */
+    if (type_is_struct(return_type) && !type_is_pointer(return_type)) {
+        error(errTypeError);
+    }
+
+    if (tok != tokIdent) {
+        error(errSyntax);
+        return;
+    }
+    static char name[MAX_IDENT_LEN+1];
+    strncpy(name, token, MAX_IDENT_LEN);
+    get_token(); /* skip typename */
+
+    expect_LParen();
+    static uint8_t arg_types[MAX_FUNC_ARGS];
+    uint8_t argcount = 0;
+    if (tok != tokRParen) {
+        for (;;) {
+            uint8_t atype;
+            parse_type(&atype);
+            if (argcount < MAX_FUNC_ARGS) arg_types[argcount++] = atype;
+            else error(errTooManyTypes);
+
+            if (tok == tokIdent) {
+                /* Optional argument name - skip it */
+                get_token();
+            }
+            if (tok != tokComma) break;
+            get_token(); /* skip ',' */
+        }
+    }
+    expect_RParen();
+    expect_semi();
+
+    /* Create signature and function-pointer type */
+    uint8_t sig = signature_create(return_type, argcount, arg_types);
+    uint8_t ftype = type_make_function(sig);
+    uint8_t deleg_type = type_make_pointer(ftype, 1); /* indirection=1 */
+
+    /* Register the type name */
+    if (type_find_by_name(name) != -1) {
+        error(errAlreadyDefined_s, name);
+        return;
+    }
+    type_register_name(name, deleg_type);
 }

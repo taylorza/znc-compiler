@@ -1,7 +1,12 @@
- ld a, (hl)
+ ld bc,0
+.putc
+ ld a,(hl)
  or a
- jr z, .done
+ jr z,.done
  rst $10
  inc hl
- jr puts
+ inc bc
+ jr .putc
 .done
+ ld l,c
+ ld h,b
