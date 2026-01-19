@@ -940,6 +940,11 @@ void parse_vaend(void) MYCC {
 }
 
 void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
+    /* ERROR: Struct return types must be declared as pointers explicitly */
+    if (type_is_struct(rettype_id) && !type_is_pointer(rettype_id)) {
+        error(errTypeError);
+    }
+
     get_token(); // skip '('
 
     uint8_t argtype_id;
@@ -1219,6 +1224,11 @@ void parse_delegate_decl(void) MYCC {
     get_token(); /* skip 'delegate' */
     uint8_t return_type;
     parse_type(&return_type);
+
+    /* ERROR: Struct return types must be declared as pointers explicitly */
+    if (type_is_struct(return_type) && !type_is_pointer(return_type)) {
+        error(errTypeError);
+    }
 
     if (tok != tokIdent) {
         error(errSyntax);
