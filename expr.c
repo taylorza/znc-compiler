@@ -15,6 +15,7 @@
 #define ADD_PREC 45
 #define MUL_PREC 50
 
+extern EXPR_RESULT parse_onearg(void) MYCC;
 
 typedef struct OP_PREC {
     TOKEN op;
@@ -409,23 +410,33 @@ EXPR_RESULT parse_ternary(EXPR_RESULT expr_result, uint8_t prec, uint8_t expecte
     }
     emit_jp_false(altlbl);
     EXPR_RESULT ptyp = far_parse_expr(0, expected_type_id);  // primary expression
-    if (!type_check_compatible(ptyp.type_id, expected_type_id)) error(errTypeError);
     emit_jp(donelbl);
     expect(tokColon, ':' );
     emit_lbl(altlbl);
     EXPR_RESULT atyp = far_parse_expr(prec, expected_type_id); // alternate expresion
-    if (!type_check_compatible(atyp.type_id, expected_type_id)) error(errTypeError);
+    
+    /* Type checking: if expected_type_id is given, both branches must be compatible with it.
+     * If expected_type_id is 0 (unknown), then the two branches must be compatible with each other. */
+    if (expected_type_id != 0) {
+        if (!type_check_compatible(ptyp.type_id, expected_type_id)) error(errTypeError);
+        if (!type_check_compatible(atyp.type_id, expected_type_id)) error(errTypeError);        
+    } else {
+        /* No expected type: ensure both branches are compatible with each other */
+        if (!type_check_compatible(ptyp.type_id, atyp.type_id) && !type_check_compatible(atyp.type_id, ptyp.type_id)) {
+            error(errTypeError);
+        }        
+    }
+  
     emit_lbl(donelbl);
 
-    expr_result.type_id = expected_type_id;
     expr_result.has_sym = 0;
-
+    expr_result.type_id = expected_type_id;
     return expr_result;
 }
 
 EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
     SYMBOL sym;
-    EXPR_RESULT factor_result = { .type_id = TYPE_ID_INT, .has_sym = 0 };
+    EXPR_RESULT factor_result = { .type_id = expected_type_id, .has_sym = 0 };
     uint8_t prefix_inc = 0;
     uint8_t prefix_dec = 0;
     uint8_t neg = 0;
@@ -527,11 +538,14 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             
             break;
 
-        case tokIn:
-            get_token(); // skip 'in'
-            expect_LParen();
-            far_parse_expr(0, 0);
-            expect_RParen();
+        case tokPuts:
+            parse_onearg(); // (expr)
+            emit_rtl("puts");
+            factor_result.type_id = TYPE_ID_INT; 
+            break;
+
+        case tokIn:            
+            parse_onearg(); // (expr)
             emit_copy_hl_to_bc();
             emit_instrln("in a,(c)");
             emit_rtl("ccsxt");
@@ -835,7 +849,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             /* Clear has_sym after using it */
             factor_result.has_sym = 0;
             
-            /* Now HL contains the base address/pointer (or we have a symbol) */
+            /* Now HL contains the base address/pointer (or we have a direct function symbol) */
             uint8_t elemtype_id = type_get_element_type_id(factor_result.type_id);
             
             /* Parse and scale the index */
@@ -1261,10 +1275,11 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
             emit_ld_const(l_result.value);
             short_circuit = (op == tokOr) ? (l_result.value != 0) : (l_result.value == 0);
         }
-        
+
         if (!short_circuit) {
             (op == tokOr) ? emit_jp_true(short_circuit_lbl) : emit_jp_false(short_circuit_lbl);
-        } else {
+        }
+        else {
             emit_jp(short_circuit_lbl);
         }
         l_result = far_parse_expr(opprec + 1, 0);
@@ -1294,23 +1309,23 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
     uint8_t pointer = type_is_pointer(l_result.type_id) || type_is_pointer(r_result.type_id);
 
     if (pointer) {
-        switch(op) {
-        case tokStar:
-        case tokDiv:
-        case tokMod:
-        case tokOr:
-        case tokAnd:
-        case tokShl:
-        case tokShr:
-            error(errSyntax);
-            break;
+        switch (op) {
+            case tokStar:
+            case tokDiv:
+            case tokMod:
+            case tokOr:
+            case tokAnd:
+            case tokShl:
+            case tokShr:
+                error(errSyntax);
+                break;
         }
     }
 
     /* Constant folding */
     if (type_is_const(l_result.type_id) && type_is_const(r_result.type_id)) {
         switch (op) {
-            case tokLt: 
+            case tokLt:
                 l_result.value = pointer ? (l_result.value < r_result.value) : ((int16_t)l_result.value < (int16_t)r_result.value);
                 break;
             case tokLeq:
@@ -1348,23 +1363,25 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
         }
         return l_result;
     }
-    
+
     /* Load constants with pre-applied scaling */
     if (type_is_const(l_result.type_id)) {
         uint16_t val = l_result.value;
         if (scaleL) val = val * scaleL;
         emit_ldde_immed(); emit_n(val); emit_nl();
         scaleL = 0;
-    } else if (type_is_const(r_result.type_id)) {
+    }
+    else if (type_is_const(r_result.type_id)) {
         uint16_t val = r_result.value;
         if (scaleR) val = val * scaleR;
         emit_ld_immed(); emit_n(val); emit_nl();
         scaleR = 0;
         emit_pop_de();
-    } else {
-        emit_pop_de();
     }
-
+    else {
+        emit_pop_de();
+    }    
+    
     /* Emit runtime operation with scaling */
     switch (op) {
         case tokLt:
@@ -1396,29 +1413,14 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
             emit_sub16();
             break;
         case tokStar:
-            /* Optimize: multiplication by constant */
-            if (type_is_const(r_result.type_id)) {
-                emit_mul_const_optimized(r_result.value);
-            } else {
-                emit_rtl("ccmult");
-            }
+            emit_rtl("ccmult");            
             break;
         case tokDiv:
-            /* Optimize: division by constant */
-            if (type_is_const(r_result.type_id)) {
-                emit_div_const_optimized(r_result.value);
-            } else {
-                emit_rtl("ccdiv");
-            }
+            emit_rtl("ccdiv");
             break;
         case tokMod:
-            /* Optimize: modulo by constant */
-            if (type_is_const(r_result.type_id)) {
-                emit_mod_const_optimized(r_result.value);
-            } else {
-                emit_rtl("ccdiv");
-                emit_swap();
-            }
+            emit_rtl("ccdiv");
+            emit_swap();            
             break;
         case tokShl:
             emit_instrln("ld b,l");

@@ -1,7 +1,7 @@
 #include "znc.h"
 #include "shared.h"
 
-#define SHARED_ARENA_SIZE 2048
+#define SHARED_ARENA_SIZE 2781 // leave 1K in the code_l segment
 
 static char arena_buf[SHARED_ARENA_SIZE];
 static ARENA_MARKER arena_offset = 0;

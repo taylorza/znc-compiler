@@ -18,7 +18,7 @@ void error(ERROR err, ...) {
     va_start(v, err);
     vsnprintf(buf, sizeof(buf), errmsg, v);
     va_end(v);
-
+    
     printf("%c%s(%d,%d): error: %s%c", NL, loc[fileid].filename, token_line, token_col, buf, NL);
     exit(1);
     ++errcnt;

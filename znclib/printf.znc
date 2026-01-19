@@ -1,10 +1,9 @@
-#ifndef MOUSE__
+#ifndef PRINTF__
 const byte PRINTF__=0x01; 
 
 void printf(char *fmt, ...) {
     int count = __va_count();
     int arg_index = 0;
-
     int i = 0;
     while (fmt[i] != 0) {
         char ch = fmt[i];
@@ -15,13 +14,23 @@ void printf(char *fmt, ...) {
             continue;
         }
 
-        ++i;
-        char code = fmt[i];
-
+        char code = fmt[++i];
         if (code == '%') {
             putc('%');
             ++i;
             continue;
+        }
+        
+        char pad = ' ';
+        if (code == '0') {
+            pad = '0';
+            code = fmt[++i];
+        }
+
+        int width = 0;
+        while (fmt[i] != 0 && (code >='0' && code <= '9')) {                       
+            width = (width * 10) + (code-'0');
+            code = fmt[++i];
         }
         
         int val = 0;
@@ -29,40 +38,96 @@ void printf(char *fmt, ...) {
             val = __va_arg(arg_index);
             ++arg_index;
         }
+        
+        switch (code) {
+            case 'd': {
+                int x = val;
 
-        if (code == 'd') {
-            int x = val;
-
-            if (x < 0) {
-                putc('-');
-                x = -x;
-            }
-
-            char[6] buf;
-            int p = 0;
-
-            if (x == 0) {
-                buf[p++] = '0';                
-            } else {
-                while (x > 0) {
-                    int digit = x % 10;
-                    buf[p++] = '0' + digit;                    
-                    x = x / 10;
+                if (x < 0) {
+                    putc('-');
+                    x = -x;
+                    if (width) --width;
                 }
+
+                char[6] buf;
+                int p = 0;
+
+                if (x == 0) {
+                    buf[p++] = '0';
+                    if (width) --width;
+                } else {
+                    while (x > 0) {
+                        int digit = x % 10;
+                        buf[p++] = '0' + digit;                    
+                        x = x / 10;
+                        if (width) --width;
+                    }
+                }
+
+                while (width--) {
+                    putc(pad);
+                }
+                while (p > 0) {                
+                    putc(buf[--p]);
+                }
+                break;
             }
+            case 'x':
+            case 'X': {
+                int offs = 'x' - code;
+                int x = val;
 
-            while (p > 0) {                
-                putc(buf[--p]);
+                char[4] buf;
+                int p = 0;
+
+                if (x == 0) {
+                    buf[p++] = '0';
+                    if (width) --width;        
+                } else {
+                    while (x > 0) {
+                        int digit = x & 0x0f;
+                        buf[p++] = (digit < 10) ? ('0' + digit) : ('a' - offs + (digit - 10));
+                        x = x >> 4;
+                        if (width) --width;
+                    }
+                }
+
+                while (width--) {
+                    putc(pad);
+                }
+                while (p > 0) {                
+                    putc(buf[--p]);
+                }
+                break;
             }
-
-        } else if (code == 'c') {
-            putc(val & 0xFF);
-
-        } else if (code == 's') {
-            puts(val);            
-        } else {
-            putc('%');
-            putc(code);
+            case 'b':
+                int bit = val < 256 ? 7 : 15;
+                if (width > (bit+1)) width = width - (bit+1);
+                while (width--) {
+                    putc(pad);
+                }    
+                for (; bit >= 0; --bit) {
+                    putc((val & (1 << bit)) ? '1' : '0');
+                }
+                break;
+            case 'c':
+                putc(val);
+                while (width--) {
+                    putc(pad);
+                }
+                break;
+            case 's':
+                int len = puts(val);            
+                if (width > len) width = width - len;
+                else width = 0;
+                while (width--) {
+                    putc(pad);
+                }
+                break;
+            default:
+                putc('%');
+                putc(code>32 && code < 128 ? code : '?');
+                break;
         }
 
         ++i;

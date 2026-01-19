@@ -1,5 +1,6 @@
 #include "znc.h"
 #include "struct.h"
+#include "shared.h"
 
 uint16_t retlbl = 0;        // function exit label
 
@@ -42,7 +43,6 @@ void parse_continue(uint16_t contlbl) MYCC;
 void parse_return(void) MYCC;
 void parse_exit(void) MYCC;
 void parse_putc(void) MYCC; 
-void parse_puts(void) MYCC;
 void parse_out(void) MYCC;
 void parse_nextreg(void) MYCC;
 void parse_asm(int asmcol) MYCC;
@@ -224,7 +224,6 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
         case tokReturn: parse_return(); break;
         case tokExit: parse_exit(); break;
         case tokPutc: parse_putc(); break;  
-        case tokPuts: parse_puts(); break;
         case tokOut: parse_out(); break;
         case tokNextReg: parse_nextreg(); break;
         case tokAsm: parse_asm(0); break;
@@ -392,8 +391,11 @@ void parse_switch(uint16_t contlbl) MYCC {
     uint16_t lblDefault = NO_LABEL;
     uint16_t lblDone = newlbl();
     
-    uint16_t values[MAX_CASE];
-    uint16_t labels[MAX_CASE];
+    uint16_t mark = arena_get_marker();
+
+    uint16_t* values = arena_alloc(sizeof(uint16_t) * MAX_CASE); // space for case values
+    uint16_t* labels = arena_alloc(sizeof(uint16_t) * MAX_CASE); // space for case labels
+    
     uint8_t case_count = 0;
     uint8_t last_break = 0;
 
@@ -443,6 +445,7 @@ void parse_switch(uint16_t contlbl) MYCC {
     }
     if (lblDefault != NO_LABEL) emit_jp(lblDefault);
     emit_lbl(lblDone);
+    arena_free_to_marker(mark);
 }
 
 void parse_while(void) MYCC {
@@ -540,13 +543,6 @@ void parse_putc(void) MYCC {
     expect_semi();
 
     emit_rtl("putc");
-}
-
-void parse_puts(void) MYCC {
-    parse_onearg(); // (expr)
-    expect_semi();
-
-    emit_rtl("puts");   
 }
 
 void parse_out(void) MYCC {

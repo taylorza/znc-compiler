@@ -2,8 +2,8 @@
  ld h,0
  add hl,hl
  add hl,de
- push ix
- pop de
+ ld e,ixl
+ ld d,ixh
  add hl,de
  ld e,(hl)
  inc hl

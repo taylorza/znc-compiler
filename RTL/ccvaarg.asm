@@ -1,15 +1,14 @@
  ld e,l
  ld d,h
+ xor a
  ld l,(ix+4)
- ld h,0
+ ld h,a
  dec hl
- or a
  sbc hl,de
  add hl,hl
- ld de,6
- add hl,de
- push ix
- pop de
+ add hl,6
+ ld e,ixl
+ ld d,ixh
  add hl,de
  ld e,(hl)
  inc hl

@@ -125,6 +125,14 @@ uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC
     kind_to = (t1.kind_and_flags >> 5) & 0x07;
     kind_from = (t2.kind_and_flags >> 5) & 0x07;
     
+    /* For non-pointer scalars (char/int), allow compatibility between them */
+    if (indir_to == 0 && indir_from == 0 && 
+        (kind_to == TK_CHAR || kind_to == TK_INT) && 
+        (kind_from == TK_CHAR || kind_from == TK_INT)) {
+        /* TK_CHAR and TK_INT are compatible in both directions */
+        return 1;
+    }
+    
     /* Detect arrays regardless of indirection (arrays may degrade to pointers) */
     uint8_t is_array_to = (kind_to == TK_ARRAY) ? 1 : 0;
     uint8_t is_array_from = (kind_from == TK_ARRAY) ? 1 : 0;
@@ -197,13 +205,6 @@ uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC
     if (indir_from > 0 && indir_to == 0) {
         /* Source is pointer, target is non-pointer: disallow */
         return 0;
-    }
-    
-    /* Both are non-pointer types */
-    /* For scalars (char/int), allow compatibility between them */
-    if ((kind_to == TK_CHAR || kind_to == TK_INT) && (kind_from == TK_CHAR || kind_from == TK_INT)) {
-        /* TK_CHAR and TK_INT are compatible */
-        return 1;
     }
     
     /* Structs and other types must be exact matches */
