@@ -2,8 +2,9 @@
 const byte PRINTF__=0x01; 
 
 void printf(char *fmt, ...) {
-    int count = __va_count();
-    int arg_index = 0;
+    va_list args;
+    
+    va_start(args, fmt);
     int i = 0;
     while (fmt[i] != 0) {
         char ch = fmt[i];
@@ -33,15 +34,10 @@ void printf(char *fmt, ...) {
             code = fmt[++i];
         }
         
-        int val = 0;
-        if (arg_index < count) {
-            val = __va_arg(arg_index);
-            ++arg_index;
-        }
-        
+        int x;
         switch (code) {
             case 'd': {
-                int x = val;
+                x = va_arg(args, int);
 
                 if (x < 0) {
                     putc('-');
@@ -74,9 +70,9 @@ void printf(char *fmt, ...) {
             }
             case 'x':
             case 'X': {
+                x = va_arg(args, int);
                 int offs = 'x' - code;
-                int x = val;
-
+                
                 char[4] buf;
                 int p = 0;
 
@@ -101,23 +97,26 @@ void printf(char *fmt, ...) {
                 break;
             }
             case 'b':
-                int bit = val < 256 ? 7 : 15;
+                x = va_arg(args, int);
+                int bit = x < 256 ? 7 : 15;
                 if (width > (bit+1)) width = width - (bit+1);
                 while (width--) {
                     putc(pad);
                 }    
                 for (; bit >= 0; --bit) {
-                    putc((val & (1 << bit)) ? '1' : '0');
+                    putc((x & (1 << bit)) ? '1' : '0');
                 }
                 break;
             case 'c':
-                putc(val);
+                x = va_arg(args, char);
+                putc(x);
                 while (width--) {
                     putc(pad);
                 }
                 break;
             case 's':
-                int len = puts(val);            
+                x = va_arg(args, char);
+                int len = puts(x);            
                 if (width > len) width = width - len;
                 else width = 0;
                 while (width--) {
@@ -133,5 +132,4 @@ void printf(char *fmt, ...) {
         ++i;
     }
 }
-
 #endif

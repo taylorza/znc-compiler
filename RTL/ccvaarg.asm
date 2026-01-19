@@ -1,15 +1,13 @@
- ld e,l
- ld d,h
- xor a
- ld l,(ix+4)
- ld h,a
+ ld e,(hl)
+ inc hl
+ ld d,(hl)          ; DE - arg address
  dec hl
- sbc hl,de
- add hl,hl
- add hl,6
- ld e,ixl
- ld d,ixh
- add hl,de
+ dec de
+ dec de             ; DE - next arg
+ ld (hl),e
+ inc hl
+ ld (hl),d          ; Update va_list
+ ex de,hl
  ld e,(hl)
  inc hl
  ld d,(hl)

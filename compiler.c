@@ -50,6 +50,8 @@ void parse_org(void) MYCC;
 void parse_bank(void) MYCC;
 void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC;
 void parse_switch(uint16_t contlbl) MYCC;
+void parse_vastart(void) MYCC;
+void parse_vaend(void) MYCC;
 
 /* Forward declaration for struct parser (defined later) */
 void parse_struct_def(void) MYCC;
@@ -223,7 +225,9 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
         case tokContinue: parse_continue(contlbl); break;
         case tokReturn: parse_return(); break;
         case tokExit: parse_exit(); break;
-        case tokPutc: parse_putc(); break;  
+        case tokPutc: parse_putc(); break;
+        case tokVaStart: parse_vastart(); break;
+        case tokVaEnd: parse_vaend(); break;
         case tokOut: parse_out(); break;
         case tokNextReg: parse_nextreg(); break;
         case tokAsm: parse_asm(0); break;
@@ -887,6 +891,38 @@ void parse_return(void) MYCC {
 void parse_exit(void) MYCC {
     EXPR_RESULT expr_result = parse_onearg();
     do_exit(expr_result);
+}
+
+void parse_vastart(void) MYCC {
+    get_token(); // skip 'va_start'
+    expect_LParen();
+    SYMBOL valist = lookupIdent(token);
+    if (valist.klass != VARIABLE) {
+        error(errSyntax);
+    }
+    get_token(); // skip valist
+    expect_comma();
+    SYMBOL last_fixed = lookupIdent(token);
+    if (last_fixed.klass != ARGUMENT) {
+        error(errSyntax);
+    }
+    get_token(); // skip last_fixed
+    emit_ld_symaddr(&last_fixed);
+    expect_RParen();
+    expect_semi(); 
+    emit_store_sym(&valist);
+}
+
+void parse_vaend(void) MYCC {
+    get_token(); // skip 'va_end'
+    expect_LParen();
+    SYMBOL valist = lookupIdent(token);
+    if (valist.klass != VARIABLE) {
+        error(errSyntax);
+    }
+    get_token(); // skip valist
+    expect_RParen();
+    expect_semi();
 }
 
 void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {

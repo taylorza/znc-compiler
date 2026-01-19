@@ -16,6 +16,7 @@
 #define MUL_PREC 50
 
 extern EXPR_RESULT parse_onearg(void) MYCC;
+extern void parse_type(uint8_t* type_id_out) MYCC;
 
 typedef struct OP_PREC {
     TOKEN op;
@@ -565,27 +566,22 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             factor_result.type_id = TYPE_ID_CHAR;
             break;
 
-        case tokVaCount:
-            /* __va_count() - returns count of variadic args from (ix+4) */
-            get_token(); // skip '__va_count'
-            expect_LParen();
-            expect_RParen();
-            /* Load count from (ix+4) and sign-extend to int */
-            emit_instrln("ld l,(ix+4)");
-            emit_instrln("ld h,0");
-            factor_result.type_id = TYPE_ID_INT;
-            break;
-
         case tokVaArg:
-            /* __va_arg(index) - returns variadic arg at index from (ix+6+2*index) */
-            get_token(); // skip '__va_arg'
+            /* va_arg(valist, type) - returns next variadic arg */
+            get_token(); // skip 'va_arg'
             expect_LParen();
             {
-                EXPR_RESULT idx_result = far_parse_expr(0, TYPE_ID_INT);                        
+                SYMBOL valist_sym = lookupIdent(token);
+                if (not_defined(&valist_sym)) {
+                    error(errNotDefined_s, token);
+                }
+                get_token(); // skip valist identifier
+                emit_ld_symaddr(&valist_sym);
                 emit_rtl("ccvaarg");                
             }
-            expect_RParen();
-            factor_result.type_id = TYPE_ID_INT;
+            expect_comma();
+            parse_type(&factor_result.type_id);
+            expect_RParen();            
             break;
 
         case tokString: {

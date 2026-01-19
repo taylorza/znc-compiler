@@ -30,19 +30,9 @@ TOKEN far_lookup_keyword(const char* ident) MYCC;
 /* Shared-memory stub that forwards to the banked implementation. */
 TOKEN lookup_keyword(const char* ident) MYCC {
     PROLOG(42)
-    TOKEN t = far_lookup_keyword(ident);
+        TOKEN t = far_lookup_keyword(ident);
     EPILOG_RETURN(t)
 }
-/*
-static uint8_t is_base_digit(char c, uint8_t base) MYCC {
-    static char digits[] = "0123456789abcdef";
-    c = tolower(c);
-    for (uint8_t i = 0; i < base; ++i) {
-        if (c == digits[i]) return i;
-    }
-    return 255;
-}
-*/
 
 uint8_t src_read(void) MYCC {
     SOURCEPOS *src = &loc[fileid];
@@ -96,96 +86,6 @@ void src_close(void) MYCC {
 void src_closeall(void) MYCC {
     while (fileid != 255) src_close();
 }
-
-/*
-static uint8_t isws(char c) MYCC {
-    return (c == ' ');
-}
-
-static char gnc(void) MYCC {
-    char c = *code;
-    if (c) {
-        ++code;
-        loc[fileid].col++;
-        loc[fileid].ofs++;
-
-        if (loc[fileid].ofs >= loc[fileid].len)
-            src_read();
-    }
-    return c;
-}
-
-static char ch(void) MYCC {
-    if (!*code) 
-        return gnc();
-    return *code;
-}
-
-static void skipws(void) MYCC {
-    char c;
-    uint8_t nl_seen = 0;
-    while ((c = ch()) && (c == ' ' || c == '\t' || c == '\r' || c == '\n')) {
-        nl_seen = 0;
-        gnc();
-        if (c == '\r') {
-            if (ch() == '\n') gnc();
-            nl_seen = 1;
-        } else if (c == '\n') {
-            if (ch() == '\r') gnc();
-            nl_seen = 1;
-        } 
-
-        if (nl_seen) {
-            loc[fileid].line++;
-            loc[fileid].col = 1;
-        }
-    }
-}
-
-
-char peek_char(void) MYCC {
-    return ch();
-}
-
-static uint8_t escape(void) MYCC {
-    char c = 0;
-    token_col = loc[fileid].col;
-    gnc(); // skip '\'
-    switch (ch()) {
-        case '\\':
-        case '"':
-            c = ch();
-            break;
-        case 't':
-            c = '\t';
-            break;
-        case 'r': 
-            c = '\r';
-            break;
-        case 'n':
-            c = '\n';
-            break;
-        case '0':
-            gnc();
-            c = '\0';
-            break;
-        case 'x': {
-            gnc(); // skip 'x'
-            uint8_t hi = is_base_digit(ch(), 16);
-            gnc();
-            uint8_t lo = is_base_digit(ch(), 16);
-            if (hi == 255 || lo == 255) error(errSyntax);
-            c = (char)((hi << 4) | lo);
-            break;
-        }
-        default:
-            error(errSyntax);
-            break;
-    }
-    gnc();    
-    return c;
-}
-*/
 
 TOKEN_TYPE far_get_token(void) MYCC;
 
