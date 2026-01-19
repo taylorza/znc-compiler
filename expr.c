@@ -367,6 +367,32 @@ static uint8_t handle_incdec(uint8_t is_prefix, SYMBOL *sym, uint8_t lvalue_type
     return handle_incdec_internal(is_prefix, sym, lvalue_type_id, addr_in_hl, tokNone);
 }
 
+/* Helper: Lookup struct field and return field info. Returns 0 on error, 1 on success. */
+static uint8_t lookup_struct_member(uint8_t check_type_id, FIELDINFO *fi_out, uint16_t *offset_out) MYCC {
+    if (!type_is_struct(check_type_id)) {
+        error(errSyntax);
+        return 0;
+    }
+    if (tok != tokIdent) {
+        error(errSyntax);
+        return 0;
+    }
+    
+    char fname[MAX_IDENT_LEN+1];
+    strncpy(fname, token, MAX_IDENT_LEN);
+    int sid = (int)type_get_struct_id(check_type_id) - 1;
+    int fid = find_struct_field(sid, fname);
+    if (fid < 0) {
+        error(errNotDefined_s, fname);
+        return 0;
+    }
+    
+    *fi_out = get_struct_field(sid, fid);
+    *offset_out = fi_out->offset;
+    get_token();
+    return 1;
+}
+
 EXPR_RESULT parse_op_right(EXPR_RESULT left, uint8_t minprec, uint8_t expected_type_id) {
     uint8_t p;
     while ((p = prec(tok)) && p && p >= minprec) {
@@ -676,20 +702,12 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
                         error(errSyntax);
                         break;
                     }
-                    if (tok != tokIdent) {
-                        error(errSyntax);
+                    
+                    FIELDINFO fi;
+                    uint16_t offset;
+                    if (!lookup_struct_member(check_type_id, &fi, &offset)) {
                         break;
                     }
-                    
-                    char fname[MAX_IDENT_LEN+1];
-                    strncpy(fname, token, MAX_IDENT_LEN);
-                    int sid = (int)type_get_struct_id(check_type_id) - 1;
-                    int fid = find_struct_field(sid, fname);
-                    if (fid < 0) error(errNotDefined_s, fname);
-                    
-                    FIELDINFO fi = get_struct_field(sid, fid);
-                    uint16_t offset = fi.offset;
-                    get_token();
                     
                     /* Add offset to base address */
                     if (addr_base_sym) {
@@ -957,20 +975,12 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
                 error(errSyntax);
                 return factor_result;
             }
-            if (tok != tokIdent) { 
-                error(errSyntax); 
-                return factor_result; 
-            }
             
-            char fname[MAX_IDENT_LEN+1];
-            strncpy(fname, token, MAX_IDENT_LEN);
-            int sid = (int)type_get_struct_id(check_type_id) - 1;
-            int fid = find_struct_field(sid, fname);
-            if (fid < 0) error(errNotDefined_s, fname);
-
-            FIELDINFO fi = get_struct_field(sid, fid);
-            uint16_t offset = fi.offset;
-            get_token();
+            FIELDINFO fi;
+            uint16_t offset;
+            if (!lookup_struct_member(check_type_id, &fi, &offset)) {
+                return factor_result;
+            }
 
             /* Load struct address if needed */
             if (!addr_in_hl) {
@@ -1280,7 +1290,7 @@ EXPR_RESULT parse_binop(TOKEN op, EXPR_RESULT l_result, uint8_t opprec) MYCC {
             emit_jp(short_circuit_lbl);
         }
         l_result = far_parse_expr(opprec + 1, 0);
-        //(op == tokOr) ? emit_jp_true(short_circuit_lbl) : emit_jp_false(short_circuit_lbl);
+        
         emit_lbl(short_circuit_lbl);
         return short_circuit_result;
     }
