@@ -181,6 +181,48 @@ static uint8_t escape(void) MYCC {
     return c;
 }
 
+/* Helper: Skip nested block comments with depth tracking.
+ * Starts with the first '/' already consumed (before the '/' of /*).
+ * Expects to see '*' as the next character, then continues until depth reaches 0.
+ */
+static void skip_block_comment(void) MYCC {
+    uint8_t depth = 1;
+    char c;
+    
+    gnc(); /* skip '*' (we already have '/' consumed) */
+    
+    while ((c = ch()) && depth > 0) {
+        if (c == '/' && *(code + 1) == '*') {
+            gnc(); /* skip '/' */
+            gnc(); /* skip '*' */
+            depth++;
+        } else if (c == '*' && *(code + 1) == '/') {
+            gnc(); /* skip '*' */
+            gnc(); /* skip '/' */
+            depth--;
+        } else {
+            /* Track line/column for nested content */
+            if (c == '\r') {
+                gnc();
+                if (ch() == '\n') gnc();
+                loc[fileid].line++;
+                loc[fileid].col = 1;
+            } else if (c == '\n') {
+                gnc();
+                if (ch() == '\r') gnc();
+                loc[fileid].line++;
+                loc[fileid].col = 1;
+            } else {
+                gnc();
+            }
+        }
+    }
+    
+    if (depth > 0) {
+        error(errExpected_s, "*/"); /* Unclosed block comment at EOF */
+    }
+}
+
 /* Banked implementation of get_token. Uses far_lookup_keyword (local)
  * instead of the shared `lookup_keyword` wrapper.
  */
@@ -226,9 +268,14 @@ get_token_start:
                 *temp++ = gnc();
                 tok = tokDiv; 
                 if (ch() == '/') {
+                    /* Single-line comment: skip to end of line */
                     while ((c = ch()) && c != '\r' && c != '\n') 
                         gnc();
-                    goto get_token_start;    
+                    goto get_token_start;
+                } else if (ch() == '*') {
+                    /* Block comment: use nested comment handler */
+                    skip_block_comment();
+                    goto get_token_start;
                 }
                 break;
             case '=':
