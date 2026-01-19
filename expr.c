@@ -367,19 +367,6 @@ static uint8_t handle_incdec(uint8_t is_prefix, SYMBOL *sym, uint8_t lvalue_type
     return handle_incdec_internal(is_prefix, sym, lvalue_type_id, addr_in_hl, tokNone);
 }
 
-EXPR_RESULT far_parse_expr(uint8_t minprec, uint8_t expected_type_id) MYCC {
-    EXPR_RESULT expr_result = far_parse_expr_delayconst(minprec, expected_type_id);
-    
-    if (type_is_const(expr_result.type_id)) {
-        emit_ld_const(expr_result.value);
-    } else if (expr_result.has_sym && is_func_or_proto(&expr_result.sym)) {
-        /* Function address: emit symbol load */
-        emit_ld_immed(); emit_sname(expr_result.sym.name); emit_nl();
-    }
-
-    return expr_result;
-}
-
 EXPR_RESULT parse_op_right(EXPR_RESULT left, uint8_t minprec, uint8_t expected_type_id) {
     uint8_t p;
     while ((p = prec(tok)) && p && p >= minprec) {
@@ -394,6 +381,20 @@ EXPR_RESULT parse_op_right(EXPR_RESULT left, uint8_t minprec, uint8_t expected_t
         }
     }
     return left;
+}
+
+EXPR_RESULT far_parse_expr(uint8_t minprec, uint8_t expected_type_id) MYCC {
+    EXPR_RESULT expr_result = parse_factor(0, expected_type_id);
+    expr_result = parse_op_right(expr_result, minprec, expected_type_id);
+    
+    if (type_is_const(expr_result.type_id)) {
+        emit_ld_const(expr_result.value);
+    } else if (expr_result.has_sym && is_func_or_proto(&expr_result.sym)) {
+        /* Function address: emit symbol load */
+        emit_ld_immed(); emit_sname(expr_result.sym.name); emit_nl();
+    }
+
+    return expr_result;
 }
 
 EXPR_RESULT far_parse_expr_delayconst(uint8_t minprec, uint8_t expected_type_id) MYCC {

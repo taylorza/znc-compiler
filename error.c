@@ -7,10 +7,16 @@ void get_error_msg(ERROR err, char *buf, uint8_t bufsize) MYCC;
 
 int errcnt = 0;
 void error(ERROR err, ...) {
-    char errmsg[32];  /* Error message template buffer */
-    char buf[64];     /* Final formatted message buffer */
+    static char errmsg[32];  /* Error message template buffer */
+    static char buf[64];     /* Final formatted message buffer */
     va_list v;
-    
+/*
+#ifdef __ZXNEXT
+    __asm
+        db 0xfd, 0x00
+    __endasm;
+#endif
+*/  
     /* Retrieve error message template from banked memory */
     get_error_msg(err, errmsg, sizeof(errmsg));
     

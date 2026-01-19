@@ -8,20 +8,21 @@ In this language:
 
 **Build Directives.** A program may start with optional build directives:
 
-* The `make` directive configures the build mode (with options "dot", "nex", or "raw") and optionally a string specifying the name an location of the resulting binary.
-* The org directive sets the origin (memory address) of the code.
+* The `make` directive configures the build mode (with options "dot", "nex", or "raw") and optionally a string specifying the name and location of the resulting binary.
+* The `bank` directive places code in a specific bank using `bank(<bank>[,<offset>]) { ... }`.
+* The `org` directive sets the origin (memory address) of the code.
 
 **Top‐Level Items.** Programs are a sequence of top‑level items (declarations and/or statements). Unlike traditional C, top‑level statements are allowed. However, if a top‑level statement calls a function, the function must have been declared before its use—either via a full definition or via a prototype.
 
-**Declarations.** There are variable declarations, function definitions, and function prototypes. Variable types include scalar types (`char`, `byte`, `int`), arrays (e.g. `int[10]`), and pointers (e.g. `int*`).
+**Declarations.** There are variable declarations, function definitions (including variadic functions), and function prototypes. Variable types include scalar types (`char`, `byte`, `int`), arrays (declared in C#/Java style, e.g. `int[10] items;`), pointers (e.g. `int*`), and structs defined with `struct Name { ... }`.
 
-**Control Structures.** You’ll find the usual control constructs: `if`–`else`, `while`, and `for` loops, as well as statements such as `break`, `continue`, and `return`.
+**Control Structures.** You’ll find the usual control constructs: `if`–`else`, `while`, and `for` loops, as well as statements such as `break`, `continue`, `return`, and `switch`/`case`/`default`.
 
 **Inline Assembly.** A special __asm__ block can be used to embed raw Z80N assembly code inside functions.
 
-**I/O Primitives.** For basic output, built‑in functions `putc()` and `puts()` are provided.
+**I/O Primitives.** For basic output, built‑in functions `putc()` and `puts()` are provided. Port and register helpers are also available: `in(port)`, `out(port, value)`, `nextreg(reg, value)`, and `readreg(reg)`.
 
-**Banks.** A bank construct allows you to group a statement block into a memory bank
+**Banks.** A bank construct allows you to group a statement block into a memory bank using `bank(<bank>[,<offset>]) { ... }`.
 
 ## Installing the tools
 The compiler includes a suite of tools:
@@ -256,7 +257,7 @@ byte *screen = 0x4000; // ZX Spectrum ULA Screen address (16384 in decimal)
 ```
 
 #### Pointer arithmetic 
-**TODO**
+Adding/subtracting an integer scales by the pointed element size (byte → +1 byte, int → +2 bytes). Indexing `p[i]` is equivalent to `*(p + i)`. Pointer + pointer is not supported; subtracting two pointers is not supported.
 
 ### Arrays
 You can also create arrays of the base data types. For example if you wanted to store ten integers you could declare an array of integers as follows
@@ -266,10 +267,52 @@ int[10] numbers;
 ```
 
 #### Array access and initialization
-**TODO**
+Arrays are declared with the size on the type, e.g. `int[10] numbers;`. If you omit the size *and* provide an initializer, the compiler infers the length:
+
+```c
+int[] nums = {1, 2};   // length = 2
+char[] s = "Hi";       // length = 3 (includes trailing 0)
+```
+
+If you omit the size and provide **no** initializer, the declaration is treated as a pointer (`int[] p;` → `int* p`). Arrays with an explicit size do **not** allow an initializer; initialize them at runtime instead.
+
+Array indexing uses `[]` as usual: `numbers[0] = 42;`.
+
+#### Const values
+`const` is only allowed on scalar types (`char`, `int`). It creates a compile-time constant with no storage allocated; the value is folded into code. `const` on pointers or arrays is rejected.
 
 ### Declaring variables
 Variables can be declared at any point in the code
+
+### Functions
+Functions must be declared before use, either via a prototype or a full definition. Variadic functions use `...` after the last named parameter and the built-ins `va_start(list, lastNamedParam);`, `va_arg(list, type);`, and `va_end(list);` inside the body. Use `va_list` as the argument cursor.
+
+```c
+int sum(int count, ...) {
+  va_list args;
+  int total = 0;
+  va_start(args, count);
+  while (count--) total = total + va_arg(args, int);
+  va_end(args);
+  return total;
+}
+```
+
+### Structs
+Struct types are defined with `struct Name { /* fields */ };` and can be used for variables, pointers, and arrays. Access fields with `.`; this works for both struct variables and pointers to structs (there is no `->` operator).
+
+```c
+struct Point { byte x; byte y; };
+
+struct Point p;
+p.x = 10; p.y = 5;
+
+struct Point* pp = &p;
+pp.x = 3;  // pointer-to-struct also uses '.'
+```
+
+### Operators
+Compound assignment operators (`+=`, `-=`, `*=`, `/=`, `%=`, `<<=`, `>>=`, `&=`, `|=`, `^=`) are not supported. Use the expanded forms (e.g. `x = x + y`).
 
 ## Syntax (incomplete)
 ``` EBNF

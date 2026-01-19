@@ -321,21 +321,21 @@ void parse_decl(void) MYCC {
 }
 
 void parse_struct_def(void) MYCC {
+    static char name[MAX_IDENT_LEN+1];
+
     /* parse: struct Name { <field-decls> } ; */
     get_token(); // skip 'struct'
     if (tok != tokIdent) {
         error(errSyntax);
         return;
     }
-    char sname[MAX_IDENT_LEN+1];
-    strncpy(sname, token, MAX_IDENT_LEN);
-
-    if (find_struct(sname) != -1) {
-        error(errAlreadyDefined_s, sname);
+    
+    if (find_struct(token) != -1) {
+        error(errAlreadyDefined_s, token);
         return;
     }
 
-    int sid = add_struct(sname);
+    int sid = add_struct(token);
 
     get_token(); // skip name
     expect_LBrace();
@@ -346,13 +346,12 @@ void parse_struct_def(void) MYCC {
 
         for (;;) {
             if (tok != tokIdent) error(errSyntax);
-            char fname[MAX_IDENT_LEN+1];
-            strncpy(fname, token, MAX_IDENT_LEN);
+            strncpy(name, token, MAX_IDENT_LEN);
             get_token(); // skip field name
 
             /* parse_type() already handles all pointer/array suffixes */
 
-            add_struct_field(sid, fname, ftype_id);
+            add_struct_field(sid, name, ftype_id);
 
             if (tok == tokComma) {
                 get_token(); // skip ',' and continue
@@ -738,14 +737,16 @@ void parse_funccall(SYMBOL* sym, uint8_t ptr_in_hl) MYCC {
     SYMBOL tmp_sym;
     uint8_t have_tmp = 0;
     if (ptr_in_hl) {
-        char tmpname[MAX_IDENT_LEN + 1];
-        snprintf(tmpname, sizeof(tmpname), "t%u", newlbl());
+        ARENA_MARKER marker = arena_get_marker();
+        char *tmpname = arena_alloc(8);
+        snprintf(tmpname, sizeof(tmpname), "t%d", newlbl());
         tmp_sym = decl_in_scope(TYPE_ID_INT, VARIABLE, tmpname);
         
         /* Store HL (the pointer) into the temp variable */
         emit_store_sym(&tmp_sym);
         ptr_in_hl = 0; /* pointer now stored, will reload later */
         have_tmp = 1;
+        arena_free_to_marker(marker);
     }
 
     while (tok != tokRParen) {
@@ -901,13 +902,20 @@ void parse_vastart(void) MYCC {
         error(errSyntax);
     }
     get_token(); // skip valist
-    expect_comma();
-    SYMBOL last_fixed = lookupIdent(token);
-    if (last_fixed.klass != ARGUMENT) {
-        error(errSyntax);
+    if (tok == tokComma) {
+        get_token(); // skip ','
+        SYMBOL last_fixed = lookupIdent(token);
+        if (last_fixed.klass != ARGUMENT) {
+            error(errSyntax);
+        }
+        get_token(); // skip last_fixed
+        emit_ld_symaddr(&last_fixed);
     }
-    get_token(); // skip last_fixed
-    emit_ld_symaddr(&last_fixed);
+    else {
+        emit_rtl("ccvafirst");
+        emit_instrln("inc de");
+        emit_instrln("inc de"); // Point to just before the first variadic argument
+    }
     expect_RParen();
     expect_semi(); 
     emit_store_sym(&valist);
@@ -929,8 +937,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
     get_token(); // skip '('
 
     uint8_t argtype_id;
-    char argName[MAX_IDENT_LEN + 1];
-    uint8_t arg_types[MAX_FUNC_ARGS];  // Collect argument types
+    static uint8_t arg_types[MAX_FUNC_ARGS];  // Collect argument types
 
     SYMBOL symfunc = lookupIdent(name);
     uint8_t defined = 0;
@@ -969,9 +976,8 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
         if (func_argcount < MAX_FUNC_ARGS) {
             arg_types[func_argcount] = sig_arg_type;
         }
-
-        strncpy(argName, token, MAX_IDENT_LEN);
-        declloc(argtype_id, ARGUMENT, argName, func_argcount++);
+        
+        declloc(argtype_id, ARGUMENT, token, func_argcount++);
         get_token(); // skip arg name
         if (tok == tokComma) get_token(); // skip ','
     }
@@ -1212,12 +1218,12 @@ void parse_delegate_decl(void) MYCC {
         error(errSyntax);
         return;
     }
-    char name[MAX_IDENT_LEN+1];
+    static char name[MAX_IDENT_LEN+1];
     strncpy(name, token, MAX_IDENT_LEN);
     get_token(); /* skip typename */
 
     expect_LParen();
-    uint8_t arg_types[MAX_FUNC_ARGS];
+    static uint8_t arg_types[MAX_FUNC_ARGS];
     uint8_t argcount = 0;
     if (tok != tokRParen) {
         for (;;) {
@@ -1226,6 +1232,10 @@ void parse_delegate_decl(void) MYCC {
             if (argcount < MAX_FUNC_ARGS) arg_types[argcount++] = atype;
             else error(errTooManyTypes);
 
+            if (tok == tokIdent) {
+                /* Optional argument name - skip it */
+                get_token();
+            }
             if (tok != tokComma) break;
             get_token(); /* skip ',' */
         }

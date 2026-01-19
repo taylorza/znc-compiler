@@ -21,9 +21,23 @@ Variadic functions
 int logf(int level, const char* fmt, ...);
 ```
 
-- Intrinsics for accessing variadic arguments inside the function body:
-  - `__va_count()` returns the number of variadic arguments passed.
-  - `__va_arg(index)` returns the `int` value at variadic position `index` (0‑based) from the caller.
+- Access variadic arguments using `va_list` and intrinsic functions:
+  - `va_start(list, lastNamedParam)` initializes the variadic argument list.
+  - `va_arg(list, type)` retrieves the next argument of the given type.
+  - `va_end(list)` cleans up the argument list.
+
+Example:
+
+```c
+int sum(int count, ...) {
+  va_list args;
+  int total = 0;
+  va_start(args, count);
+  while (count--) total = total + va_arg(args, int);
+  va_end(args);
+  return total;
+}
+```
 
 Delegates (named function‑pointer types)
 

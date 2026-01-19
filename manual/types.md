@@ -5,7 +5,7 @@ ZNC provides a compact static type system tailored for ZX Spectrum Next.
 Base types
 - `char` / `byte`: signed 8‑bit scalar. `byte` is an alias for `char`.
 - `int`: signed 16‑bit scalar.
-- `void`: used for function return type and for `void*`.
+- `void`: used only for function return type (not for pointers).
 
 Composite types
 - Pointers: `T*` (size: 2 bytes). Pointer arithmetic scales by `sizeof(T)`.
@@ -18,7 +18,7 @@ Named function-pointer types (delegates)
 - Example: `delegate int Callback(int, int);` then `Callback cb;` declares a variable holding a pointer to a function of that signature.
 
 Const qualifier
-- `const` can be applied to `char` and `int` to produce a constant value in declarations. `const` is not permitted on `void`, pointers, or arrays.
+- `const` can be applied only to scalar types (`char`, `int`) to produce compile-time constants. `const` is not permitted on `void`, pointers, or arrays. Const values are folded into code with no storage allocated.
 
 Sizes
 - `sizeof(char)` = 1, `sizeof(int)` = 2.
@@ -40,4 +40,4 @@ Type compatibility rules
 
 Notes
 - Arrays with explicit fixed size do not support initializers; use inferred‑size arrays (e.g., `byte[] s = "Hi";`) or copy data at runtime.
-- There is full support for `void*` and explicit pointer arithmetic scaling by element size.
+- Pointers are typed; arithmetic scales by element size. No `void*` support.

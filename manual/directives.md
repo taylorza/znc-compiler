@@ -27,8 +27,12 @@ org 0x8000;
 `bank` — target a specific bank
 
 ```
-bank 40 {
+bank(40) {
   // code/data compiled into bank 40
+}
+
+bank(40, 0x1000) {
+  // code/data compiled into bank 40 at offset 0x1000
 }
 ```
 
