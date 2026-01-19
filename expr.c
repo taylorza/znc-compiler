@@ -15,6 +15,12 @@
 #define ADD_PREC 45
 #define MUL_PREC 50
 
+/* Register type for scaling operations */
+typedef enum {
+    SCALE_DE = 0,
+    SCALE_HL = 1
+} SCALE_REG;
+
 extern EXPR_RESULT parse_onearg(void) MYCC;
 extern void parse_type(uint8_t* type_id_out) MYCC;
 
@@ -71,28 +77,18 @@ void far_parse_assign(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t 
 
 
 /* Helper: Emit scaling of value in HL or DE by given scale factor */
-static void emit_scale_reg(uint16_t scale, uint8_t is_hl) MYCC {
+static void emit_scale_reg(uint16_t scale, SCALE_REG reg) MYCC {
     if (scale == 1) {
         return;
     }
     
-    if (is_hl) {
+    if (reg == SCALE_HL) {
         emit_mul_const_optimized(scale);        
     } else {
         emit_swap();
         emit_mul_const_optimized(scale);
         emit_swap();
     }
-}
-
-/* Wrapper for HL scaling */
-static void emit_scale_hl(uint16_t scale) MYCC {
-    emit_scale_reg(scale, 1);
-}
-
-/* Wrapper for DE scaling */
-static void emit_scale_de(uint16_t scale) MYCC {
-    emit_scale_reg(scale, 0);
 }
 
 /* Helper: Parse one or more adjacent string tokens ("a" "b") and return string id */
@@ -218,7 +214,7 @@ static EXPR_RESULT parse_and_scale_index(uint8_t elemtype_id) MYCC {
     if (type_is_const(index_result.type_id)) {
         index_result.value = (uint16_t)(index_result.value * scale);
     } else {
-        emit_scale_hl(scale);
+        emit_scale_reg(scale, SCALE_HL);
     }
     return index_result;
 }
@@ -543,13 +539,13 @@ EXPR_RESULT parse_op_right(EXPR_RESULT left, uint8_t minprec, uint8_t expected_t
                     emit_rtl("ccne");
                     break;
                 case tokPlus:
-                    if (scaleR) emit_scale_hl(scaleR);
-                    if (scaleL) emit_scale_de(scaleL);
+                    if (scaleR) emit_scale_reg(scaleR, SCALE_HL);
+                    if (scaleL) emit_scale_reg(scaleL, SCALE_DE);
                     emit_add16();
                     break;
                 case tokMinus:
-                    if (scaleR) emit_scale_hl(scaleR);
-                    if (scaleL) emit_scale_de(scaleL);
+                    if (scaleR) emit_scale_reg(scaleR, SCALE_HL);
+                    if (scaleL) emit_scale_reg(scaleL, SCALE_DE);
                     emit_sub16();
                     break;
                 case tokStar:
@@ -846,7 +842,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
                         } else {
                             /* Variable index: scale it, then add to symbol address */
                             if (scale > 1) {
-                                emit_scale_hl(scale);
+                                emit_scale_reg(scale, 1);
                             }
                             emit_swap();  /* DE = scaled index */
                             emit_ld_symaddr(&sym);  /* HL = base address */
@@ -868,7 +864,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
                         } else {
                             /* Variable index: HL has index, need to scale and add */
                             if (scale > 1) {
-                                emit_scale_hl(scale);
+                                emit_scale_reg(scale, SCALE_HL);
                             }
                             emit_pop_de();  /* DE = base */
                             emit_add16();   /* HL = base + scaled_index */
@@ -1094,7 +1090,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             } else {
                 /* Variable index: HL has index, scale it first */
                 if (scale > 1) {
-                    emit_scale_hl(scale);
+                    emit_scale_reg(scale, 1);
                 }
                 
                 /* Now get base address */
