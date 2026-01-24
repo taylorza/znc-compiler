@@ -116,7 +116,7 @@ uint8_t type_make_function(uint8_t signature_id) MYCC {
     return far_type_intern(entry);
 }
 
-uint8_t type_make_array(uint8_t element_type_id, uint8_t length) MYCC {
+uint8_t type_make_array(uint8_t element_type_id, uint16_t length) MYCC {
     if (element_type_id >= type_count) return TYPE_ID_VOID;
     
     TypeEntry entry = {0};
@@ -191,7 +191,7 @@ uint8_t type_get_element_type(uint8_t array_type_id) MYCC {
     return entry.aux0;
 }
 
-uint8_t type_get_array_length(uint8_t array_type_id) MYCC {
+uint16_t type_get_array_length(uint8_t array_type_id) MYCC {
     TypeEntry entry = type_get(array_type_id);
     if (TYPE_GET_KIND(&entry) != TK_ARRAY) return 0;
     return entry.aux1;
@@ -221,7 +221,7 @@ uint16_t type_size(uint8_t type_id) MYCC {
     /* Arrays */
     if (kind == TK_ARRAY) {
         uint8_t elem_type_id = entry.aux0;
-        uint8_t length = entry.aux1;
+        uint16_t length = entry.aux1;
         if (length == 0) return 0;  /* Unspecified length */
         return length * type_size(elem_type_id);
     }

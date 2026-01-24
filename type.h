@@ -12,11 +12,11 @@ typedef enum TypeKind {
     /* values 6-7 reserved for future use */
 } TypeKind;
 
-/* Compact 3-byte type descriptor */
+/* Compact type descriptor (now 4 bytes with uint16_t aux1 for larger arrays) */
 typedef struct TypeEntry {
     uint8_t kind_and_flags;  /* bits 7..5: TypeKind, bit 4: const, bits 3..0: indirection */
     uint8_t aux0;            /* STRUCT→struct_id, FUNCTION→signature_id, ARRAY→element_type_id */
-    uint8_t aux1;            /* ARRAY→length (0=unspecified), others→unused */
+    uint16_t aux1;           /* ARRAY→length (0=unspecified), others→unused */
 } TypeEntry;
 
 /* Type table - max 255 entries (uint8_t limit) */
@@ -33,7 +33,7 @@ uint8_t type_make_void(void) MYCC;
 uint8_t type_make_pointer(uint8_t base_type_id, uint8_t extra_indir) MYCC;
 uint8_t type_make_struct(uint8_t struct_id, uint8_t is_const) MYCC;
 uint8_t type_make_function(uint8_t signature_id) MYCC;
-uint8_t type_make_array(uint8_t element_type_id, uint8_t length) MYCC;
+uint8_t type_make_array(uint8_t element_type_id, uint16_t length) MYCC;
 
 /* Type queries - by type_id */
 const TypeEntry type_get(uint8_t type_id) MYCC;
@@ -51,7 +51,7 @@ uint8_t type_is_delegate(uint8_t type_id) MYCC;
 
 /* Array/struct/function accessors */
 uint8_t type_get_element_type(uint8_t array_type_id) MYCC;
-uint8_t type_get_array_length(uint8_t array_type_id) MYCC;
+uint16_t type_get_array_length(uint8_t array_type_id) MYCC;
 uint8_t type_get_struct_id(uint8_t struct_type_id) MYCC;
 uint8_t type_get_function_sig(uint8_t func_type_id) MYCC;
 

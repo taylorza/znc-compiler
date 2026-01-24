@@ -677,7 +677,7 @@ void parse_type(uint8_t *type_id_out) MYCC {
                 if (!type_is_const(dim.type_id)) error_expect_const();
                 if (dim.value > 0) {
                     if (base_type_id == TYPE_ID_VOID) error(errSyntax);
-                    uint8_t length = (dim.value > 255) ? 255 : (uint8_t)dim.value;
+                    uint16_t length = (dim.value > 65535) ? 65535 : (uint16_t)dim.value;
                     base_type_id = type_make_array(base_type_id, length);
                 } else {
                     base_type_id = type_make_pointer(base_type_id, 1); // zero means pointer
