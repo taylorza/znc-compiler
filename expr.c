@@ -1115,6 +1115,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             /* Save symbol info before clearing has_sym */
             SYMBOL call_sym = factor_result.has_sym ? factor_result.sym : undefined_sym;
             uint8_t had_sym = factor_result.has_sym;
+            uint8_t callee_type_id = factor_result.type_id;
             
             factor_result.has_sym = 0;
             
@@ -1130,11 +1131,27 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             
             parse_funccall(&call_sym, ptr_loc);
             
-            /* Function return value is in HL - get the return type from signature */
+            /* Function return value is in HL - derive return type from signature.
+             * This must work for both direct functions and delegate/function-pointer calls.
+             */
+            factor_result.type_id = TYPE_ID_VOID;
             if (had_sym && is_func_or_proto(&call_sym) && call_sym.signature_id != 0xFF) {
                 factor_result.type_id = signature_get_return_type(call_sym.signature_id);
             } else {
-                factor_result.type_id = TYPE_ID_VOID;
+                uint8_t ftype_id = 0xFF;
+
+                if (had_sym && call_sym.klass == VARIABLE && type_get_indirection(call_sym.type_id) == 1) {
+                    ftype_id = type_get_element_type_id(call_sym.type_id);
+                } else if (type_get_indirection(callee_type_id) == 1) {
+                    ftype_id = type_get_element_type_id(callee_type_id);
+                }
+
+                if (ftype_id != 0xFF && type_is_function(ftype_id)) {
+                    uint8_t sig = type_get_function_sig(ftype_id);
+                    if (sig != 0xFF) {
+                        factor_result.type_id = signature_get_return_type(sig);
+                    }
+                }
             }
             
             addr_in_hl = 0;
@@ -1436,10 +1453,10 @@ void far_parse_assign(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t 
         if (r_result.has_sym && is_func_or_proto(&r_result.sym)) {
             uint8_t left_sig = type_get_function_sig(type_get_element_type_id(type_id));
             uint8_t right_sig = r_result.sym.signature_id;
-            if (left_sig == 0 || right_sig == 0xFF || left_sig != right_sig) {
+            if (right_sig == 0xFF || !signature_check(left_sig, right_sig)) {
                 error(errTypeError);
             }
-        } else if (!type_check_compatible(type_id, r_result.type_id)) {
+        } else if (!type_check_compatible(r_result.type_id, type_id)) {
             error(errTypeError);
         }
     }

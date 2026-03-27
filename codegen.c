@@ -360,8 +360,7 @@ void emit_callsym(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
         if (ptr_loc == PTR_IN_SYMBOL) {
             emit_ld_symval(sym);
         }
-        emit_instrln("ld bc,lbl%d", retlbl);
-        emit_instrln("push bc");
+        emit_instrln("push lbl%d", retlbl);
         emit_instrln("jp (hl)");
         emit_lbl(retlbl);
     }
