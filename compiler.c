@@ -478,6 +478,7 @@ void parse_for(void) MYCC {
 
 	uint16_t blockframe = push_frame();
 	uint8_t old_localcount = localcount;
+    uint16_t old_bp = bp_lastlocal;
 
 	uint16_t lblCond=NO_LABEL;
 	uint16_t lblEndFor, brklbl;
@@ -529,6 +530,7 @@ void parse_for(void) MYCC {
 	emit_lbl(lblEndFor);
 
 	if (maxlocalcount < localcount) maxlocalcount = localcount;
+    bp_lastlocal = old_bp;
 	localcount = old_localcount;
 	pop_frame(blockframe);    
 }
@@ -745,7 +747,7 @@ void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
     if (ptr_loc == PTR_IN_HL) {
         ARENA_MARKER marker = arena_get_marker();
         char *tmpname = arena_alloc(8);
-        snprintf(tmpname, sizeof(tmpname), "t%d", newlbl());
+        snprintf(tmpname, 8, "t%d", newlbl());
         tmp_sym = decl_in_scope(TYPE_ID_INT, VARIABLE, tmpname);
         
         /* Store HL (the pointer) into the temp variable */
