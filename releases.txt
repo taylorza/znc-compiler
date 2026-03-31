@@ -1,6 +1,8 @@
-2026/03/29 - Version 0.3a
+2026/03/30 - Version 0.3a
 - Optimized delegate calls
 - Fixed delegate type checking
+- Improved command line parsing for DOT commands, support quoted strings
+- Fixed accidental limit of arrays to 255 elements
 
 2026/01/19 - Version 0.3
 - Delegates (typed function pointers)
