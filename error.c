@@ -10,13 +10,14 @@ void error(ERROR err, ...) {
     static char errmsg[32];  /* Error message template buffer */
     static char buf[64];     /* Final formatted message buffer */
     va_list v;
-/*
-#ifdef __ZXNEXT
+#if ZNC_DEBUG
+#  ifdef __ZXNEXT
     __asm
         db 0xfd, 0x00
     __endasm;
+#  endif
 #endif
-*/  
+  
     /* Retrieve error message template from banked memory */
     get_error_msg(err, errmsg, sizeof(errmsg));
     

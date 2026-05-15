@@ -205,6 +205,7 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
         case tokVoid:
         case tokChar:
         case tokInt:
+        case tokFixed:
             parse_decl();
             break;
         case tokDelegate:
@@ -272,6 +273,7 @@ static uint8_t make_const_type(uint8_t type_id) MYCC {
     TypeKind kind = type_get_kind(type_id);
     if (kind == TK_CHAR) return type_make_char(1);
     else if (kind == TK_INT) return type_make_int(1);
+    else if (kind == TK_FIXED) return type_make_fixed(1);
     else if (kind == TK_STRUCT) {
         uint8_t sid = type_get_struct_id(type_id);
         return type_make_struct(sid, 1);
@@ -490,7 +492,7 @@ void parse_for(void) MYCC {
 
 
 	// parse initializer
-	if (tok == tokChar || tok == tokInt) {
+	if (tok == tokChar || tok == tokInt || tok == tokFixed) {
 		parse_decl();
 	}
 	else {
@@ -637,6 +639,9 @@ void parse_type(uint8_t *type_id_out) MYCC {
         case tokInt: 
             base_type_id = TYPE_ID_INT;
             break;
+        case tokFixed:
+            base_type_id = TYPE_ID_FIXED;
+            break;
         case tokIdent: {
             /* Ident could be a struct type name or a registered named type (delegate) */
             int sid = find_struct(token);
@@ -679,8 +684,7 @@ void parse_type(uint8_t *type_id_out) MYCC {
                 if (!type_is_const(dim.type_id)) error_expect_const();
                 if (dim.value > 0) {
                     if (base_type_id == TYPE_ID_VOID) error(errSyntax);
-                    uint16_t length = (dim.value > 65535) ? 65535 : (uint16_t)dim.value;
-                    base_type_id = type_make_array(base_type_id, length);
+                    base_type_id = type_make_array(base_type_id, dim.value);
                 } else {
                     base_type_id = type_make_pointer(base_type_id, 1); // zero means pointer
                 }
@@ -722,8 +726,8 @@ void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
     uint8_t is_variadic = 0;
     
     if (is_func_or_proto(sym)) {
-        expected_count = sym->offset;
-        if (sym->signature_id != 0xFF) sig_id = sym->signature_id;
+        expected_count = (uint8_t)sym->fn.arg_count;
+        if (sym->fn.signature_id != 0xFF) sig_id = sym->fn.signature_id;
     } else if (sym->klass == VARIABLE) {
         /* If variable holds a function pointer (delegate), extract signature from its type */
         uint8_t t = sym->type_id;
@@ -798,6 +802,18 @@ void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
             /* Use the central compatibility checker (from=actual, to=expected). */
             if (!type_check_compatible(actual_type, expected_type)) {
                 error(errTypeError);
+            }
+
+            /* Emit fixed-point conversion if needed between compatible scalar types */
+            if (type_is_fixed(expected_type) && !type_is_fixed(actual_type) &&
+                (type_is_int(actual_type) || type_is_char(actual_type) ||
+                 type_is_const(actual_type))) {
+                /* int/char -> fixed: shift left 4 */
+                emit_int_to_fixed();
+            } else if (!type_is_fixed(expected_type) && type_is_fixed(actual_type) &&
+                       (type_is_int(expected_type) || type_is_char(expected_type))) {
+                /* fixed -> int/char: shift right 4 (arithmetic) */
+                emit_fixed_to_int();
             }
         }
         
@@ -1005,15 +1021,15 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
    
     /* Check signature compatibility if already declared */
     if (defined || symfunc.klass == FUNCTION_PROTO) {
-        if (func_argcount != symfunc.offset) {
+        if (func_argcount != symfunc.fn.arg_count) {
             error(errDeclMismatch);
-        } else if (symfunc.signature_id != 0xFF) {
+        } else if (symfunc.fn.signature_id != 0xFF) {
             /* Verify argument types and variadic flag match */
             uint8_t match = 1;
-            if (signature_get_arg_count(symfunc.signature_id) == func_argcount &&
-                signature_is_variadic(symfunc.signature_id) == is_variadic) {
+            if (signature_get_arg_count(symfunc.fn.signature_id) == func_argcount &&
+                signature_is_variadic(symfunc.fn.signature_id) == is_variadic) {
                 for (uint8_t i = 0; i < func_argcount; i++) {
-                    if (signature_get_arg_type(symfunc.signature_id, i) != arg_types[i]) {
+                    if (signature_get_arg_type(symfunc.fn.signature_id, i) != arg_types[i]) {
                         match = 0;
                         break;
                     }
@@ -1028,18 +1044,18 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
     }
 
     /* Store function signature if not already stored */
-    if (symfunc.signature_id == 0xFF) {
+    if (symfunc.fn.signature_id == 0xFF) {
         if (is_variadic) {
-            symfunc.signature_id = signature_create_variadic(rettype_id, func_argcount, arg_types);
+            symfunc.fn.signature_id = signature_create_variadic(rettype_id, func_argcount, arg_types);
         } else {
-            symfunc.signature_id = signature_create(rettype_id, func_argcount, arg_types);
+            symfunc.fn.signature_id = signature_create(rettype_id, func_argcount, arg_types);
         }
-        if (symfunc.signature_id == 0xFF) {
+        if (symfunc.fn.signature_id == 0xFF) {
             error(errTooManySymbols);
         }
     }
 
-    symfunc.offset = func_argcount;
+    symfunc.fn.arg_count = func_argcount;
     if (tok == tokSemi) {        
         if (!defined) symfunc.klass = FUNCTION_PROTO;
     } else {
@@ -1116,7 +1132,21 @@ void parse_bank(void) MYCC {
     }
     expect_RParen();
     emit_bank(bankid, offset);
+    uint16_t bank_gbl_start = get_lastgbl();
+    size_t bank_str_start = get_laststr();
+    char bank_str_lbl[16];
+    snprintf(bank_str_lbl, sizeof(bank_str_lbl), "str_b%d", bankid);
+    set_strref_ctx(bank_str_lbl, (uint16_t)bank_str_start);
+    set_str_search_base(bank_str_start);
     parse_statement_block(NO_LABEL, NO_LABEL);
+    uint16_t bank_gbl_end = get_lastgbl();
+    size_t bank_str_end = get_laststr();
+    dump_globals_range(bank_gbl_start, bank_gbl_end);
+    dump_strings_range(bank_str_lbl, bank_str_start, bank_str_end);
+    reset_lastgbl(bank_gbl_start);
+    reset_laststr(bank_str_start);
+    set_str_search_base(0);
+    set_strref_ctx("str", 0);
     inbank = 0;
 }
 
@@ -1128,7 +1158,7 @@ void parse_conditional(uint8_t active, uint16_t brklbl, uint16_t contlbl) MYCC {
         }
     } else {
         while ((current_if_depth != hash_if_depth || (tok != tokHashElse && tok != tokHashEndif)) && tok != tokEOS) {
-            if (tok == tokHashIf || tok == tokHashIfDef) {
+            if (tok == tokHashIf || tok == tokHashIfDef || tok == tokHashIfNDef) {
                 ++hash_if_depth;
             } else if (tok == tokHashEndif) {
                 if (--hash_if_depth == 0) error(errSyntax);
@@ -1179,7 +1209,7 @@ SYMBOL declloc(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t offse
 
 SYMBOL decl_in_scope(uint8_t type_id, SYM_CLASS klass, const char* name) {
     SYMBOL sym;
-    if (infunc || is_scoped()) {
+    if ((infunc || is_scoped()) && (!inbank || infunc)) {
         uint16_t size = type_size(type_id); 
         sym = findloc(name);
         if (is_defined(&sym)) error(errAlreadyDefined_s, name);

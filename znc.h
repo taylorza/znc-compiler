@@ -1,3 +1,6 @@
+#ifndef ZNC_H
+#define ZNC_H
+
 #define MAX_FILENAME_LEN    64      // max filename length
 #define MAX_IDENT_LEN       14      // max identifier length
 #define MAX_NEST_DEPTH      5       // max nesting depth
@@ -13,6 +16,15 @@
 #define NL '\r'
 #else
 #define NL '\n'
+#endif
+
+/* Debug tracing */
+#define ZNC_DEBUG 0
+
+#if ZNC_DEBUG
+#define DPRINT(...) printf(__VA_ARGS__)
+#else
+#define DPRINT(...) ((void)0)
 #endif
 
 #include <stdio.h>
@@ -42,6 +54,7 @@
 #include "tokens.h"
 #include "error.h"
 #include "strtbl.h"
+#include "identtbl.h"
 #include "type.h"
 #include "sym.h"
 #include "farcall.h"
@@ -49,4 +62,7 @@
 #include "codegen.h"
 #include "rtl.h"
 #include "expr.h"
+#include "initializer.h"
 #include "compiler.h"
+
+#endif // ZNC_H

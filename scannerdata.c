@@ -12,6 +12,7 @@ KEYWORD keywords[] = {
     {"char", tokChar},
     {"byte", tokChar},
     {"int", tokInt},
+    {"fixed", tokFixed},
     {"va_list", tokInt},
     {"if", tokIf},
     {"else", tokElse},
@@ -191,30 +192,21 @@ static void skip_block_comment(void) MYCC {
     
     gnc(); /* skip '*' (we already have '/' consumed) */
     
-    while ((c = ch()) && depth > 0) {
-        if (c == '/' && *(code + 1) == '*') {
-            gnc(); /* skip '/' */
+    while ((c = gnc()) && depth > 0) {
+        if (c == '/' && ch() == '*') {
             gnc(); /* skip '*' */
             depth++;
-        } else if (c == '*' && *(code + 1) == '/') {
-            gnc(); /* skip '*' */
+        } else if (c == '*' && ch() == '/') {
             gnc(); /* skip '/' */
             depth--;
-        } else {
-            /* Track line/column for nested content */
-            if (c == '\r') {
-                gnc();
-                if (ch() == '\n') gnc();
-                loc[fileid].line++;
-                loc[fileid].col = 1;
-            } else if (c == '\n') {
-                gnc();
-                if (ch() == '\r') gnc();
-                loc[fileid].line++;
-                loc[fileid].col = 1;
-            } else {
-                gnc();
-            }
+        } else if (c == '\r') {
+            if (ch() == '\n') gnc();
+            loc[fileid].line++;
+            loc[fileid].col = 1;
+        } else if (c == '\n') {
+            if (ch() == '\r') gnc();
+            loc[fileid].line++;
+            loc[fileid].col = 1;
         }
     }
     
@@ -362,11 +354,14 @@ get_token_start:
             case ':': tok = tokColon; break;
             case '.': 
                 /* Check for ... (ellipsis) */
-                if (ch() == '.' && *(code+1) == '.') {
+                if (ch() == '.') {
                     *temp++ = gnc(); /* consume second '.' */
-                    *temp++ = gnc(); /* consume third '.' */
-                    *temp = '\0';
-                    tok = tokEllipsis;
+                    if (ch() == '.') {
+                        *temp++ = gnc(); /* consume third '.' */
+                        tok = tokEllipsis;
+                    } else {
+                        error(errSyntax); /* '..' is not a valid token */
+                    }
                 } else {
                     tok = tokMember;
                 }
@@ -438,6 +433,50 @@ get_token_start:
             *temp++ = gnc();
         }
         if (l == 0) error(errSyntax);
+
+        /* Check for fractional part: only for base-10, followed by '.' then digit.
+         * Consume '.' first, then use ch() to safely check the next char without
+         * raw pointer arithmetic (which is unsafe at buffer chunk boundaries). */
+        if (base == 10 && ch() == '.') {
+            gnc(); /* consume '.' */
+            if (!isdigit(ch())) {
+                /* '.' not followed by digit - not a decimal point.
+                 * Member access on a number literal is invalid in this language
+                 * so the consumed '.' will surface as a downstream syntax error.
+                 * Fall through to emit the integer token. */
+                goto emit_integer;
+            }
+            /* Parse fractional digits and convert to 12.4 fixed-point:
+             * integer part already in intval, shift it left 4.
+             * Then parse up to 4 fractional decimal digits and compute
+             * the fractional bits by rounding to nearest 1/16.
+             */
+            intval = intval << 4; /* integer part in Q4 */
+            *temp++ = '.'; /* record the '.' we already consumed */
+
+            /* Accumulate fractional decimal value as fixed * 10000 */
+            uint16_t frac_num = 0;
+            uint16_t frac_den = 1;
+            while (isdigit(ch()) && frac_den <= 1000) {
+                frac_num = frac_num * 10 + (ch() - '0');
+                frac_den = frac_den * 10;
+                *temp++ = gnc();
+            }
+            /* Skip any remaining fractional digits (beyond precision) */
+            while (isdigit(ch())) gnc();
+
+            /* Convert decimal fraction to Q4: frac_bits = round(frac_num * 16 / frac_den) */
+            uint16_t frac_bits = (uint16_t)((frac_num * 16 + frac_den / 2) / frac_den);
+            if (frac_bits > 15) frac_bits = 15;
+            intval = intval + (int16_t)frac_bits;
+
+            *temp = '\0';
+            tok = tokFixedLit;
+            token_length = (uint8_t)(temp - &token[0]);
+            return (token_type = ttNumber);
+        }
+
+        emit_integer:
         *temp = '\0';
         tok = tokNumber;
         token_length = (uint8_t)(temp - &token[0]);
@@ -452,6 +491,7 @@ get_token_start:
             *temp++ = gnc();
         }
         *temp = '\0';
+        if (l == 0) error(errTooLong);
 
         /* call bank-local keyword lookup */
         tok = far_lookup_keyword(token);

@@ -3,9 +3,22 @@
 char strtbl[MAX_STRTBL_SIZE];
 
 size_t laststr = 0;
+size_t str_search_base = 0; // lookupstr searches from here (0 for global, laststr for bank)
+
+size_t far_get_laststr(void) MYCC {
+    return laststr;
+}
+
+void far_reset_laststr(size_t to) MYCC {
+    laststr = to;
+}
+
+void far_set_str_search_base(size_t base) MYCC {
+    str_search_base = base;
+}
 
 int16_t far_lookupstr(const char* s, uint8_t len) MYCC {
-    for (size_t i = 0; i < laststr;) {
+    for (size_t i = str_search_base; i < laststr;) {
         const char* literal = &strtbl[i];
         if (memcmp(s, literal, len) == 0) {
             return (uint16_t)i;
@@ -20,11 +33,8 @@ int16_t far_lookupstr(const char* s, uint8_t len) MYCC {
     return (uint16_t)(laststr - len - 1);
 }
 
-
-void far_dump_strings(void) MYCC {
-    if (!laststr) return;
-    emit_str("str"); emit_nl();
-    for (size_t i = 0; i < laststr;) {
+static void emit_strings_range(size_t from, size_t to) MYCC {
+    for (size_t i = from; i < to;) {
         const char* literal = &strtbl[i];
         emit_str(" db ", i);
         uint8_t find_char_in_str = 0;
@@ -34,16 +44,16 @@ void far_dump_strings(void) MYCC {
             if (ch == '"') emit_ch('"');
             if (!find_char_in_str && j > 0) emit_ch(',');
             if (ch < 32) {
-                if (find_char_in_str) 
+                if (find_char_in_str)
                     emit_str("\",%d", ch);
-                else 
-                    emit_str("%d", ch);                
+                else
+                    emit_str("%d", ch);
                 find_char_in_str = 0;
             } else {
                 if (!find_char_in_str) emit_ch('"');
                 emit_ch(ch);
                 find_char_in_str = 1;
-            }            
+            }
         }
         ++i;
         if (find_char_in_str) emit_ch('\"');
@@ -51,4 +61,16 @@ void far_dump_strings(void) MYCC {
         emit_ch('0');
         emit_ch(NL);
     }
+}
+
+void far_dump_strings_range(const char* label, size_t from, size_t to) MYCC {
+    if (from >= to) return;
+    emit_str("%s", label); emit_nl();
+    emit_strings_range(from, to);
+}
+
+void far_dump_strings(void) MYCC {
+    if (!laststr) return;
+    emit_str("str"); emit_nl();
+    emit_strings_range(0, laststr);
 }

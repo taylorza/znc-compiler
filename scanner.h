@@ -38,6 +38,7 @@ TOKEN_TYPE get_token(void) MYCC;
 void expect(TOKEN t, char ch);
 
 void expect_colon(void) MYCC;
+
 void expect_semi(void) MYCC;
 void expect_comma(void) MYCC;
 void expect_LParen(void) MYCC;

@@ -8,7 +8,7 @@ typedef enum TOKEN_TYPE {
 typedef enum TOKEN {
     tokNone, tokConst,
     tokHashIf, tokHashIfDef, tokHashIfNDef, tokHashElse, tokHashEndif,
-    tokArg, tokVoid, tokChar, tokInt, tokIf, tokElse, tokFor, tokWhile,
+    tokArg, tokVoid, tokChar, tokInt, tokFixed, tokIf, tokElse, tokFor, tokWhile,
     tokSwitch, tokCase, tokDefault,
     tokReturn, tokBreak, tokContinue, tokExit,
     tokIn, tokOut, tokNextReg, tokReadReg,
@@ -19,6 +19,7 @@ typedef enum TOKEN {
     tokMake, tokDot, tokNex, tokRaw, tokSetStack, tokOrg, tokBank,
     
     tokNumber,      // number
+    tokFixedLit,    // fixed-point literal (e.g. 3.14) - value pre-computed in 12.4 format in intval
     tokString,      // string
     tokStruct,      // 'struct' keyword
     tokDelegate,    // 'delegate' keyword

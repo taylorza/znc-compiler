@@ -1,54 +1,56 @@
 #include "znc.h"
 #include "farcall.h"
+#include "identtbl.h"
 #include "sym.h"
 #include "shared.h"
 
 // Wrappers for symbol table banked calls (BANK 41)
+// Names are interned into IDENT_IDs (via BANK 45) before switching to BANK 41.
+
+/* undefined_sym is kept in the main bank so every banked module (expr.c in
+ * BANK_43, initializer.c in BANK_43, etc.) can read it without a bank switch.
+ * It must NOT live in sym.c (BANK_41). */
+SYMBOL undefined_sym = {.name_id = IDENT_ID_NONE, .scope = SCOPE_UNDEFINED, .klass = CLASS_UNDEFINED};
+
 SYMBOL findglb(const char* name) MYCC {
-    ARENA_MARKER m = arena_get_marker();
-    char* ncopy = arena_strdup(name, strnlen(name, MAX_IDENT_LEN));
+    IDENT_ID nid = intern_ident(name);
 
     SYMBOL *sym;
     SYMBOL lsym;
     PROLOG(41)
-    sym = far_findglb(ncopy);
+    sym = far_findglb(nid);
     if (!sym) sym = &undefined_sym;
     lsym = *sym;
     EPILOG
 
-    arena_free_to_marker(m);
     return lsym;
 }
 
 SYMBOL findloc(const char* name) MYCC {
-    ARENA_MARKER m = arena_get_marker();
-    char* ncopy = arena_strdup(name, strnlen(name, MAX_IDENT_LEN));
+    IDENT_ID nid = intern_ident(name);
 
     SYMBOL *sym;
     SYMBOL lsym;
     PROLOG(41)
-    sym = far_findloc(ncopy);
+    sym = far_findloc(nid);
     if (!sym) sym = &undefined_sym;
     lsym = *sym;
     EPILOG
 
-    arena_free_to_marker(m);
     return lsym;
 }
 
 SYMBOL lookupIdent(const char* name) MYCC {
-    ARENA_MARKER m = arena_get_marker();
-    char* ncopy = arena_strdup(name, strnlen(name, MAX_IDENT_LEN));
+    IDENT_ID nid = intern_ident(name);
 
     SYMBOL *sym;
     SYMBOL lsym;
     PROLOG(41)
-    sym = far_lookupIdent(ncopy);
+    sym = far_lookupIdent(nid);
     if (!sym) sym = &undefined_sym;
     lsym = *sym;
     EPILOG
 
-    arena_free_to_marker(m);
     return lsym;
 }
 
@@ -64,34 +66,30 @@ void updatesym(SYMBOL* from) MYCC {
 }
 
 SYMBOL addglb(const char* name, SYM_CLASS klass, uint8_t type_id, int16_t value) MYCC {
-    ARENA_MARKER m = arena_get_marker();
-    char* ncopy = arena_strdup(name, strnlen(name, MAX_IDENT_LEN));
+    IDENT_ID nid = intern_ident(name);
 
     SYMBOL *sym;
     SYMBOL lsym;
     PROLOG(41)
-    sym = far_addglb(ncopy, klass, type_id, value);
+    sym = far_addglb(nid, klass, type_id, value);
     if (!sym) sym = &undefined_sym;
     lsym = *sym;
     EPILOG
 
-    arena_free_to_marker(m);
     return lsym;
 }
 
 SYMBOL addloc(const char* name, SYM_CLASS klass, uint8_t type_id, int16_t value) MYCC {
-    ARENA_MARKER m = arena_get_marker();
-    char* ncopy = arena_strdup(name, strnlen(name, MAX_IDENT_LEN));
+    IDENT_ID nid = intern_ident(name);
 
     SYMBOL *sym;
     SYMBOL lsym;
     PROLOG(41)
-    sym = far_addloc(ncopy, klass, type_id, value);
+    sym = far_addloc(nid, klass, type_id, value);
     if (!sym) sym = &undefined_sym;
     lsym = *sym;
     EPILOG
 
-    arena_free_to_marker(m);
     return lsym;
 }
 
@@ -113,8 +111,27 @@ uint8_t is_scoped(void) MYCC {
     EPILOG_RETURN(i)
 }
 
+uint16_t get_lastgbl(void) MYCC {
+    PROLOG(41)
+    uint16_t i = far_get_lastgbl();
+    EPILOG_RETURN(i)
+}
+
+void reset_lastgbl(uint16_t to) MYCC {
+    PROLOG(41)
+    far_reset_lastgbl(to);
+    EPILOG
+}
+
+void dump_globals_range(uint16_t from, uint16_t to) MYCC {
+    PROLOG(41)
+    far_dump_globals_range(from, to);
+    EPILOG
+}
+
 void dump_globals(void) MYCC {
     PROLOG(41)
     far_dump_globals();
     EPILOG
 }
+

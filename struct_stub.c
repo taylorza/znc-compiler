@@ -65,6 +65,12 @@ uint16_t get_struct_size(int id) MYCC {
     EPILOG_RETURN(r)
 }
 
+int get_field_count(int id) MYCC {
+    PROLOG(44)
+    int r = far_get_field_count(id);
+    EPILOG_RETURN(r)
+}
+
 FIELDINFO get_struct_field(int id, int fid) MYCC {
     PROLOG(44)
     FIELDINFO fi = far_get_struct_field(id, fid);

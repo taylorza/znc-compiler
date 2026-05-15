@@ -1,0 +1,517 @@
+make dot "feature_test.dot";
+
+// ============================================================
+// Section 1: Compile-time constants
+// ============================================================
+const int CTRUE   = 1;
+const int CFALSE  = 0;
+const int CVAL    = 77;
+const int FEATURE = 1;
+
+// ============================================================
+// Section 2: Named function-pointer type (delegate)
+// ============================================================
+delegate int BinOp(int, int);
+
+// ============================================================
+// Section 3: Struct declarations (including nested)
+// ============================================================
+struct Point {
+    int x;
+    int y;
+};
+
+struct Rect {
+    Point tl;
+    Point br;
+};
+
+struct OpTable {
+    BinOp fn;
+};
+
+// ============================================================
+// Section 4: Global variables of every scalar type
+// ============================================================
+int  g_int   = 100;
+char g_char  = 'Z';
+byte g_byte  = 42;
+fixed g_fixed  = 2.5;
+int  pass_count;
+int  fail_count;
+int  g_asm_var;
+
+// ============================================================
+// Section 5: Global inferred-size arrays with initializers
+// ============================================================
+int[]  g_nums = {10, 20, 30, 40};
+byte[] g_str  = "ZNC";
+byte[] g_cat  = "Hel" "lo";          // adjacent string literal concat
+
+// ============================================================
+// Section 6: Conditional compilation
+// ============================================================
+#ifdef __DOT
+int cond_dot = 1;
+#else
+int cond_dot = 0;
+#endif
+
+#ifndef __NEX
+int not_nex = 1;
+#else
+int not_nex = 0;
+#endif
+
+#if FEATURE
+int feature_on = 1;
+#else
+int feature_on = 0;
+#endif
+
+// ============================================================
+// Section 7: Function definitions
+// ============================================================
+
+// --- Functions used as delegates ---
+int do_add(int a, int b) { return a + b; }
+int do_sub(int a, int b) { return a - b; }
+
+// --- Variadic function ---
+int sum_va(int cnt, ...) {
+    va_list args;
+    int total = 0;
+    va_start(args, cnt);
+    while (cnt--) total = total + va_arg(args, int);
+    va_end(args);
+    return total;
+}
+
+// --- Inline-assembly function: two's-complement negation ---
+// Calling convention: arg n is on the stack (16-bit), result in HL.
+int asm_neg(int n) __asm__ {
+_
+    pop  bc             // save return address
+    pop  hl             // n (consume arg from stack)
+    push hl             // restore n so caller's pop af cleanup is balanced
+    push bc             // restore return address
+    ld   a, h
+    cpl
+    ld   h, a
+    ld   a, l
+    cpl
+    ld   l, a
+    inc  hl             // HL = ~n + 1 = -n (two's complement)
+    ret
+}
+
+// --- Print a non-negative decimal integer ---
+void printnum(int n) {
+    if (n == 0) { putc('0'); return; }
+    int div = 10000;
+    while ((n / div) == 0) div = div / 10;
+    while (div) {
+        putc(n / div + '0');
+        n = n % div;
+        div = div / 10;
+    }
+}
+
+// --- Report a single test result ---
+// ZX Spectrum colour codes: putc(16) = INK, 0=black, 2=red, 4=green
+void chk(char *name, int ok) {
+    puts(name);
+    if (ok) {
+        putc(16); putc(4);   // INK green
+        puts(":OK");
+        putc(16); putc(0);   // INK black
+        puts("\r");
+        pass_count = pass_count + 1;
+    } else {
+        putc(16); putc(2);   // INK red
+        puts(":FAIL");
+        putc(16); putc(0);   // INK black
+        puts("\r");
+        fail_count = fail_count + 1;
+    }
+}
+
+// --- Feature test functions ---
+
+void test_typ_glb() {
+    // Global scalar types
+    chk("g_int",   g_int  == 100);
+    chk("g_char",  g_char == 'Z');
+    chk("g_byte",  g_byte == 42);
+    // Local scalar types
+    int  li = 1000;
+    char lc = 65;
+    byte lb = 100;
+    chk("l_int",   li == 1000);
+    chk("l_char",  lc == 65);
+    chk("l_byte",  lb == 100);
+}
+
+void test_const() {
+    // Global const folded into code
+    chk("const_gval",  CVAL == 77);
+    chk("const_expr",  CVAL * 2 == 154);
+    chk("const_true",  CTRUE == 1);
+    chk("const_false", CFALSE == 0);
+    // Local const
+    const int K = 55;
+    chk("const_local", K == 55);
+    chk("const_locex", K + 1 == 56);
+}
+
+void test_arith() {
+    int a = 17;
+    int b = 5;
+    chk("add", a + b == 22);
+    chk("sub", a - b == 12);
+    chk("mul", a * b == 85);
+    chk("div", a / b == 3);
+    chk("mod", a % b == 2);
+    chk("neg", 0 - a == -17);
+}
+
+void test_bitwise() {
+    int x = 0xA;    // 0b1010
+    int y = 0xC;    // 0b1100
+    chk("bw_and", (x & y)  == 0x8);    // 0b1000
+    chk("bw_or",  (x | y)  == 0xE);    // 0b1110
+    chk("bw_xor", (x ^ y)  == 0x6);    // 0b0110
+    chk("bw_shl", (x << 1) == 0x14);   // 0b10100
+    chk("bw_shr", (x >> 1) == 0x5);    // 0b0101
+    chk("bw_not", (~0) == -1);          // all bits set = -1 signed
+}
+
+void test_compare() {
+    int a = 5;
+    int b = 10;
+    chk("eq",      a == 5);
+    chk("ne",      a != b);
+    chk("lt",      a < b);
+    chk("le",      a <= 5);
+    chk("gt",      b > a);
+    chk("ge",      b >= 10);
+    chk("log_and", a > 0 && b > 0);
+    chk("log_or",  a > 10 || b > 5);
+    chk("log_not", !0);
+}
+
+void test_ternary() {
+    int x = 5;
+    chk("tern_t", (x > 3  ? 1 : 0) == 1);
+    chk("tern_f", (x > 10 ? 1 : 0) == 0);
+    // Ternary producing non-literal values
+    int r = (x == 5 ? x * 2 : 0);
+    chk("tern_expr", r == 10);
+}
+
+void test_incdec() {
+    int x = 5;
+    int y;
+    y = x++;
+    chk("post_inc_ret", y == 5);
+    chk("post_inc_x",   x == 6);
+    y = ++x;
+    chk("pre_inc_ret",  y == 7);
+    chk("pre_inc_x",    x == 7);
+    y = x--;
+    chk("post_dec_ret", y == 7);
+    chk("post_dec_x",   x == 6);
+    y = --x;
+    chk("pre_dec_ret",  y == 5);
+    chk("pre_dec_x",    x == 5);
+    // Indexed lvalue inc/dec
+    int[2] arr;
+    arr[0] = 10;
+    arr[0]++;
+    chk("arr_idx_inc",  arr[0] == 11);
+    arr[1] = 20;
+    arr[1]--;
+    chk("arr_idx_dec",  arr[1] == 19);
+}
+
+void test_while() {
+    // Basic while accumulation
+    int i = 0;
+    int s = 0;
+    while (i < 5) { s = s + i; i = i + 1; }
+    chk("while_sum", s == 10);
+    // While with postfix-decrement condition
+    int c = 3;
+    int n = 0;
+    while (c--) n = n + 1;
+    chk("while_dec", n == 3);
+}
+
+void test_for() {
+    // Standard counting loop
+    int s = 0;
+    for (int i = 1; i <= 5; i = i + 1) s = s + i;
+    chk("for_sum", s == 15);
+    // Loop with pre-increment step
+    int t = 0;
+    for (int j = 0; j < 4; ++j) t = t + 1;
+    chk("for_preinc", t == 4);
+    // Infinite loop exited by break
+    int n = 0;
+    for (;;) { n = n + 1; if (n == 3) break; }
+    chk("for_inf_brk", n == 3);
+}
+
+void test_brkcont() {
+    // break exits loop early
+    int s = 0;
+    for (int i = 0; i < 10; i = i + 1) {
+        if (i == 5) break;
+        s = s + 1;
+    }
+    chk("break", s == 5);
+    // continue skips even numbers
+    s = 0;
+    for (int i = 0; i < 10; i = i + 1) {
+        if (i % 2 == 0) continue;
+        s = s + 1;
+    }
+    chk("continue", s == 5);
+}
+
+void test_switch() {
+    int r = 0;
+    // Matching a specific case
+    switch (2) {
+        case 1: r = 10; break;
+        case 2: r = 20; break;
+        default: r = 99; break;
+    }
+    chk("sw_match", r == 20);
+    // Case fall-through (no break between case 1 and case 2)
+    r = 0;
+    switch (1) {
+        case 1:
+        case 2: r = r + 1; break;
+        default: break;
+    }
+    chk("sw_fall", r == 1);
+    // Default branch
+    switch (99) {
+        case 0: r = 0; break;
+        default: r = 7; break;
+    }
+    chk("sw_default", r == 7);
+}
+
+void test_arrays() {
+    // Fixed-size local int array
+    int[4] arr;
+    arr[0] = 10; arr[1] = 20; arr[2] = 30; arr[3] = 40;
+    int s = 0;
+    for (int i = 0; i < 4; i = i + 1) s = s + arr[i];
+    chk("arr_sum",   s == 100);
+    // Fixed-size local byte array
+    byte[3] b;
+    b[0] = 'A'; b[1] = 'B'; b[2] = 'C';
+    chk("arr_byte",  b[1] == 'B');
+    // Global inferred-size int array
+    chk("arr_gint",  g_nums[0] == 10);
+    chk("arr_gint3", g_nums[3] == 40);
+    // Global inferred-size string
+    chk("arr_gstr0", g_str[0] == 'Z');
+    chk("arr_gstr1", g_str[1] == 'N');
+    // Adjacent string literal concatenation
+    chk("arr_gcat",  g_cat[4] == 'o');
+}
+
+void test_ptrs() {
+    // Address-of and dereference
+    int x = 42;
+    int *p = &x;
+    chk("ptr_rd",     *p == 42);
+    *p = 99;
+    chk("ptr_wr",     x == 99);
+    // Pointer arithmetic: int stride = 2
+    int[3] arr;
+    arr[0] = 1; arr[1] = 2; arr[2] = 3;
+    int *q = arr;
+    q = q + 1;
+    chk("ptr_arith",  *q == 2);
+    // a[b] is *(a+b)
+    chk("ptr_idx",    q[1] == 3);
+    // Byte pointer: stride = 1
+    byte[3] ba;
+    ba[0] = 10; ba[1] = 20; ba[2] = 30;
+    byte *bp = ba;
+    bp = bp + 2;
+    chk("bptr_arith", *bp == 30);
+    // void* compatible with any pointer base (scalar address assignment)
+    int addr = 0x4000;
+    byte *screen = addr;
+    chk("ptr_intaddr", screen == 0x4000);
+}
+
+void test_structs() {
+    // Field access
+    Point p;
+    p.x = 3; p.y = 7;
+    chk("st_x",       p.x == 3);
+    chk("st_y",       p.y == 7);
+    // Pointer to struct (arrow-style via dot on pointer)
+    Point *pp = &p;
+    pp.x = 99;
+    chk("st_ptr_wr",  p.x == 99);
+    chk("st_ptr_rd",  pp.y == 7);
+    // Array of structs
+    Point[2] pts;
+    pts[0].x = 1; pts[0].y = 2;
+    pts[1].x = 3; pts[1].y = 4;
+    chk("st_arr_0x",  pts[0].x == 1);
+    chk("st_arr_1y",  pts[1].y == 4);
+    // Nested struct
+    Rect r;
+    r.tl.x = 0; r.tl.y = 0;
+    r.br.x = 10; r.br.y = 5;
+    chk("nested_w",   r.br.x - r.tl.x == 10);
+    chk("nested_h",   r.br.y - r.tl.y == 5);
+    // Pointer to struct containing nested struct
+    Rect *rp = &r;
+    rp.br.x = 20;
+    chk("nested_ptr", r.br.x == 20);
+}
+
+void test_dlgs() {
+    // Assign function to delegate and call through it
+    BinOp op;
+    op = do_add;
+    chk("del_add",    op(6, 4) == 10);
+    // Reassign to a different function
+    op = do_sub;
+    chk("del_sub",    op(9, 4) == 5);
+    // Delegate stored in a struct field
+    OpTable t;
+    t.fn = do_add;
+    chk("del_struct", t.fn(3, 4) == 7);
+}
+
+void test_vargs() {
+    chk("va_1arg",  sum_va(1, 99) == 99);
+    chk("va_2args", sum_va(2, 10, 20) == 30);
+    chk("va_3args", sum_va(3, 5, 6, 7) == 18);
+}
+
+void test_asm() {
+    // __asm__ function: two's complement negation
+    chk("asm_fn_neg",  asm_neg(7)  == -7);
+    chk("asm_fn_zero", asm_neg(0)  == 0);
+    chk("asm_fn_neg2", asm_neg(-3) == 3);
+    // Inline __asm__ block that writes to a global variable
+    g_asm_var = 0;
+    __asm__ {
+        ld hl, 123
+        ld (_g_asm_var), hl
+    }
+    chk("asm_block", g_asm_var == 123);
+}
+
+void test_ccomp() {
+    // #ifdef __DOT (set by make dot)
+    chk("cond_ifdef",   cond_dot   == 1);
+    // #ifndef __NEX (not set for DOT builds)
+    chk("cond_ifndef",  not_nex    == 1);
+    // #if with a compile-time const
+    chk("cond_if",      feature_on == 1);
+}
+
+void test_fixed() {
+    // Literal assignment
+    fixed a = 1.5;
+    fixed b = 0.5;
+    chk("fx_lit",    a == 1.5);
+    // Arithmetic
+    chk("fx_add",    a + b == 2.0);
+    chk("fx_sub",    a - b == 1.0);
+    chk("fx_mul",    a * b == 0.75);
+    fixed c = 3.0;
+    fixed d = 2.0;
+    chk("fx_div",    c / d == 1.5);
+    // Comparison
+    chk("fx_lt",     b < a);
+    chk("fx_gt",     a > b);
+    chk("fx_eq",     d == 2.0);
+    // Int-to-fixed implicit conversion
+    fixed e = 5;
+    chk("fx_i2fx",   e == 5.0);
+    // Fixed-to-int implicit conversion (fractional bits truncated)
+    int n = 2.75;
+    chk("fx_fx2i",   n == 2);
+    // const fixed: compile-time constant
+    const fixed HALF = 0.5;
+    chk("fx_const",  HALF == 0.5);
+    chk("fx_cexpr",  HALF + HALF == 1.0);
+    // Increment/decrement: step is 1.0 (0x10 in Q4)
+    fixed f = 1.5;
+    f++;
+    chk("fx_inc",    f == 2.5);
+    f--;
+    chk("fx_dec",    f == 1.5);
+    // Negative fixed literal
+    fixed neg = -1.5;
+    chk("fx_neg",    neg == -1.5);
+    // Global fixed variable
+    chk("fx_global", g_fixed == 2.5);
+    // Mixed fixed + int arithmetic
+    fixed mix = 2.0;
+    int   iv  = 3;
+    chk("fx_mix",    mix + iv == 5.0);
+}
+
+void test_rawref() {
+    byte[3] arr;
+    arr[0] = 11; arr[1] = 22; arr[2] = 33;
+    byte *ptr = arr;
+
+    // 8-bit case: int addr dereferenced as byte reads arr[0]
+    int baddr = arr;
+    byte b = *baddr;
+    chk("rawref_byte", b == 11);
+
+    // 16-bit case: int addr dereferenced as byte* does a word load
+    int paddr = &ptr;
+    byte *rp = *paddr;
+    chk("rawref_ptr",  rp[0] == 11);
+    chk("rawref_ptr2", rp[2] == 33);
+}
+
+
+pass_count = 0;
+fail_count = 0;
+
+puts("ZNC Feature Test\r");
+puts("================\r");
+
+test_typ_glb();
+test_const();
+test_arith();
+test_bitwise();
+test_compare();
+test_ternary();
+test_incdec();
+test_while();
+test_for();
+test_brkcont();
+test_switch();
+test_arrays();
+test_ptrs();
+test_structs();
+test_dlgs();
+test_vargs();
+test_asm();
+test_ccomp();
+test_fixed();
+test_rawref();
+
+puts("================\r");
+puts("PASS: "); printnum(pass_count); puts("\r");
+puts("FAIL: "); printnum(fail_count); puts("\r");

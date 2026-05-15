@@ -119,8 +119,17 @@ void emit_sname(const char *name) MYCC {
     emit_str("_%s", name);    
 }
 
+static char str_lbl[10] = "str";
+static uint16_t str_lbl_base = 0;
+
+void set_strref_ctx(const char* label, uint16_t base) MYCC {
+    strncpy(str_lbl, label, sizeof(str_lbl) - 1);
+    str_lbl[sizeof(str_lbl) - 1] = '\0';
+    str_lbl_base = base;
+}
+
 void emit_strref(uint16_t id) MYCC {
-    emit_str("str+%d", id);
+    emit_str("%s+%d", str_lbl, id - str_lbl_base);
 }
 
 void emit_instr(const char * fmt, ...) MYCC {
@@ -278,6 +287,7 @@ void emit_load_word_from_hl(void) MYCC {
     emit_instrln("ld d,(hl)");
     emit_instrln("ex de,hl");
 }
+
 void emit_store_word_at_hl(void) MYCC {
     emit_instrln("ld (hl),e");
     emit_instrln("inc hl");
@@ -331,6 +341,14 @@ void emit_sub16(void) MYCC {
     emit_instrln("sbc hl,de");
 }
 
+void emit_int_to_fixed(void) MYCC {
+    emit_rtl("ccint2fx");    
+}
+
+void emit_fixed_to_int(void) MYCC {
+    emit_rtl("ccfx2int");
+}
+
 void emit_rtl(const char* name) MYCC {
     /* Copy name into a small main-bank buffer so callers from other banks
      * can pass string literals that live in their bank without causing
@@ -352,7 +370,7 @@ void emit_call(const char *name) MYCC {
 void emit_callsym(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
     if (is_func_or_proto(sym)) {
         emit_instr("call ");
-        emit_sname(sym->name);
+        emit_sname_id(sym->name_id);
         emit_nl();
     } else {
         uint16_t retlbl = newlbl();
@@ -410,11 +428,11 @@ static inline uint8_t offsets_in_ix_range(int16_t low, int16_t high) MYCC {
  * For arguments: returns 2 + (func_argcount - offset) * 2, pointing to the low byte */
 static int16_t compute_symbol_base_offset(SYMBOL *sym) MYCC {
     if (sym->klass == VARIABLE) {
-        int8_t bp_offset = (uint8_t)sym->offset;
+        uint16_t bp_offset = (uint16_t)sym->stk.offset;
         uint16_t var_size = type_size(sym->type_id);
-        return -(bp_offset + var_size);
+        return -(int16_t)(bp_offset + var_size);
     } else { /* ARGUMENT */
-        return 2 + (func_argcount - sym->offset) * 2;
+        return 2 + (func_argcount - sym->stk.offset) * 2;
     }
 }
 
@@ -436,7 +454,7 @@ static void emit_compute_ix_address(int16_t offset) MYCC {
 
 /* Helper: Emit code to load a variadic function argument value */
 static void emit_load_variadic_arg(SYMBOL *sym) MYCC {
-    uint8_t offset_factor = func_argcount - sym->offset;
+    uint8_t offset_factor = func_argcount - sym->stk.offset;
     uint16_t constant_offset = 4 + 2 * offset_factor;
     emit_ldde_immed_n(constant_offset);
     emit_rtl("ccvafixed");
@@ -444,7 +462,7 @@ static void emit_load_variadic_arg(SYMBOL *sym) MYCC {
 
 /* Helper: Emit code to load address of a variadic function argument */
 static void emit_load_variadic_arg_addr(SYMBOL *sym) MYCC {
-    uint8_t offset_factor = func_argcount - sym->offset;
+    uint8_t offset_factor = func_argcount - sym->stk.offset;
     uint16_t constant_offset = 4 + 2 * offset_factor;
     emit_ldde_immed_n(constant_offset);
     emit_rtl("ccvafixedaddr");
@@ -466,19 +484,19 @@ void emit_ld_symval(SYMBOL* sym) MYCC {
     if (sym->scope == GLOBAL) {
         if (type_is_array(type_id)) {
             emit_ld_immed();
-            emit_sname(sym->name);
+            emit_sname_id(sym->name_id);
             emit_nl();
         }
         else if (!type_is_pointer(type_id) && type_is_char(type_id)) {
             emit_instr("ld a,(");
-            emit_sname(sym->name);
+            emit_sname_id(sym->name_id);
             emit_ch(')');
             emit_nl();
             emit_rtl("ccsxt");
         }
         else {
             emit_instr("ld hl,(");
-            emit_sname(sym->name);
+            emit_sname_id(sym->name_id);
             emit_ch(')');
             emit_nl();
         }
@@ -544,7 +562,7 @@ void emit_ld_symaddr_offset(SYMBOL* sym, uint16_t offset) MYCC {
 
     if (sym->scope == GLOBAL) {
         emit_ld_immed();
-        emit_sname(sym->name);
+        emit_sname_id(sym->name_id);
         if (offset) { emit_ch('+'); emit_n(offset); }
         emit_nl();
     }
@@ -602,10 +620,10 @@ void emit_store_sym(SYMBOL* sym) MYCC {
     if (sym->scope == GLOBAL) {
         if (!type_is_pointer(type_id) && type_is_char(type_id)) {
             emit_instrln("ld a,l");
-            emit_instr("ld ("); emit_sname(sym->name); emit_strln("),a");
+            emit_instr("ld ("); emit_sname_id(sym->name_id); emit_strln("),a");
         }
         else {
-            emit_instr("ld ("); emit_sname(sym->name); emit_strln("),hl");
+            emit_instr("ld ("); emit_sname_id(sym->name_id); emit_strln("),hl");
         }
     }
     else if (sym->scope == LOCAL) {
@@ -617,8 +635,7 @@ void emit_store_sym(SYMBOL* sym) MYCC {
         
         if (sym->klass == VARIABLE && !type_is_pointer(type_id) && type_is_char(type_id)) {
             /* Char/byte scalar: store single byte */
-            int8_t bp_offset = (uint8_t)sym->offset;
-            int16_t low_off = -(bp_offset + 1);
+            int16_t low_off = -(sym->stk.offset + 1);
             
             if (low_off >= -128 && low_off <= 127) {
                 emit_instrln("ld (ix%+d),l", low_off);

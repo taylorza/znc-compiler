@@ -36,6 +36,6 @@ byte[5] b; // declare fixed-size array; no initializer allowed in source
 ```
 
 Notes and limits
-- There is no `void*` type; pointers are typed and arithmetic is done w.r.t element size.
+- `void*` is supported as a generic pointer type; it is compatible with any other pointer base type in assignments and calls. Pointer arithmetic on `void*` is not meaningful since element size is unknown.
 - Out-of-bounds access is undefined (as with C).
 - The compiler supports both `byte` and `int` arrays (emitted as DB and DW respectively).

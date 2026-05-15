@@ -8,8 +8,9 @@ typedef enum TypeKind {
     TK_STRUCT = 2,
     TK_FUNCTION = 3,
     TK_ARRAY = 4,
-    TK_VOID = 5
-    /* values 6-7 reserved for future use */
+    TK_VOID = 5,
+    TK_FIXED = 6   /* 16-bit fixed point 12.4 format */
+    /* value 7 reserved */
 } TypeKind;
 
 /* Compact type descriptor (now 4 bytes with uint16_t aux1 for larger arrays) */
@@ -29,6 +30,7 @@ void type_init(void) MYCC;
 uint8_t type_as_const(uint8_t type_id) MYCC;
 uint8_t type_make_char(uint8_t is_const) MYCC;
 uint8_t type_make_int(uint8_t is_const) MYCC;
+uint8_t type_make_fixed(uint8_t is_const) MYCC;
 uint8_t type_make_void(void) MYCC;
 uint8_t type_make_pointer(uint8_t base_type_id, uint8_t extra_indir) MYCC;
 uint8_t type_make_struct(uint8_t struct_id, uint8_t is_const) MYCC;
@@ -45,6 +47,7 @@ uint8_t type_is_const(uint8_t type_id) MYCC;
 uint8_t type_is_void(uint8_t type_id) MYCC;
 uint8_t type_is_char(uint8_t type_id) MYCC;
 uint8_t type_is_int(uint8_t type_id) MYCC;
+uint8_t type_is_fixed(uint8_t type_id) MYCC;
 uint8_t type_is_struct(uint8_t type_id) MYCC;
 uint8_t type_is_function(uint8_t type_id) MYCC;
 uint8_t type_is_delegate(uint8_t type_id) MYCC;
@@ -85,6 +88,7 @@ uint8_t type_check_compatible(uint8_t from_type_id, uint8_t to_type_id) MYCC;
 extern uint8_t TYPE_ID_VOID;
 extern uint8_t TYPE_ID_CHAR;
 extern uint8_t TYPE_ID_INT;
+extern uint8_t TYPE_ID_FIXED;
 extern uint8_t TYPE_ID_CHAR_PTR;
 
 #endif //TYPE_H__

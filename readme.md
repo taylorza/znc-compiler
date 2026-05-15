@@ -240,9 +240,10 @@ The main component of your application is the code, the instructions that the co
 ## Data types
 The ZNC compiler supports the following data types
 
-char - Character data type 
-byte - Byte values in the range -128..127
-int  - Integer values in the range -32768..32767
+char  - Signed 8-bit integer. Range: -128..127
+byte  - Alias for `char`; both are the same signed 8-bit type.
+int   - Signed 16-bit integer. Range: -32768..32767
+fixed - Signed 16-bit fixed-point in Q4 (12.4) format. Range: -2048.0 to +2047.9375, precision 0.0625 (1/16). Literals use a decimal point, e.g. `3.14`.
 
 You can also create pointers to or arrays for each of the data types.
 
@@ -257,7 +258,9 @@ byte *screen = 0x4000; // ZX Spectrum ULA Screen address (16384 in decimal)
 ```
 
 #### Pointer arithmetic 
-Adding/subtracting an integer scales by the pointed element size (byte → +1 byte, int → +2 bytes). Indexing `p[i]` is equivalent to `*(p + i)`. Pointer + pointer is not supported; subtracting two pointers is not supported.
+Adding/subtracting an integer scales by the pointed element size (byte → +1 byte, int/fixed → +2 bytes). Indexing `p[i]` is equivalent to `*(p + i)`. Pointer + pointer is not supported; subtracting two pointers is not supported.
+
+`void*` is supported as a generic pointer; it is compatible with any other pointer type in assignments and function calls. Arithmetic on `void*` is not defined since element size is unknown.
 
 ### Arrays
 You can also create arrays of the base data types. For example if you wanted to store ten integers you could declare an array of integers as follows
@@ -279,7 +282,7 @@ If you omit the size and provide **no** initializer, the declaration is treated 
 Array indexing uses `[]` as usual: `numbers[0] = 42;`.
 
 #### Const values
-`const` is only allowed on scalar types (`char`, `int`). It creates a compile-time constant with no storage allocated; the value is folded into code. `const` on pointers or arrays is rejected.
+`const` is only allowed on scalar types (`char`, `int`, `fixed`). It creates a compile-time constant with no storage allocated; the value is folded into code. `const` on pointers or arrays is rejected.
 
 ### Declaring variables
 Variables can be declared at any point in the code
@@ -367,7 +370,7 @@ Compound assignment operators (`+=`, `-=`, `*=`, `/=`, `%=`, `<<=`, `>>=`, `&=`,
 
 (* Types: scalar base, optional single pointer or array suffix. Structural and named types supported via identifiers. *)
 <type>            ::= <basetype> [ "*" | "[" [ <expr> ] "]" ]
-<basetype>        ::= "char" | "byte" | "int" | "void" | <ident>   (* ident may be a struct or a named type such as a delegate *)
+<basetype>        ::= "char" | "byte" | "int" | "fixed" | "void" | <ident>   (* ident may be a struct or a named type such as a delegate *)
 
 <arglist>         ::= <arg> { "," <arg> }
 <arg>             ::= <type> <ident>
@@ -403,12 +406,13 @@ Compound assignment operators (`+=`, `-=`, `*=`, `/=`, `%=`, `<<=`, `>>=`, `&=`,
 (* Identifiers, numbers, strings, and tokens *)
 <ident>           ::= <letter> { <letter> | <digit> | "_" }
 
-(* Numbers support decimal, hexadecimal (0x), binary (0b), and character literals *)
-<number>          ::= <decimal_literal> | <hex_literal> | <binary_literal> | <char_literal>
+(* Numbers support decimal, hexadecimal (0x), binary (0b), character literals, and fixed-point *)
+<number>          ::= <decimal_literal> | <hex_literal> | <binary_literal> | <char_literal> | <fixed_literal>
 <decimal_literal> ::= <digit> { <digit> }
 <hex_literal>     ::= "0x" <hex_digit> { <hex_digit> }
 <binary_literal>  ::= "0b" ("0" | "1") { "0" | "1" }
 <char_literal>    ::= "'" <character> "'"
+<fixed_literal>   ::= <decimal_literal> "." <decimal_literal>   (* 16-bit signed Q4 fixed-point; value stored in 12.4 format *)
 <hex_digit>       ::= <digit> | "a"..."f" | "A"..."F"
 
 (* Strings support escape sequences *)
@@ -416,8 +420,9 @@ Compound assignment operators (`+=`, `-=`, `*=`, `/=`, `%=`, `<<=`, `>>=`, `&=`,
 <str_char>        ::= <character> | <escape_seq>
 <escape_seq>      ::= "\" ( "n" | "r" | "t" | "\" | '"' | "0" | "x" <hex_digit> <hex_digit> )
 
-(* Comments - single line only *)
+(* Comments: single-line and block; block comments may be nested *)
 <comment>         ::= "//" { <any_char> } <newline>
+                   | "/*" { <any_char> | <comment> } "*/"
 
 (* Other constructs supported by the compiler: *)
 <if>              ::= "if" "(" <expr> ")" <statement> [ "else" <statement> ]

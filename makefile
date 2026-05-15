@@ -11,7 +11,7 @@ CFLAGS = -m -c -clib=sdcc_iy -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLO
 AFLAGS =
 LFLAGS = -m -startup=30 -clib=sdcc_iy -subtype=dotn -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLOCS) -pragma-include:zpragma.inc -create-app
 
-SOURCES = strtbl_stub.c sym_stub.c rtl_stub.c expr_stub.c errordata_stub.c shared.c typedata.c errordata.c struct_stub.c struct.c strtbl.c codegen.c compiler.c dataarea.c error.c expr.c type.c main.c rtl.c scanner.c scannerdata.c sym.c util.c 
+SOURCES = identtbl_stub.c strtbl_stub.c sym_stub.c rtl_stub.c expr_stub.c errordata_stub.c initializer_stub.c shared.c typedata.c typedata2.c errordata.c struct_stub.c struct.c strtbl.c identtbl.c initializer.c codegen.c compiler.c dataarea.c error.c expr.c type.c main.c rtl.c scanner.c scannerdata.c sym.c util.c
 
 OBJFILES = $(patsubst %.c,$(OUTPUT_DIR)/%.o,$(SOURCES))
 
@@ -61,6 +61,16 @@ $(OUTPUT_DIR)/scannerdata.o: scannerdata.c | $(OUTPUT_DIR)
 	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_42 --codesegBANK_42 --constsegBANK_42 --bsssegBANK_42
 	@echo "-> Generated $@"
 
+$(OUTPUT_DIR)/initializer.o: initializer.c | $(OUTPUT_DIR)
+	@echo "Compiling BANK 42 (initializer)"
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_42 --codesegBANK_42 --constsegBANK_42 --bsssegBANK_42
+	@echo "-> Generated $@"
+
+$(OUTPUT_DIR)/initializer_stub.o: initializer_stub.c | $(OUTPUT_DIR)
+	@echo "Compiling: $<"
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@
+	@echo "-> Generated $@"
+
 $(OUTPUT_DIR)/expr.o: expr.c | $(OUTPUT_DIR)
 	@echo "Compiling BANK 43"
 	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_43 --codesegBANK_43 --constsegBANK_43 --bsssegBANK_43
@@ -81,6 +91,16 @@ $(OUTPUT_DIR)/struct_stub.o: struct_stub.c | $(OUTPUT_DIR)
 
 $(OUTPUT_DIR)/struct.o: struct.c | $(OUTPUT_DIR)
 	@echo "Compiling BANK 44"
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_44 --codesegBANK_44 --constsegBANK_44 --bsssegBANK_44
+	@echo "-> Generated $@"
+
+$(OUTPUT_DIR)/identtbl.o: identtbl.c | $(OUTPUT_DIR)
+	@echo "Compiling BANK 45 (ident table)"
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_45 --codesegBANK_45 --constsegBANK_45 --bsssegBANK_45
+	@echo "-> Generated $@"
+
+$(OUTPUT_DIR)/typedata2.o: typedata2.c | $(OUTPUT_DIR)
+	@echo "Compiling BANK 44 (named-type registry)"
 	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_44 --codesegBANK_44 --constsegBANK_44 --bsssegBANK_44
 	@echo "-> Generated $@"
 

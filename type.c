@@ -15,6 +15,7 @@ extern void type_write_to_bank(uint8_t type_id, TypeEntry entry) MYCC;
 uint8_t TYPE_ID_VOID = 0;
 uint8_t TYPE_ID_CHAR = 0;
 uint8_t TYPE_ID_INT = 0;
+uint8_t TYPE_ID_FIXED = 0;
 uint8_t TYPE_ID_CHAR_PTR = 0;
 
 uint8_t type_count = 0;
@@ -51,6 +52,7 @@ void type_init(void) MYCC {
     TYPE_ID_VOID = type_make_void();
     TYPE_ID_CHAR = type_make_char(0);
     TYPE_ID_INT = type_make_int(0);
+    TYPE_ID_FIXED = type_make_fixed(0);
     TYPE_ID_CHAR_PTR = type_make_pointer(TYPE_ID_CHAR, 1);
 }
 
@@ -74,6 +76,13 @@ uint8_t type_make_char(uint8_t is_const) MYCC {
 uint8_t type_make_int(uint8_t is_const) MYCC {
     TypeEntry entry = {0};
     TYPE_SET_KIND(entry.kind_and_flags, TK_INT);
+    if (is_const) TYPE_SET_CONST(entry.kind_and_flags);
+    return far_type_intern(entry);
+}
+
+uint8_t type_make_fixed(uint8_t is_const) MYCC {
+    TypeEntry entry = {0};
+    TYPE_SET_KIND(entry.kind_and_flags, TK_FIXED);
     if (is_const) TYPE_SET_CONST(entry.kind_and_flags);
     return far_type_intern(entry);
 }
@@ -172,6 +181,10 @@ uint8_t type_is_int(uint8_t type_id) MYCC {
     return type_get_kind(type_id) == TK_INT && type_get_indirection(type_id) == 0;
 }
 
+uint8_t type_is_fixed(uint8_t type_id) MYCC {
+    return type_get_kind(type_id) == TK_FIXED && type_get_indirection(type_id) == 0;
+}
+
 uint8_t type_is_struct(uint8_t type_id) MYCC {
     return type_get_kind(type_id) == TK_STRUCT && type_get_indirection(type_id) == 0;
 }
@@ -236,6 +249,7 @@ uint16_t type_size(uint8_t type_id) MYCC {
     /* Scalars */
     if (kind == TK_CHAR) return 1;
     if (kind == TK_INT) return 2;
+    if (kind == TK_FIXED) return 2;  /* 16-bit fixed point 12.4 */
     
     return 0;  /* VOID, FUNCTION, etc. */
 }
@@ -400,13 +414,13 @@ extern int type_find_by_name_bank(const char* name) MYCC;
 extern void type_register_name_bank(const char* name, uint8_t type_id) MYCC;
 
 int type_find_by_name(const char* name) MYCC {
-    PROLOG(43)
+    PROLOG(44)
     int res = type_find_by_name_bank(name);
     EPILOG_RETURN(res);
 }
 
 void type_register_name(const char* name, uint8_t type_id) MYCC {
-    PROLOG(43)
+    PROLOG(44)
     type_register_name_bank(name, type_id);
     EPILOG
 }

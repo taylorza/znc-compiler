@@ -40,7 +40,7 @@ uint8_t src_read(void) MYCC {
 #ifdef __ZXNEXT
     src->len = esxdos_f_read(src->handle, src->buf, MAX_READ_BUF);
 #else
-    src->len = (uint8_t)fread(src->buf, 1, MAX_READ_BUF-1, src->handle);
+    src->len = (uint8_t)fread(src->buf, 1, MAX_READ_BUF, src->handle);
 #endif
     if (src->len < MAX_READ_BUF) src->buf[src->len] = '\0';
     src->ofs = 0;
@@ -92,7 +92,7 @@ TOKEN_TYPE far_get_token(void) MYCC;
 TOKEN_TYPE get_token(void) MYCC {
     TOKEN_TYPE t;
     PROLOG(42)
-    t = far_get_token();
+        t = far_get_token();
     EPILOG_RETURN(t)
 }
 

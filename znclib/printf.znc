@@ -80,10 +80,10 @@ void printf(char *fmt, ...) {
                     buf[p++] = '0';
                     if (width) --width;        
                 } else {
-                    while (x > 0) {
+                    while (x != 0) {
                         int digit = x & 0x0f;
                         buf[p++] = (digit < 10) ? ('0' + digit) : ('a' - offs + (digit - 10));
-                        x = x >> 4;
+                        x = (x >> 4) & 0x0fff;
                         if (width) --width;
                     }
                 }
@@ -93,6 +93,54 @@ void printf(char *fmt, ...) {
                 }
                 while (p > 0) {                
                     putc(buf[--p]);
+                }
+                break;
+            }
+            case 'f': {
+                x = va_arg(args, int);
+
+                if (x < 0) {
+                    putc('-');
+                    x = -x;
+                    if (width) --width;
+                }
+
+                int ipart = x >> 4;
+                int frac_dec = (x & 0x0f) * 625;
+
+                char[4] buf;
+                int p = 0;
+
+                if (ipart == 0) {
+                    buf[p++] = '0';
+                    if (width) --width;
+                } else {
+                    while (ipart > 0) {
+                        buf[p++] = '0' + (ipart % 10);
+                        ipart = ipart / 10;
+                        if (width) --width;
+                    }
+                }
+
+                while (width--) {
+                    putc(pad);
+                }
+                while (p > 0) {
+                    putc(buf[--p]);
+                }
+
+                putc('.');
+
+                char[4] fbuf;
+                fbuf[0] = '0' + (frac_dec % 10); frac_dec = frac_dec / 10;
+                fbuf[1] = '0' + (frac_dec % 10); frac_dec = frac_dec / 10;
+                fbuf[2] = '0' + (frac_dec % 10); frac_dec = frac_dec / 10;
+                fbuf[3] = '0' + frac_dec;
+                int fp = 4;
+                int fstart = 0;
+                while (fstart < fp - 1 && fbuf[fstart] == '0') ++fstart;
+                while (fp > fstart) {
+                    putc(fbuf[--fp]);
                 }
                 break;
             }

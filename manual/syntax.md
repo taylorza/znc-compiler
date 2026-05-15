@@ -6,6 +6,17 @@ A ZNC source file is split into directives and code. The language uses a C-like 
 - Blocks use `{ ... }`
 - Identifiers are case-sensitive
 
+Comments
+
+```c
+// This is a single-line comment
+
+/* This is a block comment.
+   It can span multiple lines. */
+
+/* Block comments /* can be nested */ and continue here. */
+```
+
 Example:
 
 ```c

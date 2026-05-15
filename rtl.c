@@ -143,6 +143,30 @@ RTLREC rtltbl[] = {
         NULL,
         FLAG_RTL_NONE
     },
+    // int/char 2 Fixed-point HL = HL << 4
+    {"ccint2fx",    
+#include "RTL/generated/ccint2fx.inc"
+        NULL,
+        FLAG_RTL_NONE
+    },
+    // Fixed-point to int/char: HL = HL >> 4
+    {"ccfx2int",    
+#include "RTL/generated/ccfx2int.inc"
+        NULL,
+        FLAG_RTL_NONE
+    },
+    // Fixed-point multiply: DE * HL -> HL  (12.4 format, uses ccmult32)
+    {"ccfxmul",
+#include "RTL/generated/ccfxmul.inc"
+        NULL,
+        FLAG_RTL_NONE
+    },
+    // Fixed-point divide: DE / HL -> HL  (12.4 format, uses ccdiv)
+    {"ccfxdiv",
+#include "RTL/generated/ccfxdiv.inc"
+        NULL,
+        FLAG_RTL_NONE
+    },
     { "putc",
 #include "RTL/generated/putc.inc"
         NULL,

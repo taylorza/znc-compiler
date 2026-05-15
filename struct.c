@@ -68,6 +68,11 @@ void far_set_struct_size(int id, uint16_t size) MYCC {
     struct_tab[id].size = size;
 }
 
+int far_get_field_count(int id) MYCC {
+    if (id < 0 || id >= struct_count) return 0;
+    return struct_tab[id].fieldcount;
+}
+
 FIELDINFO far_get_struct_field(int id, int fid) MYCC {
     FIELDINFO fi;
     fi.offset = 0;

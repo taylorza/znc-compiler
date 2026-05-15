@@ -23,6 +23,7 @@ void emit_lbl(uint16_t lbl) MYCC;
 void emit_lblref(uint16_t lbl) MYCC;
 
 void emit_strref(uint16_t id) MYCC;
+void set_strref_ctx(const char* label, uint16_t base) MYCC;
 
 void emit_ch(char c) MYCC;
 
@@ -70,6 +71,7 @@ void emit_jp_true(uint16_t lbl) MYCC;
 void emit_jp_false(uint16_t lbl) MYCC;
 
 void emit_sname(const char* name) MYCC;
+void emit_sname_id(IDENT_ID id) MYCC;
 
 void emit_ld_symval(SYMBOL* sym) MYCC;
 void emit_ld_symaddr(SYMBOL* sym) MYCC;
@@ -100,6 +102,9 @@ void emit_bank(uint8_t bank16, uint16_t offset) MYCC;
 void emit_output(const char* filename, TOKEN outputTok) MYCC;
 void emit_nex(const char* filename, uint16_t start, uint16_t stack, uint16_t stacksize) MYCC;
 void emit_ld_const(uint16_t value) MYCC;
+
+void emit_int_to_fixed(void) MYCC;
+void emit_fixed_to_int(void) MYCC;
 
 void emit_zopt(void);
 

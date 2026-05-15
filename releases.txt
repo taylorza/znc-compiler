@@ -1,3 +1,10 @@
+2026/05/20 - Version 0.4
+- Fixed point data type support (fixed Q12.4)
+-- Updated printf.znc to support printing fixed point values using %f
+- Symbol and memory model refactor to reduce stack pressure
+- Struct initializers support complex Structs
+- Multiple bug fixes and code enhancements
+
 2026/03/30 - Version 0.3a
 - Optimized delegate calls
 - Fixed delegate type checking
