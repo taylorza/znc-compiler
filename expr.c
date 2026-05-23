@@ -328,14 +328,22 @@ EXPR_RESULT parse_op_right(EXPR_RESULT left, uint8_t minprec, uint8_t expected_t
             if (!is_cmp_op) {
                 /* Fixed-type offsets in pointer arithmetic are first converted to int (>> 4) */
                 if ((type_is_pointer(left.type_id) || type_is_array(left.type_id)) &&
-                    (type_get_kind(r_result.type_id) == TK_INT || type_get_kind(r_result.type_id) == TK_FIXED)) {
+                    (type_is_int(r_result.type_id) || type_is_fixed(r_result.type_id))) {
                     uint8_t elem_id = type_get_element_type_id(left.type_id);
                     scaleR = type_size(elem_id);
-                    if (type_is_const(r_result.type_id) && type_is_fixed(r_result.type_id))
-                        r_result.value = (uint16_t)((int16_t)r_result.value >> 4);
+                    /* If the offset is fixed, convert it to int BEFORE scaling. */
+                    if (type_is_fixed(r_result.type_id)) {
+                        if (type_is_const(r_result.type_id)) {
+                            /* const fixed -> const int (shift right 4) */
+                            r_result.value = (uint16_t)((int16_t)r_result.value >> 4);
+                            r_result.type_id = type_make_int(1);
+                        }
+                        /* runtime fixed: type_id stays TK_FIXED so right_is_fixed stays 1;
+                         * the tokPlus/tokMinus handlers will call emit_fixed_to_int() before scaling */
+                    }
                 }
                 if ((type_is_pointer(r_result.type_id) || type_is_array(r_result.type_id)) &&
-                    (type_get_kind(left.type_id) == TK_INT || type_get_kind(left.type_id) == TK_FIXED)) {
+                    (type_is_int(left.type_id) || type_is_fixed(left.type_id))) {
                     uint8_t elem_id = type_get_element_type_id(r_result.type_id);
                     scaleL = type_size(elem_id);
                     if (type_is_const(left.type_id) && type_is_fixed(left.type_id))
@@ -473,8 +481,10 @@ EXPR_RESULT parse_op_right(EXPR_RESULT left, uint8_t minprec, uint8_t expected_t
             /* When mixing fixed with int/char, convert the non-fixed side to fixed.
              * At this point: DE = left, HL = right.
              * Converting int->fixed = shift left 4 bits.
+             * Skip for pointer arithmetic: tokPlus/tokMinus handlers call emit_fixed_to_int()
+             * on the fixed offset themselves, before element-size scaling.
              */
-            if (either_fixed && op_needs_fixed_align(op)) {
+            if (either_fixed && op_needs_fixed_align(op) && !pointer) {
                 if (left_is_fixed && !right_is_fixed) {
                     /* HL (right) is int/char, convert to fixed by shifting left 4 */
                     emit_int_to_fixed();
