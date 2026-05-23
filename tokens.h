@@ -37,6 +37,16 @@ typedef enum TOKEN {
     tokSingleQuote, // '
 
     tokAssign,      // =
+    tokAddAssign,   // +=
+    tokSubAssign,   // -=
+    tokMulAssign,   // *=
+    tokDivAssign,   // /=
+    tokModAssign,   // %=
+    tokOrAssign,    // |=
+    tokXorAssign,   // ^=
+    tokAndAssign,   // &=
+    tokShlAssign,   // <<=
+    tokShrAssign,   // >>=
 
     tokInc,         // ++
     tokDec,         // --

@@ -4,7 +4,7 @@
 #include "initializer.h"
 #include "expr.h"
 
-/* parse_ternary and far_parse_assign_ex live here in BANK_46.
+/* parse_ternary, far_parse_assign_ex, and far_parse_compound_assign live here in BANK_46.
  * All recursive expression calls go through the main-bank stubs
  * (parse_expr / parse_expr_delayconst / parse_assign) so that
  * bank-switch is handled correctly on ZX Next. */
@@ -54,6 +54,92 @@ EXPR_RESULT far_parse_ternary(EXPR_RESULT expr_result, uint8_t prec, uint8_t exp
     }
     return expr_result;
 }
+
+void far_parse_compound_assign(TOKEN op, uint8_t dereference, SYMBOL sym, uint8_t addr_in_hl, uint8_t type_id) MYCC {
+    get_token(); // skip op=
+
+    /* If dereference: push address first, then load old value.
+     * Stack layout before op: [address] [old_value] ... with old_value on top.
+     * emit_store (for dereference path) pops address from below the result. */
+    if (dereference) {
+        if (!addr_in_hl) {
+            emit_ld_symval(&sym);
+        }
+        emit_push();         /* push address for store-back */
+        emit_load(type_id);  /* HL = old value */
+    } else {
+        emit_ld_symval(&sym); /* HL = old value */
+    }
+    emit_push();             /* push old value onto stack */
+
+    /* Parse RHS — result in HL */
+    EXPR_RESULT rhs = parse_expr_delayconst(0, type_id);
+    if (type_is_const(rhs.type_id)) {
+        /* Fold fixed <-> int/char conversion at compile time */
+        if (type_is_fixed(type_id) && !type_is_fixed(rhs.type_id) &&
+            (type_is_int(rhs.type_id) || type_is_char(rhs.type_id))) {
+            rhs.value = (uint16_t)((int16_t)rhs.value << 4);
+        } else if (!type_is_fixed(type_id) && type_is_fixed(rhs.type_id) &&
+                   (type_is_int(type_id) || type_is_char(type_id))) {
+            rhs.value = (uint16_t)((int16_t)rhs.value >> 4);
+        }
+        emit_ld_immed(); emit_n(rhs.value); emit_nl();
+    } else {
+        /* Emit runtime fixed <-> int/char conversion if types differ */
+        if (type_is_fixed(type_id) && !type_is_fixed(rhs.type_id) &&
+            (type_is_int(rhs.type_id) || type_is_char(rhs.type_id))) {
+            emit_int_to_fixed();
+        } else if (!type_is_fixed(type_id) && type_is_fixed(rhs.type_id) &&
+                   (type_is_int(type_id) || type_is_char(type_id))) {
+            emit_fixed_to_int();
+        }
+    }
+
+    /* DE = old value (left), HL = rhs (right) */
+    emit_pop_de();
+
+    switch (op) {
+        case tokAddAssign: emit_add16(); break;
+        case tokSubAssign: emit_sub16(); break;
+        case tokMulAssign:
+            if (type_is_fixed(type_id)) emit_rtl("ccfxmul");
+            else emit_rtl("ccmult");
+            break;
+        case tokDivAssign:
+            if (type_is_fixed(type_id)) emit_rtl("ccfxdiv");
+            else emit_rtl("ccdiv");
+            break;
+        case tokModAssign:
+            emit_rtl("ccdiv");
+            emit_swap();
+            break;
+        case tokOrAssign:  emit_rtl("ccor");  break;
+        case tokXorAssign: emit_rtl("ccxor"); break;
+        case tokAndAssign: emit_rtl("ccand"); break;
+        case tokShlAssign:
+            emit_instrln("ld b,l");
+            emit_instrln("bsla de,b");
+            emit_swap();
+            break;
+        case tokShrAssign:
+            emit_instrln("ld b,l");
+            emit_instrln("bsra de,b");
+            emit_swap();
+            break;
+        default:
+            error(errSyntax);
+            return;
+    }
+
+    /* HL = result; store back */
+    if (dereference) {
+        /* emit_store: swap(HL<->DE), pop address into HL, store DE at [HL] */
+        emit_store(type_id);
+    } else {
+        emit_store_sym(&sym);
+    }
+}
+
 
 void far_parse_assign_ex(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t type_id) MYCC {
     get_token(); // skip '='

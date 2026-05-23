@@ -20,5 +20,8 @@ void parse_assign(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t type
 /* Far entry points in BANK_46 (exprex.c) */
 EXPR_RESULT far_parse_ternary(EXPR_RESULT expr_result, uint8_t prec, uint8_t expected_type_id) MYCC;
 void far_parse_assign_ex(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t type_id) MYCC;
+void far_parse_compound_assign(TOKEN op, uint8_t dereference, SYMBOL sym, uint8_t addr_in_hl, uint8_t type_id) MYCC;
+
+void parse_compound_assign(TOKEN op, uint8_t dereference, SYMBOL sym, uint8_t addr_in_hl, uint8_t type_id) MYCC;
 
 #endif // EXPR_H_

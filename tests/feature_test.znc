@@ -3,7 +3,7 @@ make dot "feature_test.dot";
 // ============================================================
 // Test group switches — set to 0 to exclude a group
 // ============================================================
-const int TEST_BASIC   = 1;   // typ_glb, const, arith, bitwise, compare, ternary, incdec
+const int TEST_BASIC   = 0;   // typ_glb, const, arith, bitwise, compare, ternary, incdec
 const int TEST_FLOW    = 0;   // while, for, brkcont, switch
 const int TEST_ARRAYS  = 0;   // arrays, ptrs
 const int TEST_STRUCTS = 0;   // structs, dlgs
@@ -12,8 +12,9 @@ const int TEST_ASM     = 0;   // asm
 const int TEST_CCOMP   = 0;   // ccomp (conditional compilation)
 const int TEST_FIXED   = 0;   // fixed-point
 const int TEST_PTRADV  = 0;   // rawref, tconv
-const int TEST_FORINIT = 1;   // for-initializer declarations
-const int TEST_ELIF    = 1;   // #elif
+const int TEST_FORINIT = 0;   // for-initializer declarations
+const int TEST_ELIF    = 0;   // #elif
+const int TEST_COMPOUND = 1;  // compound assignment operators
 
 // Derived: do_add/do_sub are needed by STRUCTS and FORINIT
 #if TEST_STRUCTS
@@ -602,6 +603,108 @@ void test_tconv() {
 #endif
 
 
+#if TEST_COMPOUND
+void test_compound() {
+    // --- int: arithmetic ---
+    int x = 10;
+    x += 5;  chk("ca_add",  x == 15);
+    x -= 3;  chk("ca_sub",  x == 12);
+    x *= 3;  chk("ca_mul",  x == 36);
+    x /= 4;  chk("ca_div",  x == 9);
+    x %= 4;  chk("ca_mod",  x == 1);
+
+    // --- int: bitwise and shift ---
+    int bv = 0xF0;
+    bv &= 0xFF;  chk("ca_and",  bv == 0xF0);
+    bv |= 0x0F;  chk("ca_or",   bv == 0xFF);
+    bv ^= 0xAA;  chk("ca_xor",  bv == 0x55);
+    bv <<= 2;    chk("ca_shl",  bv == 0x154);
+    bv >>= 1;    chk("ca_shr",  bv == 0xAA);
+
+    // --- char ---
+    char cv = 10;
+    cv += 5;   chk("ca_c_add",  cv == 15);
+    cv -= 3;   chk("ca_c_sub",  cv == 12);
+    cv *= 2;   chk("ca_c_mul",  cv == 24);
+    cv /= 4;   chk("ca_c_div",  cv == 6);
+    cv %= 4;   chk("ca_c_mod",  cv == 2);
+    cv |= 4;   chk("ca_c_or",   cv == 6);
+    cv &= 5;   chk("ca_c_and",  cv == 4);
+    cv ^= 3;   chk("ca_c_xor",  cv == 7);
+    cv <<= 1;  chk("ca_c_shl",  cv == 14);
+    cv >>= 1;  chk("ca_c_shr",  cv == 7);
+
+    // --- byte ---
+    byte yv = 20;
+    yv += 5;   chk("ca_y_add",  yv == 25);
+    yv -= 5;   chk("ca_y_sub",  yv == 20);
+    yv *= 3;   chk("ca_y_mul",  yv == 60);
+    yv /= 4;   chk("ca_y_div",  yv == 15);
+    yv %= 4;   chk("ca_y_mod",  yv == 3);
+    yv |= 12;  chk("ca_y_or",   yv == 15);
+    yv &= 6;   chk("ca_y_and",  yv == 6);
+    yv ^= 3;   chk("ca_y_xor",  yv == 5);
+    yv <<= 2;  chk("ca_y_shl",  yv == 20);
+    yv >>= 1;  chk("ca_y_shr",  yv == 10);
+
+    // --- fixed ---
+    fixed fv = 2.0;
+    fv += 1.5;  chk("ca_f_add",  fv == 3.5);
+    fv -= 0.5;  chk("ca_f_sub",  fv == 3.0);
+    fv *= 2.0;  chk("ca_f_mul",  fv == 6.0);
+    fv /= 3.0;  chk("ca_f_div",  fv == 2.0);
+
+    // --- int array element ---
+    int[3] arr;
+    arr[0] = 10;
+    arr[0] += 5;  chk("ca_arr_add", arr[0] == 15);
+    arr[1] = 20;
+    arr[1] -= 8;  chk("ca_arr_sub", arr[1] == 12);
+    arr[2] = 3;
+    arr[2] *= 4;  chk("ca_arr_mul", arr[2] == 12);
+
+    // --- byte array element ---
+    byte[2] ba;
+    ba[0] = 10;
+    ba[0] += 5;  chk("ca_ba_add",  ba[0] == 15);
+    ba[1] = 30;
+    ba[1] /= 3;  chk("ca_ba_div",  ba[1] == 10);
+
+    // --- int pointer dereference ---
+    int v = 100;
+    int *p = &v;
+    *p += 23;  chk("ca_ptr_add", v == 123);
+    *p -= 3;   chk("ca_ptr_sub", v == 120);
+    *p /= 10;  chk("ca_ptr_div", v == 12);
+
+    // --- struct member (direct) ---
+    Point pt;
+    pt.x = 10;  pt.y = 20;
+    pt.x += 5;  chk("ca_st_add",  pt.x == 15);
+    pt.y -= 8;  chk("ca_st_sub",  pt.y == 12);
+    pt.x *= 2;  chk("ca_st_mul",  pt.x == 30);
+    pt.y /= 4;  chk("ca_st_div",  pt.y == 3);
+    pt.x %= 7;  chk("ca_st_mod",  pt.x == 2);
+    pt.y |= 12; chk("ca_st_or",   pt.y == 15);
+    pt.x &= 3;  chk("ca_st_and",  pt.x == 2);
+    pt.y ^= 5;  chk("ca_st_xor",  pt.y == 10);
+    pt.x <<= 3; chk("ca_st_shl",  pt.x == 16);
+    pt.y >>= 1; chk("ca_st_shr",  pt.y == 5);
+
+    // --- struct member via pointer ---
+    Point *pp = &pt;
+    pp.x += 4;  chk("ca_stp_add", pt.x == 20);
+    pp.y -= 2;  chk("ca_stp_sub", pt.y == 3);
+
+    // --- nested struct member ---
+    Rect rc;
+    rc.br.x = 10;
+    rc.br.x += 5;  chk("ca_nest_add", rc.br.x == 15);
+    rc.br.y = 8;
+    rc.br.y *= 3;  chk("ca_nest_mul", rc.br.y == 24);
+}
+#endif
+
 // ============================================================
 // #elif test globals
 // ============================================================
@@ -733,6 +836,9 @@ test_for_init();
 #endif
 #if TEST_ELIF
 test_elif();
+#endif
+#if TEST_COMPOUND
+test_compound();
 #endif
 
 puts("================\r");

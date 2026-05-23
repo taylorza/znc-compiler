@@ -246,6 +246,9 @@ get_token_start:
                 if (ch() == '+') {
                     *temp++ = gnc();
                     tok = tokInc;
+                } else if (ch() == '=') {
+                    *temp++ = gnc();
+                    tok = tokAddAssign;
                 }
                 break;
             case '-':
@@ -254,6 +257,9 @@ get_token_start:
                 if (ch() == '-') {
                     *temp++ = gnc();
                     tok = tokDec;
+                } else if (ch() == '=') {
+                    *temp++ = gnc();
+                    tok = tokSubAssign;
                 }
                 break;
             case '/':
@@ -268,6 +274,9 @@ get_token_start:
                     /* Block comment: use nested comment handler */
                     skip_block_comment();
                     goto get_token_start;
+                } else if (ch() == '=') {
+                    *temp++ = gnc();
+                    tok = tokDivAssign;
                 }
                 break;
             case '=':
@@ -295,6 +304,7 @@ get_token_start:
                 } else if (ch() == '<') {
                     *temp++ = gnc();
                     tok = tokShl;
+                    if (ch() == '=') { *temp++ = gnc(); tok = tokShlAssign; }
                 }
                 break;
             case '>':
@@ -306,6 +316,7 @@ get_token_start:
                 } else if (ch() == '>') {
                     *temp++ = gnc();
                     tok = tokShr;
+                    if (ch() == '=') { *temp++ = gnc(); tok = tokShrAssign; }
                 }
                 break;
             case '|':
@@ -314,6 +325,9 @@ get_token_start:
                 if (ch() == '|') {
                     *temp++ = gnc();
                     tok = tokOr;
+                } else if (ch() == '=') {
+                    *temp++ = gnc();
+                    tok = tokOrAssign;
                 }
                 break;
             case '&':
@@ -322,6 +336,9 @@ get_token_start:
                 if (ch() == '&') {
                     *temp++ = gnc();
                     tok = tokAnd;
+                } else if (ch() == '=') {
+                    *temp++ = gnc();
+                    tok = tokAndAssign;
                 }
                 break;
         }
@@ -338,10 +355,10 @@ get_token_start:
         *temp = '\0';
         token_type = ttDelimiter;
         switch(c) {
-            case '*': tok = tokStar; break;            
-            case '%': tok = tokMod; break;
+            case '*': tok = tokStar; if (ch() == '=') { *temp++ = gnc(); *temp = '\0'; tok = tokMulAssign; } break;
+            case '%': tok = tokMod; if (ch() == '=') { *temp++ = gnc(); *temp = '\0'; tok = tokModAssign; } break;
             case '~': tok = tokBitNot; break;
-            case '^': tok = tokBitXor; break;
+            case '^': tok = tokBitXor; if (ch() == '=') { *temp++ = gnc(); *temp = '\0'; tok = tokXorAssign; } break;
             case ';':                
                 if (in_asm_block) {
                     /* Single-line comment: skip to end of line */

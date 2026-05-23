@@ -885,6 +885,8 @@ static void parse_factor_postfix(EXPR_RESULT* result, uint8_t* dereference, uint
     }
 }
 
+#define is_compound_assign(t) ((t) >= tokAddAssign && (t) <= tokShrAssign)
+
 EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
     SYMBOL sym;
     EXPR_RESULT factor_result = { .type_id = expected_type_id, .has_sym = 0 };
@@ -1055,6 +1057,10 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             if (tok == tokAssign) {
                 uint8_t elem_type_id = type_get_element_type_id(factor_result.type_id);
                 parse_assign(1, factor_result.has_sym ? factor_result.sym : undefined_sym, 0, elem_type_id);
+            } else if (is_compound_assign(tok)) {
+                uint8_t elem_type_id = type_get_element_type_id(factor_result.type_id);
+                SYMBOL csym = factor_result.has_sym ? factor_result.sym : undefined_sym;
+                parse_compound_assign(tok, 1, csym, 0, elem_type_id);
             } else {
                 uint8_t elem_type_id = type_get_element_type_id(factor_result.type_id);
                 /* When dereferencing a plain scalar used as a raw address (e.g. int used
@@ -1175,13 +1181,23 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
     }
     
     /* Handle assignment */
-    if (tok == tokAssign && !initial_deref) {        
-        if (addr_in_hl) {
-            parse_assign(1, undefined_sym, 0, factor_result.type_id);
-        } else if (factor_result.has_sym) {
-            parse_assign(dereference, factor_result.sym, 0, factor_result.type_id);
+    if ((tok == tokAssign || is_compound_assign(tok)) && !initial_deref) {
+        if (tok == tokAssign) {
+            if (addr_in_hl) {
+                parse_assign(1, undefined_sym, 0, factor_result.type_id);
+            } else if (factor_result.has_sym) {
+                parse_assign(dereference, factor_result.sym, 0, factor_result.type_id);
+            } else {
+                error(errNotlvalue);
+            }
         } else {
-            error(errNotlvalue);
+            if (addr_in_hl) {
+                parse_compound_assign(tok, 1, undefined_sym, 1, factor_result.type_id);
+            } else if (factor_result.has_sym) {
+                parse_compound_assign(tok, dereference, factor_result.sym, 0, factor_result.type_id);
+            } else {
+                error(errNotlvalue);
+            }
         }
         /* After assignment, clear flags to prevent unnecessary reload */
         factor_result.has_sym = 0;
