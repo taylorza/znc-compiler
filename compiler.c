@@ -410,7 +410,9 @@ void parse_switch(uint16_t contlbl) MYCC {
     uint8_t case_count = 0;
     uint8_t last_break = 0;
 
-    parse_onearg(); // (expr)
+    EXPR_RESULT sw_expr = parse_onearg(); // (expr)
+    if (type_is_fixed(sw_expr.type_id))
+        error(errTypeError);
     emit_jp(lblTbl);
 
     expect_LBrace();
@@ -422,6 +424,8 @@ void parse_switch(uint16_t contlbl) MYCC {
             if (!type_is_const(expr_result.type_id)) {
                 error_expect_const();
             }
+            if (type_is_fixed(expr_result.type_id))
+                error(errTypeError);
             uint16_t lblCase = newlbl();
             if (case_count == MAX_CASE) error(errTooManySymbols);
             values[case_count] = expr_result.value;
@@ -594,6 +598,7 @@ void parse_asm(int asmcol) MYCC {
     if (asmcol == 0) asmcol = token_col;
     get_token(); // skip 'asm'
     expect_LBrace();
+    enter_asm_block();
     while (tok != tokRBrace && tok != tokEOS) {
         int last_token_line = token_line;
         if (token_col <= asmcol) {
@@ -620,7 +625,8 @@ void parse_asm(int asmcol) MYCC {
         }
         emit_nl();
     }
-    expect_RBrace();    
+    expect_RBrace();
+    exit_asm_block();
 }
 
 void parse_type(uint8_t *type_id_out) MYCC {
@@ -682,6 +688,9 @@ void parse_type(uint8_t *type_id_out) MYCC {
             } else {
                 EXPR_RESULT dim = parse_expr_delayconst(0, TYPE_ID_INT);
                 if (!type_is_const(dim.type_id)) error_expect_const();
+                /* Convert const fixed dimension to int */
+                if (type_is_fixed(dim.type_id))
+                    dim.value = (uint16_t)((int16_t)dim.value >> 4);
                 if (dim.value > 0) {
                     if (base_type_id == TYPE_ID_VOID) error(errSyntax);
                     base_type_id = type_make_array(base_type_id, dim.value);

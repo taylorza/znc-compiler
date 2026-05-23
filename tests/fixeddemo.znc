@@ -1,0 +1,60 @@
+make dot "fixeddemo.dot";
+
+include "rnd.znc"
+
+void setpixel(int x, int y) __asm__ {
+  push ix
+  ld ix,0
+  add ix,sp
+
+  ld e,(ix+6) ; X
+  ld d,(ix+4) ; Y
+  pixelad
+  setae
+  or (hl)
+  ld (hl),a
+
+  pop ix
+  ret
+}
+
+nextreg(7,3);
+const fixed xscale = 256.0 / 8;
+const fixed yscale = 192.0 / 12;
+
+fixed x = 0, y = 0;
+fixed xn, yn;
+
+out(0xfe, 0); // black border
+for(byte *p = 0x5800; p < 0x5b00; ++p){
+    *p = 0b00000100; // Green on black
+}
+
+for(;;) {
+    int r = rnd() % 100;
+
+    if (r < 1) {
+        xn = 0;
+        yn = 0.1875 * y;
+    } else if (r < 86) {
+        xn = 0.875 * x + 0.0625 * y;
+        yn = -0.0625 * x + 0.875 * y + 1.625;
+    } else if (r < 93) {
+        xn = 0.1875 * x - 0.25 * y;
+        yn = 0.25 * x + 0.25 * y + 1.625;
+    } else {
+        xn = -0.125 * x + 0.25 * y;
+        yn = 0.25 * x + 0.25 * y + 0.4375;
+    }
+
+    x = xn;
+    y = yn;
+
+    int xx = (100 + x * xscale) + (rnd() & 1);
+    int yy = (191 - y * yscale) + (rnd() & 1);
+    
+    if (xx>=0 && xx<256 && yy>=0 && yy<192)
+      setpixel(xx, yy);
+
+    if ((in(0x7ffe) & 0x01) == 0) break;
+}

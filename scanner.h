@@ -34,6 +34,9 @@ uint8_t src_open(const char *filename) MYCC;
 void src_close(void) MYCC;
 void src_closeall(void) MYCC; 
 
+void enter_asm_block(void) MYCC;
+void exit_asm_block(void) MYCC;
+
 TOKEN_TYPE get_token(void) MYCC;
 void expect(TOKEN t, char ch);
 

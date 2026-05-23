@@ -6,12 +6,12 @@ TARGET = +zxn
 ZCC     = zcc
 ASM     = z80asm
 
-MAX_ALLOCS = 200000
+MAX_ALLOCS = 200
 CFLAGS = -m -c -clib=sdcc_iy -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLOCS)
 AFLAGS =
 LFLAGS = -m -startup=30 -clib=sdcc_iy -subtype=dotn -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLOCS) -pragma-include:zpragma.inc -create-app
 
-SOURCES = identtbl_stub.c strtbl_stub.c sym_stub.c rtl_stub.c expr_stub.c errordata_stub.c initializer_stub.c shared.c typedata.c typedata2.c errordata.c struct_stub.c struct.c strtbl.c identtbl.c initializer.c codegen.c compiler.c dataarea.c error.c expr.c type.c main.c rtl.c scanner.c scannerdata.c sym.c util.c
+SOURCES = identtbl_stub.c strtbl_stub.c sym_stub.c rtl_stub.c expr_stub.c errordata_stub.c initializer_stub.c shared.c typedata.c typedata2.c errordata.c struct_stub.c struct.c strtbl.c identtbl.c initializer.c codegen.c compiler.c dataarea.c error.c expr.c exprex.c type.c main.c rtl.c scanner.c scannerdata.c sym.c util.c
 
 OBJFILES = $(patsubst %.c,$(OUTPUT_DIR)/%.o,$(SOURCES))
 
@@ -102,6 +102,11 @@ $(OUTPUT_DIR)/identtbl.o: identtbl.c | $(OUTPUT_DIR)
 $(OUTPUT_DIR)/typedata2.o: typedata2.c | $(OUTPUT_DIR)
 	@echo "Compiling BANK 44 (named-type registry)"
 	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_44 --codesegBANK_44 --constsegBANK_44 --bsssegBANK_44
+	@echo "-> Generated $@"
+
+$(OUTPUT_DIR)/exprex.o: exprex.c | $(OUTPUT_DIR)
+	@echo "Compiling BANK 46 (expr extras)"
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_46 --codesegBANK_46 --constsegBANK_46 --bsssegBANK_46
 	@echo "-> Generated $@"
 
 $(OUTPUT_DIR)/shared.o: shared.c | $(OUTPUT_DIR)

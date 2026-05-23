@@ -12,8 +12,17 @@ TOKEN tok;
 uint8_t token_length;
 
 int16_t intval;
+uint8_t in_asm_block = 0;
 
-/* (debug variables removed) */
+void enter_asm_block(void) MYCC {
+    ++in_asm_block;
+}
+
+void exit_asm_block(void) MYCC {
+    if (in_asm_block == 0) error(errSyntax);
+    --in_asm_block;
+}
+
 typedef struct KEYWORD {
     char *name;
     TOKEN tok;

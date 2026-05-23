@@ -81,10 +81,9 @@ extern TOKEN_TYPE token_type;
 extern TOKEN tok;
 extern uint8_t token_length;
 extern int16_t intval;
+extern uint8_t in_asm_block;
 
 extern uint8_t src_read(void) MYCC;
-
-/* Debug instrumentation removed */
 
 static uint8_t is_base_digit(char c, uint8_t base) MYCC {
     c = tolower((unsigned char)c);
@@ -342,7 +341,14 @@ get_token_start:
             case '%': tok = tokMod; break;
             case '~': tok = tokBitNot; break;
             case '^': tok = tokBitXor; break;
-            case ';': tok = tokSemi; break;
+            case ';':                
+                if (in_asm_block) {
+                    /* Single-line comment: skip to end of line */
+                    while ((c = ch()) && c != '\r' && c != '\n')
+                        gnc();
+                    goto get_token_start;
+                }
+                tok = tokSemi; break;
             case ',': tok = tokComma; break;
             case '(': tok = tokLParen; break;
             case ')': tok = tokRParen; break;
@@ -394,7 +400,7 @@ get_token_start:
     } else if (c == '"') {
         l = MAX_STR_LEN;
         gnc(); /* skip '"' */
-        while (--l && (c = ch()) && c != '"' && c != '\r' && c != '\n') {
+        while ((c = ch()) && c != '"' && c != '\r' && c != '\n' && --l) {
             if (c == '\\') {
                 *temp++ = escape();
             } else *temp++ = gnc();
@@ -466,7 +472,7 @@ get_token_start:
             while (isdigit(ch())) gnc();
 
             /* Convert decimal fraction to Q4: frac_bits = round(frac_num * 16 / frac_den) */
-            uint16_t frac_bits = (uint16_t)((frac_num * 16 + frac_den / 2) / frac_den);
+            uint16_t frac_bits = (uint16_t)(((uint32_t)frac_num * 16 + frac_den / 2) / frac_den);
             if (frac_bits > 15) frac_bits = 15;
             intval = intval + (int16_t)frac_bits;
 
@@ -487,7 +493,7 @@ get_token_start:
         if (c == '#') {
             *temp++ = gnc(); /* skip '#' */
         }
-        while (--l && (c = ch()) && (isalnum(c) || c == '_')) {
+        while ((c = ch()) && (isalnum(c) || c == '_') && --l) {
             *temp++ = gnc();
         }
         *temp = '\0';

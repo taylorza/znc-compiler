@@ -1,3 +1,9 @@
+2026/05/24 - Version 0.4a
+- Restored max identifier length to 12 (reported by Iáń Júkéś)
+- Inline assembly correctly support ';' comments (reported by Iáń Júkéś)
+- Type checking enhancements and further fixed datatype support
+- Updated libraries from Iáń Júkéś
+
 2026/05/20 - Version 0.4
 - Fixed point data type support (fixed Q12.4)
 -- Updated printf.znc to support printing fixed point values using %f
