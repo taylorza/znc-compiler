@@ -1168,11 +1168,11 @@ void parse_bank(void) MYCC {
 void parse_conditional(uint8_t active, uint16_t brklbl, uint16_t contlbl) MYCC {
     uint8_t current_if_depth = hash_if_depth;
     if (active) {
-        while (tok != tokHashElse && tok != tokHashEndif && tok != tokEOS) {
+        while (tok != tokHashElif && tok != tokHashElse && tok != tokHashEndif && tok != tokEOS) {
             parse_statement(brklbl, contlbl);
         }
     } else {
-        while ((current_if_depth != hash_if_depth || (tok != tokHashElse && tok != tokHashEndif)) && tok != tokEOS) {
+        while ((current_if_depth != hash_if_depth || (tok != tokHashElif && tok != tokHashElse && tok != tokHashEndif)) && tok != tokEOS) {
             if (tok == tokHashIf || tok == tokHashIfDef || tok == tokHashIfNDef) {
                 ++hash_if_depth;
             } else if (tok == tokHashEndif) {
@@ -1187,7 +1187,7 @@ void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC {
     TOKEN op = tok;
 
     get_token(); // skip '#if' or '#ifdef' or '#ifndef'
-    
+
     uint8_t active;
     if (op == tokHashIfDef || op == tokHashIfNDef) {
         SYMBOL sym = lookupIdent(token);
@@ -1200,13 +1200,25 @@ void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC {
         active = expr_result.value != 0;
     }
 
+    uint8_t branch_taken = active;
     ++hash_if_depth;
     parse_conditional(active, brklbl, contlbl);
+
+    // handle zero or more #elif branches
+    while (tok == tokHashElif) {
+        get_token(); // skip '#elif'
+        EXPR_RESULT elif_expr = parse_expr_delayconst(0, 0);
+        if (!type_is_const(elif_expr.type_id)) error_expect_const();
+        active = !branch_taken && (elif_expr.value != 0);
+        if (active) branch_taken = 1;
+        parse_conditional(active, brklbl, contlbl);
+    }
+
     if (tok == tokHashElse) {
         get_token(); // skip '#else'
-        parse_conditional(!active, brklbl, contlbl);
+        parse_conditional(!branch_taken, brklbl, contlbl);
     }
-    
+
     if (tok != tokHashEndif) error(errSyntax);
     --hash_if_depth;
     get_token(); // skip '#endif'

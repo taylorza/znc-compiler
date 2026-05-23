@@ -48,6 +48,7 @@ KEYWORD keywords[] = {
     {"#if", tokHashIf},
     {"#ifdef", tokHashIfDef},
     {"#ifndef", tokHashIfNDef},
+    {"#elif", tokHashElif},
     {"#else", tokHashElse},
     {"#endif", tokHashEndif},
 };
@@ -149,6 +150,7 @@ static uint8_t escape(void) MYCC {
     switch (ch()) {
         case '\\':
         case '"':
+        case '\'':
             c = ch();
             break;
         case 't':
@@ -161,7 +163,6 @@ static uint8_t escape(void) MYCC {
             c = '\n';
             break;
         case '0':
-            gnc();
             c = '\0';
             break;
         case 'x': {

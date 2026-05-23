@@ -1,6 +1,30 @@
 make dot "feature_test.dot";
 
 // ============================================================
+// Test group switches — set to 0 to exclude a group
+// ============================================================
+const int TEST_BASIC   = 1;   // typ_glb, const, arith, bitwise, compare, ternary, incdec
+const int TEST_FLOW    = 0;   // while, for, brkcont, switch
+const int TEST_ARRAYS  = 0;   // arrays, ptrs
+const int TEST_STRUCTS = 0;   // structs, dlgs
+const int TEST_VARGS   = 0;   // vargs
+const int TEST_ASM     = 0;   // asm
+const int TEST_CCOMP   = 0;   // ccomp (conditional compilation)
+const int TEST_FIXED   = 0;   // fixed-point
+const int TEST_PTRADV  = 0;   // rawref, tconv
+const int TEST_FORINIT = 1;   // for-initializer declarations
+const int TEST_ELIF    = 1;   // #elif
+
+// Derived: do_add/do_sub are needed by STRUCTS and FORINIT
+#if TEST_STRUCTS
+const int TEST_DLGFNS = 1;
+#elif TEST_FORINIT
+const int TEST_DLGFNS = 1;
+#else
+const int TEST_DLGFNS = 0;
+#endif
+
+// ============================================================
 // Section 1: Compile-time constants
 // ============================================================
 const int CTRUE   = 1;
@@ -51,6 +75,7 @@ byte[] g_cat  = "Hel" "lo";          // adjacent string literal concat
 // ============================================================
 // Section 6: Conditional compilation
 // ============================================================
+#if TEST_CCOMP
 #ifdef __DOT
 int cond_dot = 1;
 #else
@@ -68,16 +93,20 @@ int feature_on = 1;
 #else
 int feature_on = 0;
 #endif
+#endif
 
 // ============================================================
 // Section 7: Function definitions
 // ============================================================
 
 // --- Functions used as delegates ---
+#if TEST_DLGFNS
 int do_add(int a, int b) { return a + b; }
 int do_sub(int a, int b) { return a - b; }
+#endif
 
 // --- Variadic function ---
+#if TEST_VARGS
 int sum_va(int cnt, ...) {
     va_list args;
     int total = 0;
@@ -86,9 +115,11 @@ int sum_va(int cnt, ...) {
     va_end(args);
     return total;
 }
+#endif
 
 // --- Inline-assembly function: two's-complement negation ---
 // Calling convention: arg n is on the stack (16-bit), result in HL.
+#if TEST_ASM
 int asm_neg(int n) __asm__ {
 _
     pop  bc             // save return address
@@ -104,6 +135,7 @@ _
     inc  hl             // HL = ~n + 1 = -n (two's complement)
     ret
 }
+#endif
 
 // --- Print a non-negative decimal integer ---
 void printnum(int n) {
@@ -137,6 +169,23 @@ void chk(char *name, int ok) {
 }
 
 // --- Feature test functions ---
+
+#if TEST_BASIC
+void test_escape() {
+    // \' in character literals
+    chk("esc_squot_c",  '\'' == 39);
+    // \' in string literals
+    byte[] sq = "it\'s";
+    chk("esc_squot_s",  sq[2] == '\'');
+    // Other escapes still work alongside \'
+    chk("esc_bs",   '\\' == 92);
+    chk("esc_dquot", '"' == 34);
+    chk("esc_tab",  '\t' == 9);
+    chk("esc_cr",   '\r' == 13);
+    chk("esc_nl",   '\n' == 10);
+    chk("esc_nul",  '\0' == 0);
+    chk("esc_hex",  '\x41' == 'A');
+}
 
 void test_typ_glb() {
     // Global scalar types
@@ -233,7 +282,9 @@ void test_incdec() {
     arr[1]--;
     chk("arr_idx_dec",  arr[1] == 19);
 }
+#endif
 
+#if TEST_FLOW
 void test_while() {
     // Basic while accumulation
     int i = 0;
@@ -303,7 +354,9 @@ void test_switch() {
     }
     chk("sw_default", r == 7);
 }
+#endif
 
+#if TEST_ARRAYS
 void test_arrays() {
     // Fixed-size local int array
     int[4] arr;
@@ -351,7 +404,9 @@ void test_ptrs() {
     byte *screen = addr;
     chk("ptr_intaddr", screen == 0x4000);
 }
+#endif
 
+#if TEST_STRUCTS
 void test_structs() {
     // Field access
     Point p;
@@ -394,13 +449,17 @@ void test_dlgs() {
     t.fn = do_add;
     chk("del_struct", t.fn(3, 4) == 7);
 }
+#endif
 
+#if TEST_VARGS
 void test_vargs() {
     chk("va_1arg",  sum_va(1, 99) == 99);
     chk("va_2args", sum_va(2, 10, 20) == 30);
     chk("va_3args", sum_va(3, 5, 6, 7) == 18);
 }
+#endif
 
+#if TEST_ASM
 void test_asm() {
     // __asm__ function: two's complement negation
     chk("asm_fn_neg",  asm_neg(7)  == -7);
@@ -414,7 +473,9 @@ void test_asm() {
     }
     chk("asm_block", g_asm_var == 123);
 }
+#endif
 
+#if TEST_CCOMP
 void test_ccomp() {
     // #ifdef __DOT (set by make dot)
     chk("cond_ifdef",   cond_dot   == 1);
@@ -423,7 +484,9 @@ void test_ccomp() {
     // #if with a compile-time const
     chk("cond_if",      feature_on == 1);
 }
+#endif
 
+#if TEST_FIXED
 void test_fixed() {
     // Literal assignment
     fixed a = 1.5;
@@ -466,7 +529,9 @@ void test_fixed() {
     int   iv  = 3;
     chk("fx_mix",    mix + iv == 5.0);
 }
+#endif
 
+#if TEST_PTRADV
 void test_rawref() {
     byte[3] arr;
     arr[0] = 11; arr[1] = 22; arr[2] = 33;
@@ -534,8 +599,67 @@ void test_tconv() {
     b3[2] = 77;
     chk("idx_fixed_trunc", b3[ftr] == 77);
 }
+#endif
 
 
+// ============================================================
+// #elif test globals
+// ============================================================
+#if TEST_ELIF
+const int ELEVEL = 2;
+
+#if ELEVEL == 1
+int elif_which = 1;
+#elif ELEVEL == 2
+int elif_which = 2;
+#elif ELEVEL == 3
+int elif_which = 3;
+#else
+int elif_which = 99;
+#endif
+
+#if ELEVEL == 5
+int elif_first = 1;
+#elif ELEVEL == 6
+int elif_first = 2;
+#else
+int elif_first = 0;
+#endif
+#endif
+
+#if TEST_ELIF
+void test_elif() {
+    // First matching #elif branch is taken
+    chk("elif_match", elif_which == 2);
+    // No branch matched, #else taken
+    chk("elif_else",  elif_first == 0);
+    // Local #elif chain
+    const int V = 3;
+    int r = 0;
+#if V == 1
+    r = 1;
+#elif V == 2
+    r = 2;
+#elif V == 3
+    r = 3;
+#else
+    r = 99;
+#endif
+    chk("elif_local", r == 3);
+    // Nested #if inside skipped #elif branch
+    int n = 0;
+#if V == 9
+#if V == 9
+    n = 99;
+#endif
+#elif V == 3
+    n = 42;
+#endif
+    chk("elif_nested", n == 42);
+}
+#endif
+
+#if TEST_FORINIT
 void test_for_init() {
     // const declaration in for initializer
     int s = 0;
@@ -556,6 +680,7 @@ void test_for_init() {
     }
     chk("for_delegate", r == 3);
 }
+#endif
 
 pass_count = 0;
 fail_count = 0;
@@ -563,6 +688,8 @@ fail_count = 0;
 puts("ZNC Feature Test\r");
 puts("================\r");
 
+#if TEST_BASIC
+test_escape();
 test_typ_glb();
 test_const();
 test_arith();
@@ -570,21 +697,43 @@ test_bitwise();
 test_compare();
 test_ternary();
 test_incdec();
+#endif
+#if TEST_FLOW
 test_while();
 test_for();
 test_brkcont();
 test_switch();
+#endif
+#if TEST_ARRAYS
 test_arrays();
 test_ptrs();
+#endif
+#if TEST_STRUCTS
 test_structs();
 test_dlgs();
+#endif
+#if TEST_VARGS
 test_vargs();
+#endif
+#if TEST_ASM
 test_asm();
+#endif
+#if TEST_CCOMP
 test_ccomp();
+#endif
+#if TEST_FIXED
 test_fixed();
+#endif
+#if TEST_PTRADV
 test_rawref();
 test_tconv();
+#endif
+#if TEST_FORINIT
 test_for_init();
+#endif
+#if TEST_ELIF
+test_elif();
+#endif
 
 puts("================\r");
 puts("PASS: "); printnum(pass_count); puts("\r");
