@@ -496,10 +496,16 @@ void parse_for(void) MYCC {
 
 
 	// parse initializer
-	if (tok == tokChar || tok == tokInt || tok == tokFixed) {
-		parse_decl();
+	uint8_t init_is_decl = 0;
+	if (tok == tokConst || tok == tokChar || tok == tokInt || tok == tokFixed || tok == tokVoid) {
+		init_is_decl = 1;
+	} else if (tok == tokIdent) {
+		if (find_struct(token) >= 0 || type_find_by_name(token) != -1)
+			init_is_decl = 1;
 	}
-	else {
+	if (init_is_decl) {
+		parse_decl();
+	} else {
 		if (tok != tokSemi) parse_expr(0, 0);
 		expect_semi();
 	}

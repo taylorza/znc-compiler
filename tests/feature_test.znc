@@ -484,6 +484,78 @@ void test_rawref() {
     chk("rawref_ptr2", rp[2] == 33);
 }
 
+void test_tconv() {
+    // Array index: runtime fixed should be converted to int
+    byte[4] barr2;
+    barr2[0] = 11; barr2[1] = 22; barr2[2] = 33; barr2[3] = 44;
+    fixed idxf = 2.0;
+    chk("idx_fixed_runtime", barr2[idxf] == 33);
+
+    // Array index: const fixed should be converted to int at compile time
+    const fixed CIDX = 1.0;
+    chk("idx_fixed_const", barr2[CIDX] == 22);
+
+    // Pointer arithmetic: fixed offset should be converted to int
+    int[3] iarr;
+    iarr[0] = 5; iarr[1] = 6; iarr[2] = 7;
+    int *pp = iarr;
+    fixed off = 1.0;
+    pp = pp + off;
+    chk("ptr_off_fixed", *pp == 6);
+
+    // Array dimension using const fixed should be accepted (converted to int)
+    const fixed LEN = 2.0;
+    int[LEN] arr2;
+    arr2[1] = 123;
+    chk("arr_dim_fixed_const", arr2[1] == 123);
+
+    // Shift count: runtime fixed and const fixed should be converted to int
+    int ss = 1;
+    fixed sh = 3.0;
+    ss = ss << sh;
+    chk("shift_fixed_runtime", ss == 8);
+
+    const fixed CSH = 2.0;
+    int ss2 = 1 << CSH;
+    chk("shift_fixed_const", ss2 == 4);
+
+    // Switch/case: const fixed used as case label should match after conversion
+    const int CFCASE = 2;
+    int rr = 0;
+    switch (2) {
+        case CFCASE: rr = 10; break;
+        default: rr = 0; break;
+    }
+    chk("switch_case_fixed_const", rr == 10);
+
+    // Truncation: fixed used as index should truncate fractional bits
+    fixed ftr = 2.5;
+    byte[4] b3;
+    b3[2] = 77;
+    chk("idx_fixed_trunc", b3[ftr] == 77);
+}
+
+
+void test_for_init() {
+    // const declaration in for initializer
+    int s = 0;
+    for (const int K = 3; s < K; s = s + 1) {}
+    chk("for_const", s == 3);
+
+    // struct declaration in for initializer
+    int sum = 0;
+    for (Point pv; sum < 2; sum = sum + 1) {
+        pv.x = sum;
+    }
+    chk("for_struct", sum == 2);
+
+    // delegate declaration in for initializer
+    int r = 0;
+    for (BinOp op = do_add; r < 3; r = r + 1) {
+        r = op(r, 0);
+    }
+    chk("for_delegate", r == 3);
+}
 
 pass_count = 0;
 fail_count = 0;
@@ -511,6 +583,8 @@ test_asm();
 test_ccomp();
 test_fixed();
 test_rawref();
+test_tconv();
+test_for_init();
 
 puts("================\r");
 puts("PASS: "); printnum(pass_count); puts("\r");
