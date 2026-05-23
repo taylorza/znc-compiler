@@ -27,7 +27,7 @@ The compiler accepts tokens inside an `asm` block and emits them verbatim as ass
 
 Comments in `__asm__` blocks
 
-`//` line comments written inside an `__asm__` block are processed by the ZNC scanner and **stripped before the assembly output is written**. They serve as source-level comments visible only in the `.znc` file. No comment text appears in the generated `.asm` file.
+Both `//` (C-style) and `;` (standard Z80 assembler style) are valid line comments inside `__asm__` blocks. Both are processed by the ZNC scanner and **stripped before the assembly output is written**. They serve as source-level comments visible only in the `.znc` file. No comment text appears in the generated `.asm` file.
 
 Notes
 - Use inline assembly for platform-specific or highly-optimized sequences.

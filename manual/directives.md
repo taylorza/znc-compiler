@@ -44,7 +44,14 @@ include "file.znc";
 
 Conditional compilation
 
-`#if`, `#ifdef`, `#ifndef`, `#else`, `#endif` are supported. Use `const` and defines to conditionally include code.
+`#if`, `#ifdef`, `#ifndef`, `#elif`, `#else`, `#endif` are supported. Use `const` and defines to conditionally include code.
+
+- `#if <const_expr>` — includes the block when the constant expression is non-zero.
+- `#ifdef <ident>` — includes the block when the identifier is defined.
+- `#ifndef <ident>` — includes the block when the identifier is not defined.
+- `#elif <const_expr>` — chained condition; evaluated only when all preceding `#if`/`#elif` branches were not taken. Multiple `#elif` branches are allowed.
+- `#else` — fallback block when no prior branch was taken.
+- `#endif` — closes the conditional block.
 
 Examples:
 
@@ -60,6 +67,16 @@ include "dot_only.znc";
 const int USE_FEATURE = 1;
 #if USE_FEATURE
 include "feature.znc";
+#endif
+
+// Chained #elif
+const int VERSION = 2;
+#if VERSION == 1
+  puts("v1");
+#elif VERSION == 2
+  puts("v2");
+#else
+  puts("other");
 #endif
 ```
 

@@ -314,9 +314,6 @@ struct Point* pp = &p;
 pp.x = 3;  // pointer-to-struct also uses '.'
 ```
 
-### Operators
-Compound assignment operators (`+=`, `-=`, `*=`, `/=`, `%=`, `<<=`, `>>=`, `&=`, `|=`, `^=`) are not supported. Use the expanded forms (e.g. `x = x + y`).
-
 ## Syntax (incomplete)
 ``` EBNF
 (* Top-level program structure *)
@@ -376,7 +373,9 @@ Compound assignment operators (`+=`, `-=`, `*=`, `/=`, `%=`, `<<=`, `>>=`, `&=`,
 <arg>             ::= <type> <ident>
 
 (* Expressions: precedence-climbing parser; this is a schematic description. *)
-<expr>            ::= <ternary>
+<expr>            ::= <assignment> | <ternary>
+<assignment>      ::= <lvalue> ( "=" | <assign_op> ) <expr>
+<lvalue>          ::= <ident> | "*" <primary> | <primary> "[" <expr> "]" | <primary> "." <ident>
 <ternary>         ::= <binary> [ "?" <expr> ":" <expr> ]
 <binary>          ::= <unary> { <binop> <unary> }
 
@@ -402,6 +401,9 @@ Compound assignment operators (`+=`, `-=`, `*=`, `/=`, `%=`, `<<=`, `>>=`, `&=`,
 <binop>           ::= "+" | "-" | "*" | "/" | "%" 
                    | "==" | "!=" | "<" | ">" | "<=" | ">="
                    | "&&" | "||" | "&" | "|" | "^" | "<<" | ">>"
+
+(* Compound assignment operators *)
+<assign_op>       ::= "+=" | "-=" | "*=" | "/=" | "%=" | "<<=" | ">>=" | "&=" | "|=" | "^="
 
 (* Identifiers, numbers, strings, and tokens *)
 <ident>           ::= <letter> { <letter> | <digit> | "_" }
@@ -446,6 +448,7 @@ Compound assignment operators (`+=`, `-=`, `*=`, `/=`, `%=`, `<<=`, `>>=`, `&=`,
 (* Conditional compilation directives *)
 <hashif>          ::= ( "#if" <const_expr> | "#ifdef" <ident> | "#ifndef" <ident> )
                       { <statement> }
+                      { "#elif" <const_expr> { <statement> } }
                       [ "#else" { <statement> } ]
                       "#endif"
 
