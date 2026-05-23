@@ -23,8 +23,8 @@ for (int i=0; i<N; ++i) {
 }
 
 void move(Obj *o) {
-  o.x = o.x + o.dx;
-  o.y = o.y + o.dy;
+  o.x += o.dx;
+  o.y += o.dy;
   
   if (o.x == 0 || o.x == 31) o.dx = -o.dx;
   if (o.y == 0 || o.y == 21) o.dy = -o.dy;

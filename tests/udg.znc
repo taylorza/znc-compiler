@@ -28,8 +28,8 @@ for(;;) {
   }
   gotoxy(x, y);
   putc(' ');
-  x = x + dx;
-  y = y + dy;
+  x += dx;
+  y += dy;
   if (x == 0 || x == 31) dx = -dx;
   if (y == 0 || y == 21) dy = -dy;
   gotoxy(x, y);
