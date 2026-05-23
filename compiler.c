@@ -209,9 +209,13 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
             parse_decl();
             break;
         case tokDelegate:
+            /* delegate declarations are top-level only (<top_decl> in the grammar) */
+            if (infunc) error(errSyntax);
             parse_delegate_decl();
             break;
         case tokStruct:
+            /* struct definitions are top-level only (<top_decl> in the grammar) */
+            if (infunc) error(errSyntax);
             parse_struct_def();
             break;
 

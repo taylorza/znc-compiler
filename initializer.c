@@ -133,7 +133,9 @@ uint16_t far_parse_brace_initializer_elements(uint8_t element_type_id) MYCC {
 
         ++field_idx;
         if (tok == tokRBrace) break;
-        expect_comma();
+        if (tok != tokComma) { error(errSyntax); break; }
+        get_token(); // skip ','
+        if (tok == tokRBrace) break; // allow trailing comma
         if (counter == 8) {
             emit_nl();
             counter = 0;

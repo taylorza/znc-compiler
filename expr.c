@@ -589,6 +589,11 @@ EXPR_RESULT parse_op_right(EXPR_RESULT left, uint8_t minprec, uint8_t expected_t
     return left;
 }
 
+/* Grammar: <expr> ::= <assignment>
+ *          <assignment> ::= <ternary> [ ("=" | <assign_op>) <assignment> ]
+ * Assignment is handled inside parse_factor when tokAssign/compound-assign
+ * follows a resolved primary, giving it lower precedence than all binary ops.
+ * This matches the corrected right-associative assignment rule. */
 EXPR_RESULT far_parse_expr(uint8_t minprec, uint8_t expected_type_id) MYCC {
     EXPR_RESULT expr_result = parse_factor(0, expected_type_id);
     expr_result = parse_op_right(expr_result, minprec, expected_type_id);
@@ -633,6 +638,10 @@ EXPR_RESULT far_parse_expr_delayconst(uint8_t minprec, uint8_t expected_type_id)
 static EXPR_RESULT parse_factor_ampersand(void) MYCC;
 static void parse_factor_postfix(EXPR_RESULT* result, uint8_t* dereference, uint8_t* addr_in_hl) MYCC;
 
+/* Grammar: "&" <lvalue_expr>
+ * Handles &ident, &ident[expr], &ident.field (chains of [] and . are supported).
+ * Note: &(*ptr) is not explicitly handled here, but &(*ptr) == ptr, so callers
+ * can use the pointer value directly. Dereference-then-address-of is a no-op. */
 static EXPR_RESULT parse_factor_ampersand(void) MYCC {
     EXPR_RESULT result;
     result.type_id = 0;

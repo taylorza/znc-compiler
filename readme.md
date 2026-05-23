@@ -316,124 +316,224 @@ pp.x = 3;  // pointer-to-struct also uses '.'
 
 ## Syntax (incomplete)
 ``` EBNF
-(* Top-level program structure *)
-<program>         ::= [ <make> ] [ <org> ] { <top_level_item> }
-<top_level_item>  ::= <decl> | <statement>
+(* ----------------------------------------------------------------
+   Program structure
+   ---------------------------------------------------------------- *)
 
-(* Directives *)
+<program>         ::= [ <make> ] [ <org> ] { <top_level_item> }
+
+<top_level_item>  ::= <top_decl>
+                    | <statement>
+                    | <hashif_top>
+
+(* ----------------------------------------------------------------
+   Directives
+   ---------------------------------------------------------------- *)
+
 <make>            ::= "make" ( "dot" | "nex" | "raw" ) [ <string> ] ";"
 <org>             ::= "org" <number> ";"
 <bank>            ::= "bank" "(" <number> [ "," <number> ] ")" <stmnt_block>
 
-(* Statements *)
-<statement>       ::= <stmnt_block>
-                   | <decl>
-                   | <if>
-                   | <switch>
-                   | <while>
-                   | <for>
-                   | <break>
-                   | <continue>
-                   | <return>
-                   | <exit>
-                   | <putc>
-                   | <puts>
-                   | <out>
-                   | <nextreg>
-                   | <asm>
-                   | <include>
-                   | <org>
-                   | <bank>
-                   | <hashif>
-                   | <expr> ";"
-                   | ";"
+(* ----------------------------------------------------------------
+   Declarations — separated by context
+   ---------------------------------------------------------------- *)
 
-<stmnt_block>     ::= "{" { <statement> } "}"
+(* Top-level: function definitions, prototypes, delegates allowed *)
+<top_decl>        ::= <vardecl>
+                    | <funcdecl>
+                    | <funcproto>
+                    | <structdef>
+                    | <delegatedef>
 
-(* Declarations *)
-<decl>            ::= <vardecl> | <funcdecl> | <funcproto> | <structdef> | <delegatedef>
-<structdef>       ::= "struct" <ident> "{" { <vardecl_no_semicolon> } "}" [ ";" ]
+(* Block-level: only variable and struct declarations *)
+<local_decl>      ::= <vardecl>
+                    | <structdef>
+
+<structdef>       ::= "struct" <ident> "{" { <vardecl> } "}" [ ";" ]
+
 <delegatedef>     ::= "delegate" <rettype> <ident> "(" [ <arglist> ] ")" ";"
 
 <funcproto>       ::= <rettype> <ident> "(" [ <arglist> ] [ "..." ] ")" ";"
+
 <funcdecl>        ::= <rettype> <ident> "(" [ <arglist> ] [ "..." ] ")" ( <asm> | <stmnt_block> )
 
-(* Variable declarations: optional const, each variable can have its own initializer *)
 <vardecl>         ::= [ "const" ] <type> <var_declarator> { "," <var_declarator> } ";"
-<vardecl_no_semicolon> ::= [ "const" ] <type> <var_declarator> { "," <var_declarator> }
-<var_declarator>  ::= <ident> [ "=" <expr> ]
+
+<var_declarator>  ::= <ident> [ "=" <initializer_expr> ]
 
 <rettype>         ::= "void" | <type>
 
-(* Types: scalar base, optional single pointer or array suffix. Structural and named types supported via identifiers. *)
-<type>            ::= <basetype> [ "*" | "[" [ <expr> ] "]" ]
-<basetype>        ::= "char" | "byte" | "int" | "fixed" | "void" | <ident>   (* ident may be a struct or a named type such as a delegate *)
+(* ----------------------------------------------------------------
+   Types
+   ---------------------------------------------------------------- *)
+
+(* { "*" } supports multi-level pointers (e.g. int**, char*).
+   The optional "[...]" adds one array dimension.
+   The language type system encodes indirection in a 4-bit field;
+   a semantic check may restrict maximum pointer depth if required. *)
+<type>            ::= <basetype> { "*" } [ "[" [ <const_expr> ] "]" ]
+
+(* "struct" <ident> is unambiguous. Bare <ident> resolves a named delegate
+   or struct type via the symbol table (context-sensitive; semantic restriction). *)
+<basetype>        ::= "char"
+                    | "byte"
+                    | "int"
+                    | "fixed"
+                    | "struct" <ident>
+                    | <ident>
 
 <arglist>         ::= <arg> { "," <arg> }
 <arg>             ::= <type> <ident>
 
-(* Expressions: precedence-climbing parser; this is a schematic description. *)
-<expr>            ::= <assignment> | <ternary>
-<assignment>      ::= <lvalue> ( "=" | <assign_op> ) <expr>
-<lvalue>          ::= <ident> | "*" <primary> | <primary> "[" <expr> "]" | <primary> "." <ident>
-<ternary>         ::= <binary> [ "?" <expr> ":" <expr> ]
+(* ----------------------------------------------------------------
+   Statements
+   ---------------------------------------------------------------- *)
+
+<statement>       ::= <stmnt_block>
+                    | <local_decl>
+                    | <if>
+                    | <switch>
+                    | <while>
+                    | <for>
+                    | <break>
+                    | <continue>
+                    | <return>
+                    | <exit>
+                    | <putc>
+                    | <puts>
+                    | <out>
+                    | <nextreg>
+                    | <asm>
+                    | <include>
+                    | <org>
+                    | <bank>
+                    | <hashif_block>
+                    | <expr> ";"
+                    | ";"
+
+<stmnt_block>     ::= "{" { <statement> } "}"
+
+(* ----------------------------------------------------------------
+   Expressions
+   ---------------------------------------------------------------- *)
+
+(* Every expression is an assignment; the "=" clause is optional.
+   This eliminates the precedence hole from the original grammar.
+   Lvalue-ness of the left-hand side is enforced semantically. *)
+<expr>            ::= <assignment>
+
+(* Right-associative: a = b = c parses as a = (b = c) *)
+<assignment>      ::= <ternary> [ ( "=" | <assign_op> ) <assignment> ]
+
+<ternary>         ::= <binary> [ "?" <expr> ":" <assignment> ]
+
 <binary>          ::= <unary> { <binop> <unary> }
 
-(* Unary and postfix operators, member access and indexing are part of factor handling. *)
-<unary>           ::= { "++" | "--" | "+" | "-" | "~" | "!" } <postfix>
-<postfix>         ::= <primary> { <postfix_op> }
-<postfix_op>      ::= "++" | "--" | "(" [ <exprlist> ] ")" | "[" <expr> "]" | "." <ident>
+(* Dereference "*" and address-of "&" are prefix unary operators.
+   Dereference is removed from <primary> (was duplicated there).
+   Address-of applies to any syntactically valid lvalue. *)
+<unary>           ::= <postfix>
+                    | "++" <unary>
+                    | "--" <unary>
+                    | "+"  <unary>
+                    | "-"  <unary>
+                    | "~"  <unary>
+                    | "!"  <unary>
+                    | "*"  <unary>        (* dereference *)
+                    | "&"  <lvalue_expr>  (* address-of any lvalue *)
 
+<postfix>         ::= <primary> { <postfix_op> }
+<postfix_op>      ::= "++"
+                    | "--"
+                    | "(" [ <exprlist> ] ")"
+                    | "[" <expr> "]"
+                    | "." <ident>
+
+(* Dereference and address-of removed; brace-init moved to <brace_init> *)
 <primary>         ::= <number>
-                   | <string>
-                   | <ident>
-                   | "(" <expr> ")"
-                   | "*" <primary>      (* dereference *)
-                   | "&" <ident>        (* address of identifier *)
-                   | "{" <expr_list_const> "}"  (* brace-initializer used for data literals *)
-                   | "in" "(" <expr> ")"        (* read from I/O port *)
-                   | "readreg" "(" <expr> ")"   (* read NextReg register *)
+                    | <string>
+                    | <ident>
+                    | "(" <expr> ")"
+                    | "in" "(" <expr> ")"
+                    | "readreg" "(" <expr> ")"
+                    | <brace_init>
+
+(* lvalue_expr: syntactically valid assignment targets and operands for "&".
+   Left-recursive via indexing and field access (natural for a postfix grammar). *)
+<lvalue_expr>     ::= <ident>
+                    | "*" <unary>
+                    | <lvalue_expr> "[" <expr> "]"
+                    | <lvalue_expr> "." <ident>
+                    | "(" <lvalue_expr> ")"
 
 <exprlist>        ::= <expr> { "," <expr> }
-<expr_list_const> ::= <expr> { "," <expr> }  (* must be constant expressions at compile time when used for data *)
 
-(* Binary operators *)
-<binop>           ::= "+" | "-" | "*" | "/" | "%" 
-                   | "==" | "!=" | "<" | ">" | "<=" | ">="
-                   | "&&" | "||" | "&" | "|" | "^" | "<<" | ">>"
+(* ----------------------------------------------------------------
+   Constant expressions
+   Syntactically a restricted subset of <expr>; semantically limited to
+   compile-time-evaluable values: numeric/character/fixed-point literals
+   and const-qualified identifiers, combined with operators below.
+   ---------------------------------------------------------------- *)
 
-(* Compound assignment operators *)
-<assign_op>       ::= "+=" | "-=" | "*=" | "/=" | "%=" | "<<=" | ">>=" | "&=" | "|=" | "^="
+<const_expr>      ::= <const_ternary>
 
-(* Identifiers, numbers, strings, and tokens *)
-<ident>           ::= <letter> { <letter> | <digit> | "_" }
+<const_ternary>   ::= <const_binary> [ "?" <const_expr> ":" <const_expr> ]
 
-(* Numbers support decimal, hexadecimal (0x), binary (0b), character literals, and fixed-point *)
-<number>          ::= <decimal_literal> | <hex_literal> | <binary_literal> | <char_literal> | <fixed_literal>
-<decimal_literal> ::= <digit> { <digit> }
-<hex_literal>     ::= "0x" <hex_digit> { <hex_digit> }
-<binary_literal>  ::= "0b" ("0" | "1") { "0" | "1" }
-<char_literal>    ::= "'" <character> "'"
-<fixed_literal>   ::= <decimal_literal> "." <decimal_literal>   (* 16-bit signed Q4 fixed-point; value stored in 12.4 format *)
-<hex_digit>       ::= <digit> | "a"..."f" | "A"..."F"
+<const_binary>    ::= <const_unary> { <binop> <const_unary> }
 
-(* Strings support escape sequences *)
-<string>          ::= '"' { <str_char> } '"'
-<str_char>        ::= <character> | <escape_seq>
-<escape_seq>      ::= "\" ( "n" | "r" | "t" | "\" | '"' | "0" | "x" <hex_digit> <hex_digit> )
+<const_unary>     ::= { "+" | "-" | "~" | "!" } <const_primary>
 
-(* Comments: single-line and block; block comments may be nested *)
-<comment>         ::= "//" { <any_char> } <newline>
-                   | "/*" { <any_char> | <comment> } "*/"
+<const_primary>   ::= <number>
+                    | <ident>               (* must be a const-qualified variable *)
+                    | "(" <const_expr> ")"
 
-(* Other constructs supported by the compiler: *)
+(* ----------------------------------------------------------------
+   Initializers
+   ---------------------------------------------------------------- *)
+
+(* Used in <var_declarator>: scalar expression or brace-enclosed aggregate *)
+<initializer_expr> ::= <expr>
+                     | <brace_init>
+
+(* Brace initializer for arrays and structs.
+   Elements are constant expressions; nesting supports arrays of arrays
+   and structs containing structs.
+   A trailing comma is permitted for convenience. *)
+<brace_init>      ::= "{" <init_element> { "," <init_element> } [ "," ] "}"
+<init_element>    ::= <brace_init>    (* nested aggregate *)
+                    | <const_expr>    (* scalar constant element *)
+
+(* ----------------------------------------------------------------
+   Operators
+   ---------------------------------------------------------------- *)
+
+<binop>           ::= "+" | "-" | "*" | "/" | "%"
+                    | "==" | "!=" | "<" | ">" | "<=" | ">="
+                    | "&&" | "||"
+                    | "&"  | "|"  | "^" | "<<" | ">>"
+
+<assign_op>       ::= "+=" | "-=" | "*=" | "/=" | "%="
+                    | "<<=" | ">>=" | "&=" | "|=" | "^="
+
+(* ----------------------------------------------------------------
+   Control structures
+   ---------------------------------------------------------------- *)
+
 <if>              ::= "if" "(" <expr> ")" <statement> [ "else" <statement> ]
+
 <switch>          ::= "switch" "(" <expr> ")" "{" { <case> | <default> } "}"
 <case>            ::= "case" <const_expr> ":" { <statement> }
 <default>         ::= "default" ":" { <statement> }
+
 <while>           ::= "while" "(" <expr> ")" <statement>
+
+(* for-init inlines the variable declaration syntax without a trailing ";".
+   The ";" separators in "for(...;...;...)" are explicit in this rule. *)
 <for>             ::= "for" "(" <for_init> ";" [ <expr> ] ";" [ <expr> ] ")" <statement>
-<for_init>        ::= <vardecl> | <expr> | (* empty *)
+<for_init>        ::= [ "const" ] <type> <var_declarator> { "," <var_declarator> }
+                    | <expr>
+                    | (* empty *)
+
 <break>           ::= "break" ";"
 <continue>        ::= "continue" ";"
 <return>          ::= "return" [ <expr> ] ";"
@@ -442,14 +542,65 @@ pp.x = 3;  // pointer-to-struct also uses '.'
 <puts>            ::= "puts" "(" <expr> ")" ";"
 <out>             ::= "out" "(" <expr> "," <expr> ")" ";"
 <nextreg>         ::= "nextreg" "(" <expr> "," <expr> ")" ";"
-<asm>             ::= "__asm__" "{" Z80N_Assembly "}"
+<asm>             ::= "__asm__" "{" <Z80N_Assembly> "}"
 <include>         ::= "include" <string>
 
-(* Conditional compilation directives *)
-<hashif>          ::= ( "#if" <const_expr> | "#ifdef" <ident> | "#ifndef" <ident> )
+(* ----------------------------------------------------------------
+   Conditional compilation
+   Two variants to cleanly handle context:
+   - <hashif_top>   appears at top level; branches are <top_level_item>s
+   - <hashif_block> appears inside blocks; branches are <statement>s
+   ---------------------------------------------------------------- *)
+
+<hashif_top>      ::= ( "#if"    <const_expr>
+                      | "#ifdef"  <ident>
+                      | "#ifndef" <ident>
+                      )
+                      { <top_level_item> }
+                      { "#elif" <const_expr> { <top_level_item> } }
+                      [ "#else" { <top_level_item> } ]
+                      "#endif"
+
+<hashif_block>    ::= ( "#if"    <const_expr>
+                      | "#ifdef"  <ident>
+                      | "#ifndef" <ident>
+                      )
                       { <statement> }
                       { "#elif" <const_expr> { <statement> } }
                       [ "#else" { <statement> } ]
                       "#endif"
 
-(* The nonterminal Z80N_Assembly represents a block of valid Z80N assembly code. *)
+(* ----------------------------------------------------------------
+   Lexical rules
+   ---------------------------------------------------------------- *)
+
+(* Maximum identifier length is 13 characters; longer names are a compile error. *)
+<ident>           ::= <letter> { <letter> | <digit> | "_" }
+
+<number>          ::= <decimal_literal>
+                    | <hex_literal>
+                    | <binary_literal>
+                    | <char_literal>
+                    | <fixed_literal>
+
+<decimal_literal> ::= <digit> { <digit> }
+<hex_literal>     ::= "0x" <hex_digit> { <hex_digit> }
+<binary_literal>  ::= "0b" ( "0" | "1" ) { "0" | "1" }
+<char_literal>    ::= "'" <character> "'"
+<fixed_literal>   ::= <decimal_literal> "." <decimal_literal>
+                      (* 16-bit signed Q4 fixed-point; stored in 12.4 format *)
+<hex_digit>       ::= <digit> | "a".."f" | "A".."F"
+
+(* Adjacent string literals are concatenated: "Hel" "lo" → "Hello" *)
+<string>          ::= '"' { <str_char> } '"' { '"' { <str_char> } '"' }
+<str_char>        ::= <character> | <escape_seq>
+<escape_seq>      ::= "\" ( "n" | "r" | "t" | "\" | '"' | "0"
+                          | "x" <hex_digit> <hex_digit> )
+
+(* Block comments may be nested *)
+<comment>         ::= "//" { <any_char> } <newline>
+                    | "/*" { <any_char> | <comment> } "*/"
+
+(* <Z80N_Assembly> represents a valid block of Z80N assembly mnemonics
+   and directives as accepted by the target assembler. *)
+```
