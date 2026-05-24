@@ -170,12 +170,12 @@ static uint8_t escape(void) MYCC {
             uint8_t hi = is_base_digit(ch(), 16);
             gnc();
             uint8_t lo = is_base_digit(ch(), 16);
-            if (hi == 255 || lo == 255) error(errSyntax);
+            if (hi == 255 || lo == 255) error(errBadEscape);
             c = (char)((hi << 4) | lo);
             break;
         }
         default:
-            error(errSyntax);
+            error(errBadEscape);
             break;
     }
     gnc();    

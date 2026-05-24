@@ -72,7 +72,7 @@ uint8_t signature_intern_impl(uint8_t return_type_id, uint8_t arg_count, const u
     
     /* Not found - add new entry */
     if (signature_count >= MAX_SIGNATURES) {
-        error(errTooManyTypes);  /* Reuse error for now */
+        error(errTooManyTypes);
         return 0;  /* Return empty signature as fallback */
     }
     

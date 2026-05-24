@@ -344,7 +344,7 @@ uint8_t far_signature_intern_variadic(uint8_t return_type_id, uint8_t arg_count,
 /* Function signature API */
 uint8_t signature_create(uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC {
     if (arg_count > MAX_FUNC_ARGS) {
-        error(errTooManyTypes);  /* Reuse error for now */
+        error(errTooManyArgs);
         arg_count = MAX_FUNC_ARGS;
     }
     return far_signature_intern(return_type_id, arg_count, arg_types);
@@ -352,7 +352,7 @@ uint8_t signature_create(uint8_t return_type_id, uint8_t arg_count, const uint8_
 
 uint8_t signature_create_variadic(uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC {
     if (arg_count > MAX_FUNC_ARGS) {
-        error(errTooManyTypes);  /* Reuse error for now */
+        error(errTooManyArgs);
         arg_count = MAX_FUNC_ARGS;
     }
     return far_signature_intern_variadic(return_type_id, arg_count, arg_types);

@@ -45,7 +45,7 @@ char* arena_strappend(char* prev, size_t prev_len, const char* add, size_t add_l
         /* last allocation, can extend in place */
         size_t end = (size_t)arena_offset + add_len;
         if (end + 1 > SHARED_ARENA_SIZE) {
-            error(errTooManySymbols);
+            error(errArenaOutOfMemory);
             return NULL;
         }
         memcpy(&arena_buf[arena_offset], add, add_len);

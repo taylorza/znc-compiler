@@ -210,12 +210,12 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
             break;
         case tokDelegate:
             /* delegate declarations are top-level only (<top_decl> in the grammar) */
-            if (infunc) error(errSyntax);
+            if (infunc) error(errTopLevelOnly);
             parse_delegate_decl();
             break;
         case tokStruct:
             /* struct definitions are top-level only (<top_decl> in the grammar) */
-            if (infunc) error(errSyntax);
+            if (infunc) error(errTopLevelOnly);
             parse_struct_def();
             break;
 
@@ -248,8 +248,10 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
             break;
 
         case tokHashElse:
+            if (hash_if_depth == 0) error(errUnexpectedElse);
+            break;
         case tokHashEndif:
-            if (hash_if_depth == 0) error(errSyntax);
+            if (hash_if_depth == 0) error(errUnexpectedEndif);
             break;
 
         default:
@@ -426,12 +428,12 @@ void parse_switch(uint16_t contlbl) MYCC {
             get_token(); // skip 'case'
             EXPR_RESULT expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
             if (!type_is_const(expr_result.type_id)) {
-                error_expect_const();
+                error(errConstExpected);
             }
             if (type_is_fixed(expr_result.type_id))
                 error(errTypeError);
             uint16_t lblCase = newlbl();
-            if (case_count == MAX_CASE) error(errTooManySymbols);
+            if (case_count == MAX_CASE) error(errInvalid_s, "case");
             values[case_count] = expr_result.value;
             labels[case_count++] = lblCase;
             emit_lbl(lblCase);
@@ -697,7 +699,7 @@ void parse_type(uint8_t *type_id_out) MYCC {
                 base_type_id = type_make_pointer(base_type_id, 1);
             } else {
                 EXPR_RESULT dim = parse_expr_delayconst(0, TYPE_ID_INT);
-                if (!type_is_const(dim.type_id)) error_expect_const();
+                if (!type_is_const(dim.type_id)) error(errConstExpected);
                 /* Convert const fixed dimension to int */
                 if (type_is_fixed(dim.type_id))
                     dim.value = (uint16_t)((int16_t)dim.value >> 4);
@@ -1070,7 +1072,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
             symfunc.fn.signature_id = signature_create(rettype_id, func_argcount, arg_types);
         }
         if (symfunc.fn.signature_id == 0xFF) {
-            error(errTooManySymbols);
+            error(errTooManyTypes);
         }
     }
 
@@ -1123,7 +1125,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
 void parse_org(void) MYCC {
     get_token(); // skip 'org'
     EXPR_RESULT expr_result = parse_expr_delayconst(0, 0);
-    if (!type_is_const(expr_result.type_id)) error_expect_const();
+    if (!type_is_const(expr_result.type_id)) error(errConstExpected);
     emit_org(expr_result.value);
     expect_semi();
 }
@@ -1138,7 +1140,7 @@ void parse_bank(void) MYCC {
     expect_LParen();
 
     EXPR_RESULT bankid_result = parse_expr_delayconst(0, TYPE_ID_INT);
-    if (!type_is_const(bankid_result.type_id)) error_expect_const();
+    if (!type_is_const(bankid_result.type_id)) error(errConstExpected);
     if (bankid_result.value > 255) error(errInvalid_s, "bank");
     bankid = (uint8_t)bankid_result.value;
  
@@ -1146,7 +1148,7 @@ void parse_bank(void) MYCC {
         get_token(); // skip ','
         
         EXPR_RESULT offset_result = parse_expr_delayconst(0, TYPE_ID_INT);
-        if (!type_is_const(offset_result.type_id)) error_expect_const();
+        if (!type_is_const(offset_result.type_id)) error(errConstExpected);
         offset = offset_result.value;
     }
     expect_RParen();
@@ -1200,7 +1202,7 @@ void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC {
         get_token(); // skip identifier
     } else {
         EXPR_RESULT expr_result = parse_expr_delayconst(0, 0);
-        if (!type_is_const(expr_result.type_id)) error_expect_const();
+        if (!type_is_const(expr_result.type_id)) error(errConstExpected);
         active = expr_result.value != 0;
     }
 
@@ -1212,7 +1214,7 @@ void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC {
     while (tok == tokHashElif) {
         get_token(); // skip '#elif'
         EXPR_RESULT elif_expr = parse_expr_delayconst(0, 0);
-        if (!type_is_const(elif_expr.type_id)) error_expect_const();
+        if (!type_is_const(elif_expr.type_id)) error(errConstExpected);
         active = !branch_taken && (elif_expr.value != 0);
         if (active) branch_taken = 1;
         parse_conditional(active, brklbl, contlbl);

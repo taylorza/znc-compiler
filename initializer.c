@@ -9,7 +9,7 @@ uint16_t far_parse_concat_string_literal(void) MYCC {
     size_t slen = 0;
     while (tok == tokString) {
         sbuf = arena_strappend(sbuf, slen, token, token_length);
-        if (!sbuf) error(errTooManySymbols);
+        if (!sbuf) error(errArenaOutOfMemory);
         slen += token_length;
         get_token();
     }
@@ -72,7 +72,7 @@ uint16_t far_parse_brace_initializer_elements(uint8_t element_type_id) MYCC {
                 size_t slen = 0;
                 while (tok == tokString) {
                     sbuf = arena_strappend(sbuf, slen, token, token_length);
-                    if (!sbuf) error(errTooManySymbols);
+                    if (!sbuf) error(errArenaOutOfMemory);
                     slen += token_length;
                     get_token();
                 }
@@ -96,10 +96,10 @@ uint16_t far_parse_brace_initializer_elements(uint8_t element_type_id) MYCC {
         } else {
             EXPR_RESULT element = parse_expr_delayconst(0, field_type_id);
             uint8_t is_func = element.has_sym && is_func_or_proto(&element.sym);
-            if (!type_is_const(element.type_id) && !is_func) error_expect_const();
+            if (!type_is_const(element.type_id) && !is_func) error(errConstExpected);
 
             if (is_delegate) {
-                if (!is_func) error(errTypeError);
+                if (!is_func) error(errFunctionExpected);
                 if (!signature_check(delegate_sig_id, element.sym.fn.signature_id)) {
                     error(errTypeError);
                 }

@@ -19,10 +19,15 @@ typedef enum ERROR {
     errTooManyTypes,
     errTooManyPointerLevels,
     errReturnValueExpected,
+    errBadEscape,
+    errTopLevelOnly,
+    errUnexpectedElse,
+    errUnexpectedEndif,
+    errTooManyArgs,
+    errFunctionExpected,
+    errConstExpected,
 } ERROR;
 
-extern int errcnt;
 void error(ERROR err, ...);
-void error_expect_const(void);
 
 #endif //ERROR_H_

@@ -146,7 +146,7 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8
 
     if (sym.klass != CLASS_UNDEFINED && type_is_const(sym.type_id)) {
         EXPR_RESULT r = parse_expr_delayconst(0, 0);
-        if (!type_is_const(r.type_id)) error_expect_const();
+        if (!type_is_const(r.type_id)) error(errConstExpected);
         /* Apply fixed <-> int/char conversion at compile time, same as the non-const path. */
         if (type_is_fixed(sym.type_id) && !type_is_fixed(r.type_id) &&
             (type_is_int(r.type_id) || type_is_char(r.type_id))) {
