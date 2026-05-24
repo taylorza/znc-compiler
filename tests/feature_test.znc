@@ -1,7 +1,7 @@
 make dot "feature_test.dot";
 
 // ============================================================
-// Test group switches — set to 0 to exclude a group
+// Test group switches - set to 0 to exclude a group
 // ============================================================
 const int TEST_BASIC   = 0;   // typ_glb, const, arith, bitwise, compare, ternary, incdec
 const int TEST_FLOW    = 0;   // while, for, brkcont, switch
@@ -10,10 +10,11 @@ const int TEST_STRUCTS = 0;   // structs, dlgs
 const int TEST_VARGS   = 0;   // vargs
 const int TEST_ASM     = 0;   // asm
 const int TEST_CCOMP   = 0;   // ccomp (conditional compilation)
-const int TEST_FIXED   = 0;   // fixed-point
-const int TEST_PTRADV  = 0;   // rawref, tconv
-const int TEST_FORINIT = 0;   // for-initializer declarations
-const int TEST_ELIF    = 0;   // #elif
+
+const int TEST_FIXED   = 1;   // fixed-point
+const int TEST_PTRADV  = 1;   // rawref, tconv
+const int TEST_FORINIT = 1;   // for-initializer declarations
+const int TEST_ELIF    = 1;   // #elif
 const int TEST_COMPOUND = 1;  // compound assignment operators
 
 // Derived: do_add/do_sub are needed by STRUCTS and FORINIT
