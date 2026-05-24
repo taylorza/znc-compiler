@@ -7,6 +7,10 @@
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/udg.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/ulagfx.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/feature_test.znc /zdev/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/cal.znc /zdev/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/calMonth.znc /zdev/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/nextparam.znc /zdev/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/rubik.znc /zdev/
 
 
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/ay.znc /zdev/

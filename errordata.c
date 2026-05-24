@@ -27,6 +27,10 @@ static const char* errmsg[] = {
     "Too many args",
     "Function expected",
     "Const expected",
+    "break outside loop",
+    "continue outside loop",
+    "Not a struct",
+    "Illegal operation",
 };
 
 /* Banked function to copy error message to buffer */

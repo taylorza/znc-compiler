@@ -26,6 +26,10 @@ typedef enum ERROR {
     errTooManyArgs,
     errFunctionExpected,
     errConstExpected,
+    errBreakOutsideLoop,
+    errContinueOutsideLoop,
+    errNotAStruct,
+    errIllegalOp,
 } ERROR;
 
 void error(ERROR err, ...);

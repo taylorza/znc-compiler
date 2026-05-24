@@ -1,0 +1,45 @@
+// nextparam.znc
+// ------------------------
+// v 0.0.2      28-Feb-2026
+// (C)2026  by nuntis/spayz
+// ------------------------
+// The code and libraries within are distributed under
+// the terms of the MIT No Attributtion License.
+// Specific permission is granted to Chris Taylor
+// (aka taylorza on itcho.io) to use any of this
+// code as he sees fit.
+// https://github.com/Nuntis-Spayz/sev-znc-libs
+
+#ifndef NEXTPARAM__
+const byte NEXTPARAM__=0x01;
+
+int nextParam(int pos, char* param) {
+    
+    while (args[pos]>0 && args[pos]<=32) {
+      pos++;
+    }
+
+    int i = 0;
+    byte inquotes=0;
+    byte inq=0;
+    byte ch = args[pos+i];
+    while ( (ch>32) || (inquotes==1 && ch==32)) {
+      if( (i==0 && ch!=34)
+          || (i>0 && inquotes==0)
+          || (i>0 && inquotes==1 && ch!=34)
+          ) {
+        param[i-inq] = args[pos+i];
+      } else {
+        inquotes = (inquotes==0) ? 1 : 0;
+        inq=1;
+      }
+      i++;
+      ch = args[pos+i];
+    }
+    
+    param[i] = 0; // Null-terminate the current parameter
+    
+    return pos+i;
+}
+
+#endif

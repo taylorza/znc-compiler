@@ -127,7 +127,7 @@ void far_parse_compound_assign(TOKEN op, uint8_t dereference, SYMBOL sym, uint8_
             emit_swap();
             break;
         default:
-            error(errSyntax);
+            error(errIllegalOp);
             return;
     }
 
@@ -172,7 +172,7 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8
         uint16_t datalbl = newlbl();
         uint16_t datalen = NO_LABEL;
 
-        if (sym.klass == CLASS_UNDEFINED && !dereference) error(errSyntax);
+        if (sym.klass == CLASS_UNDEFINED && !dereference) error(errNotlvalue);
 
         if (!dereference) {
             emit_ld_immed(); emit_lblref(datalbl); emit_nl();

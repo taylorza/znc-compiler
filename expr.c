@@ -260,11 +260,11 @@ static uint8_t handle_incdec(uint8_t is_prefix, SYMBOL *sym, uint8_t lvalue_type
 /* Helper: Lookup struct field and return field info. Returns 0 on error, 1 on success. */
 static uint8_t lookup_struct_member(uint8_t check_type_id, FIELDINFO *fi_out, uint16_t *offset_out) MYCC {
     if (!type_is_struct(check_type_id)) {
-        error(errSyntax);
+        error(errNotAStruct);
         return 0;
     }
     if (tok != tokIdent) {
-        error(errSyntax);
+        error(errExpected_s, "member name");
         return 0;
     }
     
@@ -351,7 +351,7 @@ EXPR_RESULT parse_op_right(EXPR_RESULT left, uint8_t minprec, uint8_t expected_t
                 }
             }
 
-            if (scaleL && scaleR) error(errSyntax);
+            if (scaleL && scaleR) error(errIllegalOp);
 
             uint8_t pointer = type_is_pointer(left.type_id) || type_is_pointer(r_result.type_id);
 
@@ -364,12 +364,11 @@ EXPR_RESULT parse_op_right(EXPR_RESULT left, uint8_t minprec, uint8_t expected_t
                     case tokAnd:
                     case tokShl:
                     case tokShr:
-                        error(errSyntax);
+                        error(errIllegalOp);
                         break;
                 }
             }
 
-            /* Constant folding */
             if (type_is_const(left.type_id) && type_is_const(r_result.type_id)) {
                 uint8_t lf = type_is_fixed(left.type_id);
                 uint8_t rf = type_is_fixed(r_result.type_id);
@@ -423,7 +422,7 @@ EXPR_RESULT parse_op_right(EXPR_RESULT left, uint8_t minprec, uint8_t expected_t
                     case tokBitAnd: left.value = left.value & r_result.value; break;
                     case tokBitXor: left.value = left.value ^ r_result.value; break;
                     default:
-                        error(errSyntax);
+                        error(errIllegalOp);
                         break;
                 }
                 /* Result type: comparisons always produce int (0 or 1); arithmetic preserves fixed */
@@ -563,7 +562,7 @@ EXPR_RESULT parse_op_right(EXPR_RESULT left, uint8_t minprec, uint8_t expected_t
                     emit_rtl("ccxor");
                     break;
                 default:
-                    error(errSyntax);
+                    error(errIllegalOp);
                     break;
             }
             
@@ -712,7 +711,7 @@ static EXPR_RESULT parse_factor_ampersand(void) MYCC {
             uint8_t check_type_id = result.type_id;
             if (type_is_pointer(check_type_id))
                 check_type_id = type_get_element_type_id(check_type_id);
-            if (!type_is_struct(check_type_id)) { error(errSyntax); break; }
+            if (!type_is_struct(check_type_id)) { error(errNotAStruct); break; }
 
             FIELDINFO fi;
             uint16_t offset;
@@ -749,7 +748,7 @@ static void parse_factor_postfix(EXPR_RESULT* result, uint8_t* dereference, uint
                 }
             } else if (result->has_sym) {
                 if (!type_is_pointer(result->sym.type_id) && !type_is_array(result->sym.type_id)) {
-                    error(errSyntax); break;
+                    error(errTypeError); break;
                 }
                 if (type_is_pointer(result->sym.type_id)) {
                     emit_ld_symval(&result->sym);
@@ -757,7 +756,7 @@ static void parse_factor_postfix(EXPR_RESULT* result, uint8_t* dereference, uint
                 }
             } else {
                 if (!type_is_pointer(result->type_id) && !type_is_array(result->type_id)) {
-                    error(errSyntax); break;
+                    error(errTypeError); break;
                 }
             }
 
@@ -845,7 +844,7 @@ static void parse_factor_postfix(EXPR_RESULT* result, uint8_t* dereference, uint
             uint8_t check_type_id = result->type_id;
             if (type_is_pointer(check_type_id))
                 check_type_id = type_get_element_type_id(check_type_id);
-            if (!type_is_struct(check_type_id)) { error(errSyntax); return; }
+            if (!type_is_struct(check_type_id)) { error(errNotAStruct); return; }
 
             FIELDINFO fi;
             uint16_t offset;
@@ -861,7 +860,7 @@ static void parse_factor_postfix(EXPR_RESULT* result, uint8_t* dereference, uint
                         emit_sym_address_with_offset(&base_sym, offset);
                         *addr_in_hl = 1;
                     }
-                } else { error(errSyntax); return; }
+                } else { error(errNotlvalue); return; }
             } else {
                 if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
             }
@@ -1172,10 +1171,10 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             /* Don't handle postfix operators here - let the postfix loop handle them */
             break;
         default:
-            error(errSyntax);
+            error(errExpected_s, "expression");
             break;
     }
-    
+
     /* Postfix operators loop - handles [], (), ., ++, -- */
     parse_factor_postfix(&factor_result, &dereference, &addr_in_hl);
     

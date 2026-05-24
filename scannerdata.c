@@ -384,14 +384,14 @@ get_token_start:
                         *temp++ = gnc(); /* consume third '.' */
                         tok = tokEllipsis;
                     } else {
-                        error(errSyntax); /* '..' is not a valid token */
+                        error(errExpected_s, ".");
                     }
                 } else {
                     tok = tokMember;
                 }
                 break;
             default:
-                error(errSyntax);
+                error(errInvalid_s, token);
                 break;
         }
         token_length = (uint8_t)(temp - &token[0]);
@@ -411,7 +411,7 @@ get_token_start:
             gnc();
         }
         *temp = '\0';
-        if (ch() != '\'') error(errSyntax);
+        if (ch() != '\'') error(errExpected_c, '\'');
         gnc(); /* skip '\'' */
         tok = tokNumber;
         return (token_type = ttNumber);
@@ -456,7 +456,7 @@ get_token_start:
             intval = (intval * base) + dv;
             *temp++ = gnc();
         }
-        if (l == 0) error(errSyntax);
+        if (l == 0) error(errTooLong);
 
         /* Check for fractional part: only for base-10, followed by '.' then digit.
          * Consume '.' first, then use ch() to safely check the next char without

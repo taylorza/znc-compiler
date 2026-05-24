@@ -1,0 +1,106 @@
+// cal
+// -----------------------
+// v 0.0.7     05-Jan-2026
+//         by nuntis/spayz
+// -----------------------
+make dot "cal.dot";
+
+include "io.znc";
+include "datetime.znc";
+include "nextparam.znc";
+include "string.znc";
+include "strcontains.znc";
+include "strtoint.znc";
+
+include "calMonth.znc";
+
+void printVersion() {
+  puts("cal version v0.0.7 05-Jan-2026");
+  putc(13);
+}
+
+void cUp(byte c) {
+  for(int i=1; i<c; i=i+1) {
+    putc(11);
+  }
+}
+
+void main()
+{
+
+ if( (strcontains(args, "-v")==1))
+ {
+   // this will also match --version, very idle
+   printVersion();
+   
+ } else {
+
+    int[6] dt;
+    int r = getDateTime(dt);
+
+    int y = dt[0];
+    int m = dt[1];
+    byte flag=0;
+    byte maxUp=0;
+    byte cols = 1;
+    
+    char* param = "           ";
+    int pos=nextParam(0, param);
+    while(param[0]!=0) {
+      if(param[0]=='-' && param[2]==0) {
+        if(param[1]>='2' && param[1]<='4') {
+          cols = param[1] - 48;
+        }
+      } else if(param[0]>='0' && param[0]<='9') {
+        int pp = strtoint(param);
+        if(flag==0) {
+          if(pp<1000) {
+            pp = pp + 2000;
+          }
+          y = pp;
+          flag = flag + 1;
+        } else if(flag==1 && pp>0 && pp<=12) {
+          m = pp;
+          flag = flag + 1;
+        }        
+      }
+          
+      pos=nextParam(pos, param);
+    }
+
+    if(cols>=3) {
+      m=m-1;
+      if(m<1) {
+        m=m+12;
+        y=y-1;
+      }
+    }
+
+    for(int c=0; c<cols; ) {
+    
+      flag = printMonth(y, m, c, cols);
+    
+      c=c+1;  
+      if(c<cols) {
+        cUp(6+flag);
+           
+        m=m+1;
+        if(m>12) {
+          m=m-12;
+          y=y+1;
+        }
+        if(flag>maxUp) {
+          maxUp=flag;
+        }
+      } else {
+        if(maxUp>flag) {
+          for(byte cr=flag; cr<maxUp; cr++){
+            putc(13);
+          }
+        }
+      }
+    }
+  }
+}
+
+main();

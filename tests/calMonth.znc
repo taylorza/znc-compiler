@@ -1,0 +1,127 @@
+
+void printShMonth(int month) {
+  
+  if(month==1) {
+    puts("Jan");
+  } else if(month==2) {
+    puts("Feb");
+  } else if(month==3) {
+    puts("Mar");
+  } else if(month==4) {
+    puts("Apr");
+  } else if(month==5) {
+    puts("May");
+  } else if(month==6) {
+    puts("Jun");
+  } else if(month==7) {
+    puts("Jul");
+  } else if(month==8) {
+    puts("Aug");
+  } else if(month==9) {
+    puts("Sep");
+  } else if(month==10) {
+    puts("Oct");
+  } else if(month==11) {
+    puts("Nov");
+  } else if(month==12) {
+    puts("Dec");
+  }  
+}
+
+int daysInMonth(int year, int month) {
+  if(month==2) {
+    return ( (year % 4)==0 && (year % 100)!=0) || ((year % 400)==0) ? 29 : 28;
+  } else if(month==4 || month==6 || month==9 || month==11) {
+    return 30;
+  } else {
+    return 31;
+  }
+}
+
+int dayOfWeek(int year, int month) {
+  // adjust month and year for Zeller's Congruence
+  if(month <3) {
+    month = month + 12;
+    year = year -1;
+  }
+  
+  int k =year % 100;
+  int j= year / 100;
+  
+  // Zeller's Congruence formula
+  int d = (1 +(13 * (month+1))/5 + k + (k/4) + (j/4) - (2*j)) % 7;
+
+  return (d + 5) %7 ;
+}
+
+void crTab(byte cols) {
+  putc(13);
+  if(cols!=0) {
+    putc(21);
+    putc(1);
+    putc(23);
+    putc(cols);
+    putc(0);
+    putc(21);
+    putc(0);
+  }
+}
+
+int printMonth(int y, int m, byte cols, byte maxcols) {
+  if(maxcols==4) {
+   cols=cols*21;
+  } else {
+   cols=cols*22;
+  }
+  crTab(cols);
+  
+  int lines=0;
+  
+  puts("----- ");
+  printnum(y);
+  //puts("-");
+  putc(32);
+  printShMonth(m);
+  puts(" -----");
+  crTab(cols);
+
+  puts("Su Mo Tu We Th Fr Sa");
+  crTab(cols);
+    
+  puts("--------------------");
+  crTab(cols);
+  
+  int day= -dayOfWeek(y,m);
+  if(day<=-6) {
+    day=day+7;
+  }
+  byte days= daysInMonth(y, m);
+
+  for(;day<=days;) {
+    for(int i=0; i<7; i=i+1) {
+
+      if(day<=0) {
+        puts("   ");
+      } else {
+        if(day<=days) {
+          if(day<10) {
+            putc(32);
+          }
+          
+          printnum(day);
+          if(i<6) {
+            putc(32);
+          }
+        }
+      }
+      day=day+1;
+    }
+    lines = lines + 1;
+    crTab(cols);
+  }
+  puts("--------------------");
+  putc(13);
+  
+  return lines;
+
+}

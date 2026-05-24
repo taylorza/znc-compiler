@@ -150,10 +150,10 @@ void parse_make(const char *filename) MYCC {
             else if (tokMakeType == tokNex) emit_org(0xc000);
             break;        
         default:
-            error(errSyntax);
+            error(errExpected_s, "nex/dot/raw");
             break;
     }
-    
+
     emit_make_defines(tokMakeType);
 }
 
@@ -263,7 +263,7 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
 
 void parse_include(void) MYCC {
     get_token(); // skip 'include'
-    if (tok != tokString) error(errSyntax);
+    if (tok != tokString) error(errExpected_s, "filename");
     
     parse(token, NULL, 0);
 
@@ -272,9 +272,9 @@ void parse_include(void) MYCC {
 
 /* Helper: Convert type to const version, checking for validity */
 static uint8_t make_const_type(uint8_t type_id) MYCC {
-    if (type_is_void(type_id)) error(errSyntax);
-    if (type_is_pointer(type_id)) error(errSyntax);
-    if (type_is_array(type_id)) error(errSyntax);
+    if (type_is_void(type_id)) error(errTypeError);
+    if (type_is_pointer(type_id)) error(errTypeError);
+    if (type_is_array(type_id)) error(errTypeError);
     
     TypeKind kind = type_get_kind(type_id);
     if (kind == TK_CHAR) return type_make_char(1);
@@ -301,21 +301,21 @@ void parse_decl(void) MYCC {
         type_id = make_const_type(type_id);
     }
 
-    if (tok != tokIdent) error(errSyntax);
+    if (tok != tokIdent) error(errExpected_s, "identifier");
 
     char name[MAX_IDENT_LEN + 1];
     strncpy(name, token, MAX_IDENT_LEN);
-    
+
     get_token(); // skip name
 
     if (tok == tokLParen) {
-        if (infunc || constdecl) error(errSyntax);
+        if (infunc || constdecl) error(errTopLevelOnly);
         parse_funcdecl(type_id, name);
     }
     else {
         SYMBOL sym;
 
-        if (type_is_void(type_id) && !type_is_pointer(type_id)) error(errSyntax);
+        if (type_is_void(type_id) && !type_is_pointer(type_id)) error(errTypeError);
 
         for (;;) {
             sym = decl_in_scope(type_id, VARIABLE, name);
@@ -323,7 +323,7 @@ void parse_decl(void) MYCC {
             if (tok == tokAssign) {
                 parse_assign(0, sym, 0, type_id);
             }
-            else if (constdecl) error(errSyntax);
+            else if (constdecl) error(errExpected_s, "initializer");
 
             if (tok != tokComma) break;
             get_token(); // skip ','
@@ -340,7 +340,7 @@ void parse_struct_def(void) MYCC {
     /* parse: struct Name { <field-decls> } ; */
     get_token(); // skip 'struct'
     if (tok != tokIdent) {
-        error(errSyntax);
+        error(errExpected_s, "identifier");
         return;
     }
     
@@ -359,11 +359,10 @@ void parse_struct_def(void) MYCC {
         parse_type(&ftype_id);
 
         for (;;) {
-            if (tok != tokIdent) error(errSyntax);
+            if (tok != tokIdent) error(errExpected_s, "field name");
+
             strncpy(name, token, MAX_IDENT_LEN);
             get_token(); // skip field name
-
-            /* parse_type() already handles all pointer/array suffixes */
 
             add_struct_field(sid, name, ftype_id);
 
@@ -555,14 +554,14 @@ void parse_for(void) MYCC {
 
 void parse_break(uint16_t brklbl) MYCC {
     get_token(); // skip 'break'
-    if (brklbl == NO_LABEL) error(errSyntax);
+    if (brklbl == NO_LABEL) error(errBreakOutsideLoop);
     expect_semi();    
     emit_jp(brklbl);
 }
 
 void parse_continue(uint16_t contlbl) MYCC {
     get_token(); // skip 'continue'
-    if (contlbl == NO_LABEL) error(errSyntax);
+    if (contlbl == NO_LABEL) error(errContinueOutsideLoop);
     expect_semi();    
     emit_jp(contlbl);
 }
@@ -671,7 +670,7 @@ void parse_type(uint8_t *type_id_out) MYCC {
                 if (t != -1) {
                     base_type_id = (uint8_t)t;
                 } else {
-                    error(errSyntax);
+                    error(errNotDefined_s, token);
                     tok = tokInt;
                     base_type_id = TYPE_ID_INT;
                 }
@@ -679,13 +678,13 @@ void parse_type(uint8_t *type_id_out) MYCC {
             break;
         }
         default:
-            error(errSyntax);
+            error(errNotDefined_s, token);
             tok = tokInt;
             base_type_id = TYPE_ID_INT;
             break;
     }
 
-    get_token(); // skip base type or identifier
+    get_token();
 
     /* Handle multiple levels of pointer/array suffixes */
     while (tok == tokStar || tok == tokLBrack) {
@@ -704,13 +703,13 @@ void parse_type(uint8_t *type_id_out) MYCC {
                 if (type_is_fixed(dim.type_id))
                     dim.value = (uint16_t)((int16_t)dim.value >> 4);
                 if (dim.value > 0) {
-                    if (base_type_id == TYPE_ID_VOID) error(errSyntax);
+                    if (base_type_id == TYPE_ID_VOID) error(errTypeError);
                     base_type_id = type_make_array(base_type_id, dim.value);
                 } else {
                     base_type_id = type_make_pointer(base_type_id, 1); // zero means pointer
                 }
             }
-            expect(tokRBrack, errSyntax);
+            expect(tokRBrack, ']');
         }
     }
     
@@ -944,14 +943,14 @@ void parse_vastart(void) MYCC {
     expect_LParen();
     SYMBOL valist = lookupIdent(token);
     if (valist.klass != VARIABLE) {
-        error(errSyntax);
+        error(errTypeError);
     }
     get_token(); // skip valist
     if (tok == tokComma) {
         get_token(); // skip ','
         SYMBOL last_fixed = lookupIdent(token);
         if (last_fixed.klass != ARGUMENT) {
-            error(errSyntax);
+            error(errTypeError);
         }
         get_token(); // skip last_fixed
         emit_ld_symaddr(&last_fixed);
@@ -971,7 +970,7 @@ void parse_vaend(void) MYCC {
     expect_LParen();
     SYMBOL valist = lookupIdent(token);
     if (valist.klass != VARIABLE) {
-        error(errSyntax);
+        error(errTypeError);
     }
     get_token(); // skip valist
     expect_RParen();
@@ -1131,7 +1130,7 @@ void parse_org(void) MYCC {
 }
 
 void parse_bank(void) MYCC {
-    if (inbank) error(errSyntax);
+    if (inbank) error(errTopLevelOnly);
 
     inbank = 1;
     get_token(); // skip bank
@@ -1182,7 +1181,7 @@ void parse_conditional(uint8_t active, uint16_t brklbl, uint16_t contlbl) MYCC {
             if (tok == tokHashIf || tok == tokHashIfDef || tok == tokHashIfNDef) {
                 ++hash_if_depth;
             } else if (tok == tokHashEndif) {
-                if (--hash_if_depth == 0) error(errSyntax);
+                if (--hash_if_depth == 0) error(errUnexpectedEndif);
             }
             get_token();
         }
@@ -1225,7 +1224,7 @@ void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC {
         parse_conditional(!branch_taken, brklbl, contlbl);
     }
 
-    if (tok != tokHashEndif) error(errSyntax);
+    if (tok != tokHashEndif) error(errExpected_s, "#endif");
     --hash_if_depth;
     get_token(); // skip '#endif'
 }
@@ -1296,7 +1295,7 @@ void parse_delegate_decl(void) MYCC {
     }
 
     if (tok != tokIdent) {
-        error(errSyntax);
+        error(errExpected_s, "identifier");
         return;
     }
     static char name[MAX_IDENT_LEN+1];
