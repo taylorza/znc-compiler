@@ -19,7 +19,7 @@
 #endif
 
 /* Debug tracing */
-#define ZNC_DEBUG 0
+#define ZNC_DEBUG 1
 
 #if ZNC_DEBUG
 #define DPRINT(...) printf(__VA_ARGS__)

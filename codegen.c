@@ -354,7 +354,7 @@ void emit_rtl(const char* name) MYCC {
      * can pass string literals that live in their bank without causing
      * device MMU deref issues when inc_rtl switches bank.
      */
-    static char tmp[32];
+    static char tmp[16];
     strncpy(tmp, name, sizeof(tmp) - 1);
     tmp[sizeof(tmp) - 1] = '\0';
 

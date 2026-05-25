@@ -3,19 +3,20 @@ make dot "feature_test.dot";
 // ============================================================
 // Test group switches - set to 0 to exclude a group
 // ============================================================
-const int TEST_BASIC   = 0;   // typ_glb, const, arith, bitwise, compare, ternary, incdec
-const int TEST_FLOW    = 0;   // while, for, brkcont, switch
-const int TEST_ARRAYS  = 0;   // arrays, ptrs
-const int TEST_STRUCTS = 0;   // structs, dlgs
-const int TEST_VARGS   = 0;   // vargs
-const int TEST_ASM     = 0;   // asm
-const int TEST_CCOMP   = 0;   // ccomp (conditional compilation)
+const int TEST_BASIC   = 1;   // typ_glb, const, arith, bitwise, compare, ternary, incdec
+const int TEST_FLOW    = 1;   // while, for, brkcont, switch
+const int TEST_ARRAYS  = 1;   // arrays, ptrs
+const int TEST_STRUCTS = 1;   // structs, dlgs
+const int TEST_VARGS   = 1;   // vargs
+const int TEST_ASM     = 1;   // asm
+const int TEST_CCOMP   = 1;   // ccomp (conditional compilation)
 
-const int TEST_FIXED   = 1;   // fixed-point
-const int TEST_PTRADV  = 1;   // rawref, tconv
-const int TEST_FORINIT = 1;   // for-initializer declarations
-const int TEST_ELIF    = 1;   // #elif
-const int TEST_COMPOUND = 1;  // compound assignment operators
+const int TEST_FIXED   = 0;   // fixed-point
+const int TEST_PTRADV  = 0;   // rawref, tconv
+const int TEST_FORINIT = 0;   // for-initializer declarations
+const int TEST_ELIF    = 0;   // #elif
+const int TEST_COMPOUND = 0;  // compound assignment operators
+const int TEST_INITEX  = 0;   // initializer + brace-argument enhancements
 
 // Derived: do_add/do_sub are needed by STRUCTS and FORINIT
 #if TEST_STRUCTS
@@ -54,6 +55,23 @@ struct Rect {
 
 struct OpTable {
     BinOp fn;
+};
+
+struct SpriteInit {
+    byte x;
+    byte y;
+    int vel;
+    byte[3] pixels;
+};
+
+struct NamedVal {
+    char[6] name;
+    int      val;
+};
+
+struct FxPair {
+    fixed[2] pts;
+    int      tag;
 };
 
 // ============================================================
@@ -119,6 +137,7 @@ int sum_va(int cnt, ...) {
 }
 #endif
 
+
 // --- Inline-assembly function: two's-complement negation ---
 // Calling convention: arg n is on the stack (16-bit), result in HL.
 #if TEST_ASM
@@ -171,6 +190,65 @@ void chk(char *name, int ok) {
 }
 
 // --- Feature test functions ---
+
+#if TEST_INITEX
+int sum_b4(byte[] a) {
+    return a[0] + a[1] + a[2] + a[3];
+}
+
+int sum_i3(int[] a) {
+    return a[0] + a[1] + a[2];
+}
+
+fixed sum_f3(fixed[] a) {
+    return a[0] + a[1] + a[2];
+}
+
+int sprite_mix(SpriteInit[] s) {
+    return s[0].x + s[1].y + s[2].vel + s[0].pixels[2] + s[1].pixels[1] + s[2].pixels[0];
+}
+
+void test_initex() {
+    // Brace-array literal passed directly as function argument
+    chk("ia_arg_b4", sum_b4({1, 2, 3, 4}) == 10);
+    chk("ia_arg_i3", sum_i3({10, 20, 30}) == 60);
+    chk("ia_arg_f3", sum_f3({1, 2.5, 0.5}) == 4.0);
+
+    // Struct initializer with fixed-size array member type[n]
+    SpriteInit one = {5, 6, 42, {7, 8, 9}};
+    chk("ia_st_one_v", one.vel == 42);
+    chk("ia_st_one_a", one.pixels[1] == 8);
+
+    // Array of structs initialized with nested fixed-size array members
+    SpriteInit[3] arr = {
+        {10, 20, 100, {1, 2, 3}},
+        {30, 40, 200, {4, 5, 6}},
+        {50, 60, 300, {7, 8, 9}}
+    };
+    chk("ia_st_arr_0", arr[0].pixels[2] == 3);
+    chk("ia_st_arr_1", arr[1].pixels[0] == 4);
+    chk("ia_st_arr_2", arr[2].pixels[1] == 8);
+
+    // Struct-array literal passed directly as argument
+    chk("ia_st_arg", sprite_mix({
+        {1, 2, 10, {4, 5, 6}},
+        {3, 4, 20, {7, 8, 9}},
+        {5, 6, 30, {1, 2, 3}}
+    }) == 50);
+
+    // char[n] field initialized with a string literal (inline byte path)
+    NamedVal nv = {"Hello", 7};
+    chk("ia_charr_0", nv.name[0] == 'H');
+    chk("ia_charr_4", nv.name[4] == 'o');
+    chk("ia_charr_v", nv.val == 7);
+
+    // fixed[n] array member with int constant coercion (int->Q4 path)
+    FxPair fp = {{3, 4}, 99};
+    chk("ia_fxarr_0", fp.pts[0] == 3.0);
+    chk("ia_fxarr_1", fp.pts[1] == 4.0);
+    chk("ia_fxarr_t", fp.tag == 99);
+}
+#endif
 
 #if TEST_BASIC
 void test_escape() {
@@ -840,6 +918,9 @@ test_elif();
 #endif
 #if TEST_COMPOUND
 test_compound();
+#endif
+#if TEST_INITEX
+test_initex();
 #endif
 
 puts("================\r");
