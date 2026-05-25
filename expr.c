@@ -896,7 +896,6 @@ static void parse_factor_postfix(EXPR_RESULT* result, uint8_t* dereference, uint
 #define is_compound_assign(t) ((t) >= tokAddAssign && (t) <= tokShrAssign)
 
 EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
-    SYMBOL sym;
     EXPR_RESULT factor_result = { .type_id = expected_type_id, .has_sym = 0 };
     uint8_t prefix_inc = 0;
     uint8_t prefix_dec = 0;
@@ -946,14 +945,14 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             /* Check for prefix ++(*ptr) or --(*ptr) patterns only if we have prefix operators */
             if (tok == tokStar && (prefix_inc || prefix_dec)) {
                 get_token(); // skip '*'
-                
+
                 /* Parse the pointer expression - this will load the pointer into HL */
-                EXPR_RESULT ptr_result = parse_factor(0, 0);
+                factor_result = parse_factor(0, 0);
                 expect_RParen();
-                
+
                 /* Get element type */
-                uint8_t elem_type_id = type_get_element_type_id(ptr_result.type_id);
-                
+                uint8_t elem_type_id = type_get_element_type_id(factor_result.type_id);
+
                 /* This is ++(*ptr) or --(*ptr) (prefix) */
                 TOKEN op = prefix_inc ? tokInc : tokDec;
                 handle_incdec_internal(1, NULL, elem_type_id, 1, op);
@@ -967,14 +966,14 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             /* Check for (*...) dereference pattern that might be followed by postfix ++ or -- */
             if (tok == tokStar) {
                 get_token(); // skip '*'
-                
+
                 /* Parse the pointer expression */
-                EXPR_RESULT ptr_result = parse_factor(0, 0);
+                factor_result = parse_factor(0, 0);
                 if (tok == tokRParen) {
                     get_token(); // skip ')'
 
                     /* Get element type */
-                    uint8_t elem_type_id = type_get_element_type_id(ptr_result.type_id);
+                    uint8_t elem_type_id = type_get_element_type_id(factor_result.type_id);
                     factor_result.type_id = elem_type_id;
 
                     /* Don't load the value yet - leave address in HL for potential postfix operator */
@@ -983,8 +982,8 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
                     dereference = 1;                    
                 }
                 else {
-                    emit_load(ptr_result.type_id);
-                    factor_result = parse_op_right(ptr_result, 0, expected_type_id);
+                    emit_load(factor_result.type_id);
+                    factor_result = parse_op_right(factor_result, 0, expected_type_id);
                     expect_RParen();                    
                 }
                 break;
@@ -1139,20 +1138,19 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             break;
                                
         case tokIdent:
-            sym = lookupIdent(token);
-            if (not_defined(&sym)) {
+            factor_result.sym = lookupIdent(token);
+            if (not_defined(&factor_result.sym)) {
                 error(errNotDefined_s, token);
                 return factor_result;
             }
 
             get_token(); // skip identifier
 
-            factor_result.sym = sym;
             factor_result.has_sym = 1;
-            factor_result.type_id = sym.type_id;
-            
-            if (type_is_const(sym.type_id)) {
-                factor_result.value = sym.stk.offset;
+            factor_result.type_id = factor_result.sym.type_id;
+
+            if (type_is_const(factor_result.sym.type_id)) {
+                factor_result.value = factor_result.sym.stk.offset;
                 if (neg) factor_result.value = -factor_result.value;
                 if (not) factor_result.value = !factor_result.value;
                 if (cmpl) factor_result.value = ~factor_result.value;
@@ -1163,7 +1161,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
              * to avoid emitting load instructions. The caller can check has_sym and is_func_or_proto
              * to emit the symbol reference directly (e.g., for initializers).
              */
-            if (is_func_or_proto(&sym) && tok != tokLParen && tok != tokLBrack) {
+            if (is_func_or_proto(&factor_result.sym) && tok != tokLParen && tok != tokLBrack) {
                 factor_result.value = 0;                  /* Functions don't have a numeric value */
                 return factor_result;
             }
