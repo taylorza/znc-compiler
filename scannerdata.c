@@ -109,7 +109,7 @@ static char gnc(void) MYCC {
         ++code;
         loc[fileid].col++;
         loc[fileid].ofs++;
-
+        curr_col++;
         if (loc[fileid].ofs >= loc[fileid].len)
             src_read();
     }
@@ -139,6 +139,9 @@ static void skipws(void) MYCC {
         if (nl_seen) {
             loc[fileid].line++;
             loc[fileid].col = 1;
+            
+            curr_line++;
+            curr_col = 1;
         }
     }
 }
@@ -203,10 +206,14 @@ static void skip_block_comment(void) MYCC {
             if (ch() == '\n') gnc();
             loc[fileid].line++;
             loc[fileid].col = 1;
+            curr_line++;
+            curr_col = 1;
         } else if (c == '\n') {
             if (ch() == '\r') gnc();
             loc[fileid].line++;
             loc[fileid].col = 1;
+            curr_line++;
+            curr_col = 1;
         }
     }
     

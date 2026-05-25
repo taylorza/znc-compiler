@@ -76,6 +76,9 @@ uint8_t src_open(const char* filename) MYCC {
     src->ofs = 0;
     src->col = 1;
 
+    curr_line = 1;
+    curr_col = 1;
+
     return src_read();
 }
 

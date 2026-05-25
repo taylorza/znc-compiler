@@ -50,6 +50,7 @@
 #endif
 
 #include "dataarea.h"
+#include "shared.h"
 #include "util.h"
 #include "tokens.h"
 #include "error.h"

@@ -3,6 +3,9 @@
 
 #include "znc.h"
 
+extern uint16_t curr_line;
+extern uint16_t curr_col;
+
 typedef uint16_t ARENA_MARKER;
 
 ARENA_MARKER arena_get_marker(void) MYCC;
