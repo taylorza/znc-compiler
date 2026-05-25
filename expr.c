@@ -46,6 +46,7 @@ int8_t prec(TOKEN op) MYCC {
 EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC;
 EXPR_RESULT far_parse_expr(uint8_t minprec, uint8_t expected_type_id) MYCC;
 EXPR_RESULT far_parse_expr_delayconst(uint8_t minprec, uint8_t expected_type_id) MYCC;
+EXPR_RESULT parse_op_right(EXPR_RESULT left, uint8_t minprec, uint8_t expected_type_id);
 
 
 /* Helper: Emit scaling of value in HL or DE by given scale factor */
@@ -281,6 +282,285 @@ static uint8_t lookup_struct_member(uint8_t check_type_id, FIELDINFO *fi_out, ui
     return 1;
 }
 
+/* Binary operator handler extracted to its own function to minimise the stack
+ * frame of parse_op_right during recursive calls.  The locals here (r_result,
+ * scaleL/R, flags) are only live while this helper is on the stack, so they
+ * do not inflate the frame of the outer loop during tokOr/tokAnd/ternary
+ * recursion paths. */
+static EXPR_RESULT handle_binary_op(EXPR_RESULT left, TOKEN op, uint8_t p) MYCC {
+    uint16_t scaleL = 0;
+    uint16_t scaleR = 0;
+    EXPR_RESULT r_result = { .type_id = TYPE_ID_VOID };
+
+    if (!type_is_const(left.type_id)) {
+        emit_push();
+    }
+
+    r_result = far_parse_expr_delayconst(p + 1, 0);
+
+    /* Compute pointer arithmetic scaling (only for arithmetic ops, not comparisons) */
+    uint8_t is_cmp_op = (op == tokEq || op == tokNeq || op == tokLt || op == tokLeq || op == tokGt || op == tokGeq);
+    if (!is_cmp_op) {
+        /* Fixed-type offsets in pointer arithmetic are first converted to int (>> 4) */
+        if ((type_is_pointer(left.type_id) || type_is_array(left.type_id)) &&
+            (type_is_int(r_result.type_id) || type_is_fixed(r_result.type_id))) {
+            uint8_t elem_id = type_get_element_type_id(left.type_id);
+            scaleR = type_size(elem_id);
+            /* If the offset is fixed, convert it to int BEFORE scaling. */
+            if (type_is_fixed(r_result.type_id)) {
+                if (type_is_const(r_result.type_id)) {
+                    /* const fixed -> const int (shift right 4) */
+                    r_result.value = (uint16_t)((int16_t)r_result.value >> 4);
+                    r_result.type_id = type_make_int(1);
+                }
+                /* runtime fixed: type_id stays TK_FIXED so right_is_fixed stays 1;
+                 * the tokPlus/tokMinus handlers will call emit_fixed_to_int() before scaling */
+            }
+        }
+        if ((type_is_pointer(r_result.type_id) || type_is_array(r_result.type_id)) &&
+            (type_is_int(left.type_id) || type_is_fixed(left.type_id))) {
+            uint8_t elem_id = type_get_element_type_id(r_result.type_id);
+            scaleL = type_size(elem_id);
+            if (type_is_const(left.type_id) && type_is_fixed(left.type_id))
+                left.value = (uint16_t)((int16_t)left.value >> 4);
+        }
+    }
+
+    if (scaleL && scaleR) error(errIllegalOp);
+
+    uint8_t pointer = type_is_pointer(left.type_id) || type_is_pointer(r_result.type_id);
+
+    if (pointer) {
+        switch (op) {
+            case tokStar:
+            case tokDiv:
+            case tokMod:
+            case tokOr:
+            case tokAnd:
+            case tokShl:
+            case tokShr:
+                error(errIllegalOp);
+                break;
+        }
+    }
+
+    if (type_is_const(left.type_id) && type_is_const(r_result.type_id)) {
+        uint8_t lf = type_is_fixed(left.type_id);
+        uint8_t rf = type_is_fixed(r_result.type_id);
+        /* For arithmetic/comparison ops mixing fixed and int/char constants,
+         * convert the non-fixed operand into Q4 format before folding. */
+        if ((lf || rf) && op_needs_fixed_align(op)) {
+            if (lf && !rf) { r_result.value = r_result.value << 4; rf = 1; }
+            else if (rf && !lf) { left.value = left.value << 4; lf = 1; }
+        }
+        switch (op) {
+            case tokLt:
+                left.value = pointer ? (left.value < r_result.value) : ((int16_t)left.value < (int16_t)r_result.value);
+                break;
+            case tokLeq:
+                left.value = pointer ? (left.value <= r_result.value) : ((int16_t)left.value <= (int16_t)r_result.value);
+                break;
+            case tokGt:
+                left.value = pointer ? (left.value > r_result.value) : ((int16_t)left.value > (int16_t)r_result.value);
+                break;
+            case tokGeq:
+                left.value = pointer ? (left.value >= r_result.value) : ((int16_t)left.value >= (int16_t)r_result.value);
+                break;
+            case tokEq: left.value = left.value == r_result.value; break;
+            case tokNeq: left.value = left.value != r_result.value; break;
+            case tokPlus:
+                if (scaleR) left.value = left.value + (r_result.value * scaleR);
+                else if (scaleL) left.value = (left.value * scaleL) + r_result.value;
+                else left.value = left.value + r_result.value;
+                break;
+            case tokMinus:
+                if (scaleR) left.value = left.value - (r_result.value * scaleR);
+                else if (scaleL) left.value = (left.value * scaleL) - r_result.value;
+                else left.value = left.value - r_result.value;
+                break;
+            case tokStar:
+                /* fixed * fixed in Q4: (a*b)>>4 */
+                /* Cast to int32_t before multiply to avoid overflow on 16-bit targets (SDCC). */
+                if (lf && rf) left.value = (uint16_t)(((int32_t)(int16_t)left.value * (int32_t)(int16_t)r_result.value) >> 4);
+                else left.value = left.value * r_result.value;
+                break;
+            case tokDiv:
+                /* fixed / fixed in Q4: (a<<4)/b */
+                /* Cast to int32_t before shift to avoid overflow on 16-bit targets (SDCC). */
+                if (lf && rf) left.value = (uint16_t)(((int32_t)(int16_t)left.value << 4) / (int32_t)(int16_t)r_result.value);
+                else left.value = left.value / r_result.value;
+                break;
+            case tokMod: left.value = left.value % r_result.value; break;
+            case tokShl: left.value = left.value << (rf ? (uint16_t)((int16_t)r_result.value >> 4) : r_result.value); break;
+            case tokShr: left.value = left.value >> (rf ? (uint16_t)((int16_t)r_result.value >> 4) : r_result.value); break;
+            case tokBitOr: left.value = left.value | r_result.value; break;
+            case tokBitAnd: left.value = left.value & r_result.value; break;
+            case tokBitXor: left.value = left.value ^ r_result.value; break;
+            default:
+                error(errIllegalOp);
+                break;
+        }
+        /* Result type: comparisons always produce int (0 or 1); arithmetic preserves fixed */
+        switch (op) {
+            case tokEq: case tokNeq:
+            case tokLt: case tokLeq:
+            case tokGt: case tokGeq:
+                left.type_id = type_make_int(1);
+                break;
+            case tokShl: case tokShr:
+                /* Shift result follows the left operand only (right is the count) */
+                if (lf) left.type_id = type_make_fixed(1);
+                break;
+            default:
+                if (lf || rf) left.type_id = type_make_fixed(1);
+                break;
+        }
+        left.has_sym = 0;  /* Result is a folded value, not a direct symbol reference */
+        return left;
+    }
+
+    /* Load constants with pre-applied scaling */
+    uint8_t left_is_fixed = type_is_fixed(left.type_id);
+    uint8_t right_is_fixed = type_is_fixed(r_result.type_id);
+    uint8_t either_fixed = left_is_fixed || right_is_fixed;
+
+    if (type_is_const(left.type_id)) {
+        uint16_t val = left.value;
+        if (scaleL) val = val * scaleL;
+        /* If right is fixed and left is a plain int constant, pre-shift it */
+        if (right_is_fixed && !type_is_fixed(left.type_id) && op_needs_fixed_align(op)) {
+            val = val << 4;
+            left_is_fixed = 1;
+        }
+        emit_ldde_immed(); emit_n(val); emit_nl();
+        scaleL = 0;
+    }
+    else if (type_is_const(r_result.type_id)) {
+        uint16_t val = r_result.value;
+        if (scaleR) val = val * scaleR;
+        /* If left is fixed and right is a plain int constant, pre-shift it */
+        if (left_is_fixed && !type_is_fixed(r_result.type_id) && op_needs_fixed_align(op)) {
+            val = val << 4;
+            right_is_fixed = 1;
+        }
+        emit_ld_immed(); emit_n(val); emit_nl();
+        scaleR = 0;
+        emit_pop_de();
+    }
+    else {
+        emit_pop_de();
+    }
+    either_fixed = left_is_fixed || right_is_fixed;
+
+    /* When mixing fixed with int/char, convert the non-fixed side to fixed.
+     * At this point: DE = left, HL = right.
+     * Converting int->fixed = shift left 4 bits.
+     * Skip for pointer arithmetic: tokPlus/tokMinus handlers call emit_fixed_to_int()
+     * on the fixed offset themselves, before element-size scaling.
+     */
+    if (either_fixed && op_needs_fixed_align(op) && !pointer) {
+        if (left_is_fixed && !right_is_fixed) {
+            /* HL (right) is int/char, convert to fixed by shifting left 4 */
+            emit_int_to_fixed();
+        } else if (right_is_fixed && !left_is_fixed) {
+            /* DE (left) is int/char, convert to fixed by shifting left 4 */
+            emit_instrln("ex de,hl");
+            emit_int_to_fixed();
+            emit_instrln("ex de,hl");
+        }
+    }
+
+    switch (op) {
+        case tokLt:
+            emit_rtl(pointer ? "ccult" : "cclt");
+            break;
+        case tokLeq:
+            emit_rtl(pointer ? "ccule" : "ccle");
+            break;
+        case tokGt:
+            emit_rtl(pointer ? "ccugt" : "ccgt");
+            break;
+        case tokGeq:
+            emit_rtl(pointer ? "ccuge" : "ccge");
+            break;
+        case tokEq:
+            emit_rtl("cceq");
+            break;
+        case tokNeq:
+            emit_rtl("ccne");
+            break;
+        case tokPlus:
+            if (scaleR) { if (right_is_fixed) emit_fixed_to_int(); emit_scale_reg(scaleR, SCALE_HL); }
+            if (scaleL) { if (left_is_fixed) { emit_instrln("ex de,hl"); emit_fixed_to_int(); emit_instrln("ex de,hl"); } emit_scale_reg(scaleL, SCALE_DE); }
+            emit_add16();
+            break;
+        case tokMinus:
+            if (scaleR) { if (right_is_fixed) emit_fixed_to_int(); emit_scale_reg(scaleR, SCALE_HL); }
+            if (scaleL) { if (left_is_fixed) { emit_instrln("ex de,hl"); emit_fixed_to_int(); emit_instrln("ex de,hl"); } emit_scale_reg(scaleL, SCALE_DE); }
+            emit_sub16();
+            break;
+        case tokStar:
+            if (either_fixed)
+                emit_rtl("ccfxmul");
+            else
+                emit_rtl("ccmult");
+            break;
+        case tokDiv:
+            if (either_fixed)
+                emit_rtl("ccfxdiv");
+            else
+                emit_rtl("ccdiv");
+            break;
+        case tokMod:
+            emit_rtl("ccdiv");
+            emit_swap();
+            break;
+        case tokShl:
+            if (right_is_fixed) emit_fixed_to_int();
+            emit_instrln("ld b,l");
+            emit_instrln("bsla de,b");
+            emit_swap();
+            break;
+        case tokShr:
+            if (right_is_fixed) emit_fixed_to_int();
+            emit_instrln("ld b,l");
+            emit_instrln("bsra de,b");
+            emit_swap();
+            break;
+        case tokBitOr:
+            emit_rtl("ccor");
+            break;
+        case tokBitAnd:
+            emit_rtl("ccand");
+            break;
+        case tokBitXor:
+            emit_rtl("ccxor");
+            break;
+        default:
+            error(errIllegalOp);
+            break;
+    }
+
+    /* After emitting runtime code, result is no longer const or a simple symbol */
+    if (type_is_const(left.type_id)) {
+        left.type_id = TYPE_ID_INT;
+    }
+    /* Comparison/relational operators always produce an int (0 or 1) result */
+    if (op == tokEq || op == tokNeq || op == tokLt || op == tokLeq || op == tokGt || op == tokGeq) {
+        left.type_id = TYPE_ID_INT;
+    }
+    /* If either operand was fixed and this is an arithmetic op, result is fixed */
+    if (either_fixed && (op == tokPlus || op == tokMinus || op == tokStar || op == tokDiv || op == tokMod)) {
+        left.type_id = TYPE_ID_FIXED;
+    }
+    /* Shift result follows the left operand type only (right operand is the count) */
+    if (left_is_fixed && (op == tokShl || op == tokShr)) {
+        left.type_id = TYPE_ID_FIXED;
+    }
+    left.has_sym = 0;  /* Result is computed, not a direct symbol reference */
+    return left;
+}
+
 EXPR_RESULT parse_op_right(EXPR_RESULT left, uint8_t minprec, uint8_t expected_type_id) {
     uint8_t p;
     while ((p = prec(tok)) && p && p >= minprec) {
@@ -290,299 +570,25 @@ EXPR_RESULT parse_op_right(EXPR_RESULT left, uint8_t minprec, uint8_t expected_t
         if (op == tokCond) {
             left = parse_ternary(left, p, expected_type_id);
         }
-        else {
-            /* Inline binary operator handling */
-            uint16_t scaleL = 0;
-            uint16_t scaleR = 0;
-            EXPR_RESULT r_result = { .type_id = TYPE_ID_VOID };
-
-            if (op == tokOr || op == tokAnd) {
-                uint16_t short_circuit_lbl = newlbl();
-                uint8_t short_circuit = 0;
-                if (type_is_const(left.type_id)) {
-                    emit_ld_const(left.value);
-                    short_circuit = (op == tokOr) ? (left.value != 0) : (left.value == 0);
-                }
-
-                if (!short_circuit) {
-                    (op == tokOr) ? emit_jp_true(short_circuit_lbl) : emit_jp_false(short_circuit_lbl);
-                }
-                else {
-                    emit_jp(short_circuit_lbl);
-                }
-                left = far_parse_expr(p + 1, 0);
-                
-                emit_lbl(short_circuit_lbl);
-                left.type_id = TYPE_ID_INT;
-                continue;
-            }
-
-            if (!type_is_const(left.type_id)) {
-                emit_push();
-            }
-
-            r_result = far_parse_expr_delayconst(p + 1, 0);
-
-            /* Compute pointer arithmetic scaling (only for arithmetic ops, not comparisons) */
-            uint8_t is_cmp_op = (op == tokEq || op == tokNeq || op == tokLt || op == tokLeq || op == tokGt || op == tokGeq);
-            if (!is_cmp_op) {
-                /* Fixed-type offsets in pointer arithmetic are first converted to int (>> 4) */
-                if ((type_is_pointer(left.type_id) || type_is_array(left.type_id)) &&
-                    (type_is_int(r_result.type_id) || type_is_fixed(r_result.type_id))) {
-                    uint8_t elem_id = type_get_element_type_id(left.type_id);
-                    scaleR = type_size(elem_id);
-                    /* If the offset is fixed, convert it to int BEFORE scaling. */
-                    if (type_is_fixed(r_result.type_id)) {
-                        if (type_is_const(r_result.type_id)) {
-                            /* const fixed -> const int (shift right 4) */
-                            r_result.value = (uint16_t)((int16_t)r_result.value >> 4);
-                            r_result.type_id = type_make_int(1);
-                        }
-                        /* runtime fixed: type_id stays TK_FIXED so right_is_fixed stays 1;
-                         * the tokPlus/tokMinus handlers will call emit_fixed_to_int() before scaling */
-                    }
-                }
-                if ((type_is_pointer(r_result.type_id) || type_is_array(r_result.type_id)) &&
-                    (type_is_int(left.type_id) || type_is_fixed(left.type_id))) {
-                    uint8_t elem_id = type_get_element_type_id(r_result.type_id);
-                    scaleL = type_size(elem_id);
-                    if (type_is_const(left.type_id) && type_is_fixed(left.type_id))
-                        left.value = (uint16_t)((int16_t)left.value >> 4);
-                }
-            }
-
-            if (scaleL && scaleR) error(errIllegalOp);
-
-            uint8_t pointer = type_is_pointer(left.type_id) || type_is_pointer(r_result.type_id);
-
-            if (pointer) {
-                switch (op) {
-                    case tokStar:
-                    case tokDiv:
-                    case tokMod:
-                    case tokOr:
-                    case tokAnd:
-                    case tokShl:
-                    case tokShr:
-                        error(errIllegalOp);
-                        break;
-                }
-            }
-
-            if (type_is_const(left.type_id) && type_is_const(r_result.type_id)) {
-                uint8_t lf = type_is_fixed(left.type_id);
-                uint8_t rf = type_is_fixed(r_result.type_id);
-                /* For arithmetic/comparison ops mixing fixed and int/char constants,
-                 * convert the non-fixed operand into Q4 format before folding. */
-                if ((lf || rf) && op_needs_fixed_align(op)) {
-                    if (lf && !rf) { r_result.value = r_result.value << 4; rf = 1; }
-                    else if (rf && !lf) { left.value = left.value << 4; lf = 1; }
-                }
-                switch (op) {
-                    case tokLt:
-                        left.value = pointer ? (left.value < r_result.value) : ((int16_t)left.value < (int16_t)r_result.value);
-                        break;
-                    case tokLeq:
-                        left.value = pointer ? (left.value <= r_result.value) : ((int16_t)left.value <= (int16_t)r_result.value);
-                        break;
-                    case tokGt:
-                        left.value = pointer ? (left.value > r_result.value) : ((int16_t)left.value > (int16_t)r_result.value);
-                        break;
-                    case tokGeq:
-                        left.value = pointer ? (left.value >= r_result.value) : ((int16_t)left.value >= (int16_t)r_result.value);
-                        break;
-                    case tokEq: left.value = left.value == r_result.value; break;
-                    case tokNeq: left.value = left.value != r_result.value; break;
-                    case tokPlus:
-                        if (scaleR) left.value = left.value + (r_result.value * scaleR);
-                        else if (scaleL) left.value = (left.value * scaleL) + r_result.value;
-                        else left.value = left.value + r_result.value;
-                        break;
-                    case tokMinus:
-                        if (scaleR) left.value = left.value - (r_result.value * scaleR);
-                        else if (scaleL) left.value = (left.value * scaleL) - r_result.value;
-                        else left.value = left.value - r_result.value;
-                        break;
-                    case tokStar:
-                        /* fixed * fixed in Q4: (a*b)>>4 */
-                        /* Cast to int32_t before multiply to avoid overflow on 16-bit targets (SDCC). */
-                        if (lf && rf) left.value = (uint16_t)(((int32_t)(int16_t)left.value * (int32_t)(int16_t)r_result.value) >> 4);
-                        else left.value = left.value * r_result.value;
-                        break;
-                    case tokDiv:
-                        /* fixed / fixed in Q4: (a<<4)/b */
-                        /* Cast to int32_t before shift to avoid overflow on 16-bit targets (SDCC). */
-                        if (lf && rf) left.value = (uint16_t)(((int32_t)(int16_t)left.value << 4) / (int32_t)(int16_t)r_result.value);
-                        else left.value = left.value / r_result.value;
-                        break;
-                    case tokMod: left.value = left.value % r_result.value; break;
-                    case tokShl: left.value = left.value << (rf ? (uint16_t)((int16_t)r_result.value >> 4) : r_result.value); break;
-                    case tokShr: left.value = left.value >> (rf ? (uint16_t)((int16_t)r_result.value >> 4) : r_result.value); break;
-                    case tokBitOr: left.value = left.value | r_result.value; break;
-                    case tokBitAnd: left.value = left.value & r_result.value; break;
-                    case tokBitXor: left.value = left.value ^ r_result.value; break;
-                    default:
-                        error(errIllegalOp);
-                        break;
-                }
-                /* Result type: comparisons always produce int (0 or 1); arithmetic preserves fixed */
-                switch (op) {
-                    case tokEq: case tokNeq:
-                    case tokLt: case tokLeq:
-                    case tokGt: case tokGeq:
-                        left.type_id = type_make_int(1);
-                        break;
-                    case tokShl: case tokShr:
-                        /* Shift result follows the left operand only (right is the count) */
-                        if (lf) left.type_id = type_make_fixed(1);
-                        break;
-                    default:
-                        if (lf || rf) left.type_id = type_make_fixed(1);
-                        break;
-                }
-                left.has_sym = 0;  /* Result is a folded value, not a direct symbol reference */
-                continue;
-            }
-
-            /* Load constants with pre-applied scaling */
-            uint8_t left_is_fixed = type_is_fixed(left.type_id);
-            uint8_t right_is_fixed = type_is_fixed(r_result.type_id);
-            uint8_t either_fixed = left_is_fixed || right_is_fixed;
-
+        else if (op == tokOr || op == tokAnd) {
+            uint16_t short_circuit_lbl = newlbl();
+            uint8_t short_circuit = 0;
             if (type_is_const(left.type_id)) {
-                uint16_t val = left.value;
-                if (scaleL) val = val * scaleL;
-                /* If right is fixed and left is a plain int constant, pre-shift it */
-                if (right_is_fixed && !type_is_fixed(left.type_id) && op_needs_fixed_align(op)) {
-                    val = val << 4;
-                    left_is_fixed = 1;
-                }
-                emit_ldde_immed(); emit_n(val); emit_nl();
-                scaleL = 0;
+                emit_ld_const(left.value);
+                short_circuit = (op == tokOr) ? (left.value != 0) : (left.value == 0);
             }
-            else if (type_is_const(r_result.type_id)) {
-                uint16_t val = r_result.value;
-                if (scaleR) val = val * scaleR;
-                /* If left is fixed and right is a plain int constant, pre-shift it */
-                if (left_is_fixed && !type_is_fixed(r_result.type_id) && op_needs_fixed_align(op)) {
-                    val = val << 4;
-                    right_is_fixed = 1;
-                }
-                emit_ld_immed(); emit_n(val); emit_nl();
-                scaleR = 0;
-                emit_pop_de();
+            if (!short_circuit) {
+                (op == tokOr) ? emit_jp_true(short_circuit_lbl) : emit_jp_false(short_circuit_lbl);
             }
             else {
-                emit_pop_de();
+                emit_jp(short_circuit_lbl);
             }
-            either_fixed = left_is_fixed || right_is_fixed;
-
-            /* When mixing fixed with int/char, convert the non-fixed side to fixed.
-             * At this point: DE = left, HL = right.
-             * Converting int->fixed = shift left 4 bits.
-             * Skip for pointer arithmetic: tokPlus/tokMinus handlers call emit_fixed_to_int()
-             * on the fixed offset themselves, before element-size scaling.
-             */
-            if (either_fixed && op_needs_fixed_align(op) && !pointer) {
-                if (left_is_fixed && !right_is_fixed) {
-                    /* HL (right) is int/char, convert to fixed by shifting left 4 */
-                    emit_int_to_fixed();
-                } else if (right_is_fixed && !left_is_fixed) {
-                    /* DE (left) is int/char, convert to fixed by shifting left 4 */
-                    emit_instrln("ex de,hl");
-                    emit_int_to_fixed();
-                    emit_instrln("ex de,hl");
-                }
-            }
-
-            switch (op) {
-                case tokLt:
-                    emit_rtl(pointer ? "ccult" : "cclt");
-                    break;
-                case tokLeq:
-                    emit_rtl(pointer ? "ccule" : "ccle");
-                    break;
-                case tokGt:
-                    emit_rtl(pointer ? "ccugt" : "ccgt");
-                    break;
-                case tokGeq:
-                    emit_rtl(pointer ? "ccuge" : "ccge");
-                    break;
-                case tokEq:
-                    emit_rtl("cceq");
-                    break;
-                case tokNeq:
-                    emit_rtl("ccne");
-                    break;
-                case tokPlus:
-                    if (scaleR) { if (right_is_fixed) emit_fixed_to_int(); emit_scale_reg(scaleR, SCALE_HL); }
-                    if (scaleL) { if (left_is_fixed) { emit_instrln("ex de,hl"); emit_fixed_to_int(); emit_instrln("ex de,hl"); } emit_scale_reg(scaleL, SCALE_DE); }
-                    emit_add16();
-                    break;
-                case tokMinus:
-                    if (scaleR) { if (right_is_fixed) emit_fixed_to_int(); emit_scale_reg(scaleR, SCALE_HL); }
-                    if (scaleL) { if (left_is_fixed) { emit_instrln("ex de,hl"); emit_fixed_to_int(); emit_instrln("ex de,hl"); } emit_scale_reg(scaleL, SCALE_DE); }
-                    emit_sub16();
-                    break;
-                case tokStar:
-                    if (either_fixed)
-                        emit_rtl("ccfxmul");
-                    else
-                        emit_rtl("ccmult");
-                    break;
-                case tokDiv:
-                    if (either_fixed)
-                        emit_rtl("ccfxdiv");
-                    else
-                        emit_rtl("ccdiv");
-                    break;
-                case tokMod:
-                    emit_rtl("ccdiv");
-                    emit_swap();
-                    break;
-                case tokShl:
-                    if (right_is_fixed) emit_fixed_to_int();
-                    emit_instrln("ld b,l");
-                    emit_instrln("bsla de,b");
-                    emit_swap();
-                    break;
-                case tokShr:
-                    if (right_is_fixed) emit_fixed_to_int();
-                    emit_instrln("ld b,l");
-                    emit_instrln("bsra de,b");
-                    emit_swap();
-                    break;
-                case tokBitOr:
-                    emit_rtl("ccor");
-                    break;
-                case tokBitAnd:
-                    emit_rtl("ccand");
-                    break;
-                case tokBitXor:
-                    emit_rtl("ccxor");
-                    break;
-                default:
-                    error(errIllegalOp);
-                    break;
-            }
-            
-            /* After emitting runtime code, result is no longer const or a simple symbol */
-            if (type_is_const(left.type_id)) {
-                left.type_id = TYPE_ID_INT;
-            }
-            /* Comparison/relational operators always produce an int (0 or 1) result */
-            if (op == tokEq || op == tokNeq || op == tokLt || op == tokLeq || op == tokGt || op == tokGeq) {
-                left.type_id = TYPE_ID_INT;
-            }
-            /* If either operand was fixed and this is an arithmetic op, result is fixed */
-            if (either_fixed && (op == tokPlus || op == tokMinus || op == tokStar || op == tokDiv || op == tokMod)) {
-                left.type_id = TYPE_ID_FIXED;
-            }
-            /* Shift result follows the left operand type only (right operand is the count) */
-            if (left_is_fixed && (op == tokShl || op == tokShr)) {
-                left.type_id = TYPE_ID_FIXED;
-            }
-            left.has_sym = 0;  /* Result is computed, not a direct symbol reference */
+            left = far_parse_expr(p + 1, 0);
+            emit_lbl(short_circuit_lbl);
+            left.type_id = TYPE_ID_INT;
+        }
+        else {
+            left = handle_binary_op(left, op, p);
         }
     }
     return left;
@@ -734,146 +740,165 @@ static EXPR_RESULT parse_factor_ampersand(void) MYCC {
     return result;
 }
 
+/* Postfix subscript handler - extracted to minimise parse_factor_postfix frame.
+ * SYMBOL base_sym (8 bytes) and EXPR_RESULT index_result (12 bytes) are
+ * branch-exclusive and would inflate parse_factor_postfix's frame if inlined. */
+static void postfix_subscript(EXPR_RESULT* result, uint8_t* dereference, uint8_t* addr_in_hl) MYCC {
+    SYMBOL base_sym = result->has_sym ? result->sym : undefined_sym;
+    uint8_t had_sym = result->has_sym;
+
+    if (*addr_in_hl) {
+        if (*dereference && type_is_pointer(result->type_id)) {
+            emit_load(result->type_id);
+            *dereference = 0;
+        }
+    } else if (result->has_sym) {
+        if (!type_is_pointer(result->sym.type_id) && !type_is_array(result->sym.type_id)) {
+            error(errTypeError); return;
+        }
+        if (type_is_pointer(result->sym.type_id)) {
+            emit_ld_symval(&result->sym);
+            had_sym = 0;
+        }
+    } else {
+        if (!type_is_pointer(result->type_id) && !type_is_array(result->type_id)) {
+            error(errTypeError); return;
+        }
+    }
+
+    result->has_sym = 0;
+    uint8_t elemtype_id = type_get_element_type_id(result->type_id);
+    get_token(); // skip '['
+    if (!had_sym) emit_push();
+
+    EXPR_RESULT index_result = far_parse_expr_delayconst(0, TYPE_ID_INT);
+    expect(tokRBrack, ']');
+    uint16_t scale = (uint16_t)type_size(elemtype_id);
+
+    if (type_is_const(index_result.type_id)) {
+        if (type_is_fixed(index_result.type_id))
+            index_result.value = (uint16_t)((int16_t)index_result.value >> 4);
+        uint16_t offset = index_result.value * scale;
+        if (had_sym && type_is_array(base_sym.type_id)) {
+            if (offset) emit_ld_symaddr_offset(&base_sym, offset);
+            else emit_ld_symaddr(&base_sym);
+        } else {
+            if (!had_sym) emit_pop_hl();
+            if (offset) { emit_ldde_immed_n(offset); emit_add16(); }
+        }
+    } else {
+        if (type_is_fixed(index_result.type_id)) emit_fixed_to_int();
+        if (scale > 1) emit_scale_reg(scale, 1);
+        if (had_sym && type_is_array(base_sym.type_id)) {
+            emit_swap();
+            emit_ld_symaddr(&base_sym);
+        } else {
+            emit_pop_de();
+        }
+        emit_add16();
+    }
+
+    result->type_id = elemtype_id;
+    *dereference = 1;
+    *addr_in_hl = 1;
+}
+
+/* Postfix function-call handler - extracted to minimise parse_factor_postfix frame.
+ * SYMBOL call_sym (8 bytes) is branch-exclusive and would inflate the outer frame. */
+static void postfix_call(EXPR_RESULT* result, uint8_t* dereference, uint8_t* addr_in_hl) MYCC {
+    SYMBOL call_sym = result->has_sym ? result->sym : undefined_sym;
+    uint8_t had_sym = result->has_sym;
+    uint8_t callee_type_id = result->type_id;
+
+    result->has_sym = 0;
+
+    if (*addr_in_hl && *dereference) {
+        emit_load(result->type_id);
+        *addr_in_hl = 0;
+        *dereference = 0;
+    }
+
+    PTR_LOCATION ptr_loc = had_sym ? PTR_IN_SYMBOL : PTR_IN_HL;
+    parse_funccall(&call_sym, ptr_loc);
+
+    result->type_id = TYPE_ID_VOID;
+    if (had_sym && is_func_or_proto(&call_sym) && call_sym.fn.signature_id != 0xFF) {
+        result->type_id = signature_get_return_type(call_sym.fn.signature_id);
+    } else {
+        uint8_t ftype_id = 0xFF;
+        if (had_sym && call_sym.klass == VARIABLE && type_get_indirection(call_sym.type_id) == 1)
+            ftype_id = type_get_element_type_id(call_sym.type_id);
+        else if (type_get_indirection(callee_type_id) == 1)
+            ftype_id = type_get_element_type_id(callee_type_id);
+        if (ftype_id != 0xFF && type_is_function(ftype_id)) {
+            uint8_t sig = type_get_function_sig(ftype_id);
+            if (sig != 0xFF) result->type_id = signature_get_return_type(sig);
+        }
+    }
+
+    *addr_in_hl = 0;
+    *dereference = 0;
+}
+
+/* Postfix member-access handler - extracted to minimise parse_factor_postfix frame.
+ * SYMBOL base_sym (8 bytes) and FIELDINFO fi (3 bytes) are branch-exclusive. */
+static void postfix_member(EXPR_RESULT* result, uint8_t* dereference, uint8_t* addr_in_hl) MYCC {
+    SYMBOL base_sym = result->has_sym ? result->sym : undefined_sym;
+    uint8_t had_sym = result->has_sym;
+
+    result->has_sym = 0;
+    get_token();
+
+    uint8_t check_type_id = result->type_id;
+    if (type_is_pointer(check_type_id))
+        check_type_id = type_get_element_type_id(check_type_id);
+    if (!type_is_struct(check_type_id)) { error(errNotAStruct); return; }
+
+    FIELDINFO fi;
+    uint16_t offset;
+    if (!lookup_struct_member(check_type_id, &fi, &offset)) return;
+
+    if (!*addr_in_hl) {
+        if (had_sym) {
+            if (type_is_pointer(result->type_id)) {
+                emit_ld_symval(&base_sym);
+                *addr_in_hl = 1;
+                if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
+            } else {
+                emit_sym_address_with_offset(&base_sym, offset);
+                *addr_in_hl = 1;
+            }
+        } else { error(errNotlvalue); return; }
+    } else {
+        if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
+    }
+
+    result->type_id = fi.type_id;
+    if (type_is_array(result->type_id)) {
+        uint8_t elem_id = type_get_element_type_id(result->type_id);
+        result->type_id = type_make_pointer(elem_id, 1);
+        *dereference = 0;
+    } else {
+        *dereference = 1;
+    }
+    *addr_in_hl = 1;
+}
+
 static void parse_factor_postfix(EXPR_RESULT* result, uint8_t* dereference, uint8_t* addr_in_hl) MYCC {
     while (tok == tokLBrack || tok == tokLParen || tok == tokMember || tok == tokInc || tok == tokDec) {
 
         if (tok == tokLBrack) {
-            SYMBOL base_sym = result->has_sym ? result->sym : undefined_sym;
-            uint8_t had_sym = result->has_sym;
-
-            if (*addr_in_hl) {
-                if (*dereference && type_is_pointer(result->type_id)) {
-                    emit_load(result->type_id);
-                    *dereference = 0;
-                }
-            } else if (result->has_sym) {
-                if (!type_is_pointer(result->sym.type_id) && !type_is_array(result->sym.type_id)) {
-                    error(errTypeError); break;
-                }
-                if (type_is_pointer(result->sym.type_id)) {
-                    emit_ld_symval(&result->sym);
-                    had_sym = 0;
-                }
-            } else {
-                if (!type_is_pointer(result->type_id) && !type_is_array(result->type_id)) {
-                    error(errTypeError); break;
-                }
-            }
-
-            result->has_sym = 0;
-            uint8_t elemtype_id = type_get_element_type_id(result->type_id);
-            get_token(); // skip '['
-            if (!had_sym) emit_push();
-
-            EXPR_RESULT index_result = far_parse_expr_delayconst(0, TYPE_ID_INT);
-            expect(tokRBrack, ']');
-            uint16_t scale = (uint16_t)type_size(elemtype_id);
-
-            if (type_is_const(index_result.type_id)) {
-                if (type_is_fixed(index_result.type_id))
-                    index_result.value = (uint16_t)((int16_t)index_result.value >> 4);
-                uint16_t offset = index_result.value * scale;
-                if (had_sym && type_is_array(base_sym.type_id)) {
-                    if (offset) emit_ld_symaddr_offset(&base_sym, offset);
-                    else emit_ld_symaddr(&base_sym);
-                } else {
-                    if (!had_sym) emit_pop_hl();
-                    if (offset) { emit_ldde_immed_n(offset); emit_add16(); }
-                }
-            } else {
-                if (type_is_fixed(index_result.type_id)) emit_fixed_to_int();
-                if (scale > 1) emit_scale_reg(scale, 1);
-                if (had_sym && type_is_array(base_sym.type_id)) {
-                    emit_swap();
-                    emit_ld_symaddr(&base_sym);
-                } else {
-                    emit_pop_de();
-                }
-                emit_add16();
-            }
-
-            result->type_id = elemtype_id;
-            *dereference = 1;
-            *addr_in_hl = 1;
+            postfix_subscript(result, dereference, addr_in_hl);
             continue;
         }
 
         if (tok == tokLParen) {
-            SYMBOL call_sym = result->has_sym ? result->sym : undefined_sym;
-            uint8_t had_sym = result->has_sym;
-            uint8_t callee_type_id = result->type_id;
-
-            result->has_sym = 0;
-
-            if (*addr_in_hl && *dereference) {
-                emit_load(result->type_id);
-                *addr_in_hl = 0;
-                *dereference = 0;
-            }
-
-            PTR_LOCATION ptr_loc = had_sym ? PTR_IN_SYMBOL : PTR_IN_HL;
-            parse_funccall(&call_sym, ptr_loc);
-
-            result->type_id = TYPE_ID_VOID;
-            if (had_sym && is_func_or_proto(&call_sym) && call_sym.fn.signature_id != 0xFF) {
-                result->type_id = signature_get_return_type(call_sym.fn.signature_id);
-            } else {
-                uint8_t ftype_id = 0xFF;
-                if (had_sym && call_sym.klass == VARIABLE && type_get_indirection(call_sym.type_id) == 1)
-                    ftype_id = type_get_element_type_id(call_sym.type_id);
-                else if (type_get_indirection(callee_type_id) == 1)
-                    ftype_id = type_get_element_type_id(callee_type_id);
-                if (ftype_id != 0xFF && type_is_function(ftype_id)) {
-                    uint8_t sig = type_get_function_sig(ftype_id);
-                    if (sig != 0xFF) result->type_id = signature_get_return_type(sig);
-                }
-            }
-
-            *addr_in_hl = 0;
-            *dereference = 0;
+            postfix_call(result, dereference, addr_in_hl);
             continue;
         }
 
         if (tok == tokMember) {
-            SYMBOL base_sym = result->has_sym ? result->sym : undefined_sym;
-            uint8_t had_sym = result->has_sym;
-
-            result->has_sym = 0;
-            get_token();
-
-            uint8_t check_type_id = result->type_id;
-            if (type_is_pointer(check_type_id))
-                check_type_id = type_get_element_type_id(check_type_id);
-            if (!type_is_struct(check_type_id)) { error(errNotAStruct); return; }
-
-            FIELDINFO fi;
-            uint16_t offset;
-            if (!lookup_struct_member(check_type_id, &fi, &offset)) return;
-
-            if (!*addr_in_hl) {
-                if (had_sym) {
-                    if (type_is_pointer(result->type_id)) {
-                        emit_ld_symval(&base_sym);
-                        *addr_in_hl = 1;
-                        if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
-                    } else {
-                        emit_sym_address_with_offset(&base_sym, offset);
-                        *addr_in_hl = 1;
-                    }
-                } else { error(errNotlvalue); return; }
-            } else {
-                if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
-            }
-
-            result->type_id = fi.type_id;
-            if (type_is_array(result->type_id)) {
-                uint8_t elem_id = type_get_element_type_id(result->type_id);
-                result->type_id = type_make_pointer(elem_id, 1);
-                *dereference = 0;
-            } else {
-                *dereference = 1;
-            }
-            *addr_in_hl = 1;
+            postfix_member(result, dereference, addr_in_hl);
             continue;
         }
 
