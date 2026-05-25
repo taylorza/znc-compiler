@@ -3,20 +3,23 @@ make dot "feature_test.dot";
 // ============================================================
 // Test group switches - set to 0 to exclude a group
 // ============================================================
-const int TEST_BASIC   = 1;   // typ_glb, const, arith, bitwise, compare, ternary, incdec
-const int TEST_FLOW    = 1;   // while, for, brkcont, switch
-const int TEST_ARRAYS  = 1;   // arrays, ptrs
-const int TEST_STRUCTS = 1;   // structs, dlgs
-const int TEST_VARGS   = 1;   // vargs
-const int TEST_ASM     = 1;   // asm
-const int TEST_CCOMP   = 1;   // ccomp (conditional compilation)
+const int TEST_G1 = 0;
+const int TEST_G2 = 1;
 
-const int TEST_FIXED   = 0;   // fixed-point
-const int TEST_PTRADV  = 0;   // rawref, tconv
-const int TEST_FORINIT = 0;   // for-initializer declarations
-const int TEST_ELIF    = 0;   // #elif
-const int TEST_COMPOUND = 0;  // compound assignment operators
-const int TEST_INITEX  = 0;   // initializer + brace-argument enhancements
+const int TEST_BASIC   = TEST_G1;   // typ_glb, const, arith, bitwise, compare, ternary, incdec
+const int TEST_FLOW    = TEST_G1;   // while, for, brkcont, switch
+const int TEST_ARRAYS  = TEST_G1;   // arrays, ptrs
+const int TEST_STRUCTS = TEST_G1;   // structs, dlgs
+const int TEST_VARGS   = TEST_G1;   // vargs
+const int TEST_ASM     = TEST_G1;   // asm
+const int TEST_CCOMP   = TEST_G1;   // ccomp (conditional compilation)
+
+const int TEST_FIXED   = TEST_G2;   // fixed-point
+const int TEST_PTRADV  = TEST_G2;   // rawref, tconv
+const int TEST_FORINIT = TEST_G2;   // for-initializer declarations
+const int TEST_ELIF    = TEST_G2;   // #elif
+const int TEST_COMPOUND = TEST_G2;  // compound assignment operators
+const int TEST_INITEX  = TEST_G2;   // initializer + brace-argument enhancements
 
 // Derived: do_add/do_sub are needed by STRUCTS and FORINIT
 #if TEST_STRUCTS
