@@ -795,7 +795,48 @@ void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
          * simple identifier (arg_result.has_sym) which we use for compatibility
          * checks below.
          */
-        EXPR_RESULT arg_result = parse_expr(0, 0);
+        EXPR_RESULT arg_result;
+        if (tok == tokLBrace) {
+            /* Brace-initializer literal passed as argument.
+             * Emit it as inline static data and pass its address in HL. */
+            uint8_t elem_type_id = TYPE_ID_CHAR; /* default: byte */
+            uint16_t expected_arr_len = 0; /* 0 = no fixed-size constraint */
+            if (sig_id != 0xFF && argcount < expected_count) {
+                uint8_t expected_type = signature_get_arg_type(sig_id, argcount);
+                if (type_is_array(expected_type) || type_is_pointer(expected_type))
+                    elem_type_id = type_get_element_type_id(expected_type);
+                if (type_is_array(expected_type))
+                    expected_arr_len = type_get_array_length(expected_type);
+            }
+
+            get_token(); /* skip '{' */
+
+            uint16_t skiplbl = newlbl();
+            uint16_t datalbl = newlbl();
+
+            /* Load address of the inline data into HL */
+            emit_ld_immed(); emit_lblref(datalbl); emit_nl();
+
+            /* Jump over the data so the CPU does not execute it */
+            emit_jp(skiplbl);
+            emit_lbl(datalbl);
+            emit_ch(' ');
+
+            uint16_t actual_count = parse_brace_initializer_elements(elem_type_id);
+            expect(tokRBrace, '}');
+
+            /* Validate element count against a fixed-size array parameter */
+            if (expected_arr_len > 0 && actual_count != expected_arr_len)
+                error(errArgMismatch);
+
+            emit_lbl(skiplbl);
+
+            arg_result.type_id = type_make_pointer(elem_type_id, 1);
+            arg_result.has_sym = 0;
+            arg_result.value   = 0;
+        } else {
+            arg_result = parse_expr(0, 0);
+        }
         
         /* Error if passing a struct by value - must use & to pass pointer */
         if (type_is_struct(arg_result.type_id) && !type_is_pointer(arg_result.type_id)) {

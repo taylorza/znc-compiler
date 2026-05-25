@@ -153,21 +153,18 @@ uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC
     if (is_array_to && !is_array_from && indir_from == 0) return 0;
     if (is_array_from && !is_array_to && indir_to == 0) return 0;
 
-    /* Array <-> Pointer: allow if element/base types match */
-    /* Do NOT allow a pointer to be passed to an array parameter. Arrays may
-     * be passed to pointer parameters (array->pointer decay), but pointer->array
-     * is not allowed. */
+    /* Array <-> Pointer: treat T[] and T* as interchangeable (C semantics).
+     * Both array->pointer and pointer->array are allowed when element types match. */
     if (is_array_to && indir_from > 0) {
-        /* If the source is a pointer (not an array), reject */
-        if (!is_array_from) return 0;
-        /* If the source is itself an array with extra indirection, require element match */
-        uint8_t elem_to = t1.aux0;
-        uint8_t elem_from = t2.aux0;
+        /* pointer passed to array parameter: allow if element types match */
+        uint8_t elem_to   = t1.aux0;
+        uint8_t elem_from = type_get_element_type_id(from_type_id);
         if (elem_to == elem_from) return 1;
     }
     if (is_array_from && indir_to > 0) {
+        /* array passed to pointer parameter: allow if element types match */
         uint8_t elem_from = t2.aux0;
-        uint8_t elem_to = type_get_element_type_id(to_type_id);
+        uint8_t elem_to   = type_get_element_type_id(to_type_id);
         if (elem_to == elem_from) return 1;
     }
 

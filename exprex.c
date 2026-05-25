@@ -165,16 +165,15 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8
      */
     if (tok == tokLBrace) {
         get_token(); // skip '{'
-        uint16_t counter = 0;
         uint16_t elementcount = 0;
-        TypeKind bt = type_get_kind(type_id);
         uint16_t skiplbl = newlbl();
         uint16_t datalbl = newlbl();
         uint16_t datalen = NO_LABEL;
 
         if (sym.klass == CLASS_UNDEFINED && !dereference) error(errNotlvalue);
 
-        if (!dereference) {
+        if (!dereference && !type_is_array(type_id) && !type_is_struct(type_id)) {
+            /* Pointer/scalar variable: store the address of the inline data into the variable */
             emit_ld_immed(); emit_lblref(datalbl); emit_nl();
             if (sym.klass != CLASS_UNDEFINED) {
                 emit_store_sym(&sym);
@@ -186,7 +185,11 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8
         else {
             datalen = newlbl();
 
-            if (sym.klass != CLASS_UNDEFINED) {
+            if (!dereference && (type_is_array(type_id) || type_is_struct(type_id))) {
+                /* Array/struct variable: destination is the variable's own storage address */
+                emit_ld_symaddr(&sym);
+            }
+            else if (sym.klass != CLASS_UNDEFINED) {
                 emit_ld_symval(&sym);
             }
             /* else: HL already contains the pointer value from parse_factor (*p case) */
@@ -216,7 +219,14 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8
         elementcount = parse_brace_initializer_elements(element_type_id);
 
         if (datalen != NO_LABEL) {
-            emit_lblequ16(datalen, elementcount * type_size(type_id));
+            uint16_t data_size;
+            if (type_is_struct(type_id)) {
+                /* Struct: entire struct is emitted as one block; elementcount is always 1 */
+                data_size = type_size(type_id);
+            } else {
+                data_size = elementcount * type_size(element_type_id);
+            }
+            emit_lblequ16(datalen, data_size);
         }
         expect_RBrace();
 
