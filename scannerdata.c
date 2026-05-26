@@ -267,6 +267,7 @@ void far_parse_asm(void) MYCC {
 
         uint8_t line_col = loc[fileid].col;
         uint8_t has_content = 0;
+        char prev = 0;
 
         while ((c = ch()) && c != '\r' && c != '\n') {
 
@@ -285,6 +286,7 @@ void far_parse_asm(void) MYCC {
                     }
                 }
                 if (c == quote) emit_ch(gnc()); /* emit closing quote */
+                prev = 0; /* treat end-of-string as non-alnum boundary */
                 continue;
             }
 
@@ -303,13 +305,14 @@ void far_parse_asm(void) MYCC {
                 }
                 asm_emit_indent(&has_content, line_col, asmcol);
                 emit_ch('/');
+                prev = '/';
                 continue;
             }
 
-            /* -- 0x / 0b prefix conversion -- */
-            if (c == '0') {
+            /* -- 0x / 0b prefix conversion (only when not inside an identifier) -- */
+            if (c == '0' && !isalnum((unsigned char)prev) && prev != '_') {
                 gnc();
-                char p = ch() | 0x20; /* lowercase without calling tolower */
+                char p = ch() | 0x20; /* fast lowercase for ascii letters */
                 asm_emit_indent(&has_content, line_col, asmcol);
                 if (p == 'x') {
                     gnc();
@@ -320,12 +323,14 @@ void far_parse_asm(void) MYCC {
                 } else {
                     emit_ch('0');
                 }
+                prev = '0';
                 continue;
             }
 
             /* -- ordinary character -- */
             asm_emit_indent(&has_content, line_col, asmcol);
             emit_ch(c);
+            prev = c;
             gnc();
         }
 
