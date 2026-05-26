@@ -311,15 +311,24 @@ void far_parse_asm(void) MYCC {
 
             /* -- 0x / 0b prefix conversion (only when not inside an identifier) -- */
             if (c == '0' && !isalnum((unsigned char)prev) && prev != '_') {
-                gnc();
+                gnc(); /* consume '0' */
                 char p = ch() | 0x20; /* fast lowercase for ascii letters */
                 asm_emit_indent(&has_content, line_col, asmcol);
                 if (p == 'x') {
-                    gnc();
-                    emit_ch('$');
+                    gnc(); /* consume 'x'/'X' */
+                    if (isxdigit((unsigned char)ch())) {
+                        emit_ch('$'); /* valid hex literal */
+                    } else {
+                        emit_ch('0'); emit_ch(p); /* not valid - emit original */
+                    }
                 } else if (p == 'b') {
-                    gnc();
-                    emit_ch('%');
+                    gnc(); /* consume 'b'/'B' */
+                    char nc = ch();
+                    if (nc == '0' || nc == '1') {
+                        emit_ch('%'); /* valid binary literal */
+                    } else {
+                        emit_ch('0'); emit_ch(p); /* not valid - emit original */
+                    }
                 } else {
                     emit_ch('0');
                 }
