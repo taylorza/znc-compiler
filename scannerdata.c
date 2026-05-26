@@ -231,6 +231,23 @@ static void skip_block_comment(void) MYCC {
  * asmcol: column threshold - tokens at or below this column are labels.
  */
 TOKEN_TYPE far_get_token(void) MYCC; /* forward declaration */
+
+static void asm_advance_line(char c) MYCC {
+    if (c == '\r' && ch() == '\n') gnc();
+    else if (c == '\n' && ch() == '\r') gnc();
+    loc[fileid].line++;
+    loc[fileid].col = 1;
+    curr_line++;
+    curr_col = 1;
+}
+
+static void asm_emit_indent(uint8_t *has_content, uint8_t line_col, uint8_t asmcol) MYCC {
+    if (!*has_content) {
+        *has_content = 1;
+        if (line_col > asmcol) emit_str("  ");
+    }
+}
+
 void far_parse_asm(void) MYCC {
     uint8_t asmcol = token_line_start_col;
     for (;;) {
@@ -239,12 +256,7 @@ void far_parse_asm(void) MYCC {
         while ((c = ch()) && (c == ' ' || c == '\t' || c == '\r' || c == '\n')) {
             if (c == '\r' || c == '\n') {
                 gnc();
-                if (c == '\r' && ch() == '\n') gnc();
-                else if (c == '\n' && ch() == '\r') gnc();
-                loc[fileid].line++;
-                loc[fileid].col = 1;
-                curr_line++;
-                curr_col = 1;
+                asm_advance_line(c);
             } else {
                 gnc();
             }
@@ -253,23 +265,15 @@ void far_parse_asm(void) MYCC {
         c = ch();
         if (c == '\0' || c == '}') break;
 
-        /* Record the column of the first non-whitespace character on this line */
         uint8_t line_col = loc[fileid].col;
-
-        /* Read and emit the rest of the line, stripping comments.
-         * Strings (" and ') are passed through verbatim including escape
-         * sequences. Number prefixes 0x/0b are converted to $/% outside
-         * of strings. Comments (; and //) terminate the line. */
         uint8_t has_content = 0;
+
         while ((c = ch()) && c != '\r' && c != '\n') {
 
             /* -- string/char literal: pass through verbatim -- */
             if (c == '"' || c == '\'') {
                 char quote = c;
-                if (!has_content) {
-                    has_content = 1;
-                    if (line_col > asmcol) emit_str("  ");
-                }
+                asm_emit_indent(&has_content, line_col, asmcol);
                 emit_ch(gnc()); /* emit opening quote */
                 while ((c = ch()) && c != '\r' && c != '\n' && c != quote) {
                     if (c == '\\') {
@@ -297,10 +301,7 @@ void far_parse_asm(void) MYCC {
                     while ((c = ch()) && c != '\r' && c != '\n') gnc();
                     break;
                 }
-                if (!has_content) {
-                    has_content = 1;
-                    if (line_col > asmcol) emit_str("  ");
-                }
+                asm_emit_indent(&has_content, line_col, asmcol);
                 emit_ch('/');
                 continue;
             }
@@ -308,11 +309,8 @@ void far_parse_asm(void) MYCC {
             /* -- 0x / 0b prefix conversion -- */
             if (c == '0') {
                 gnc();
-                char p = tolower((unsigned char)ch());
-                if (!has_content) {
-                    has_content = 1;
-                    if (line_col > asmcol) emit_str("  ");
-                }
+                char p = ch() | 0x20; /* lowercase without calling tolower */
+                asm_emit_indent(&has_content, line_col, asmcol);
                 if (p == 'x') {
                     gnc();
                     emit_ch('$');
@@ -326,25 +324,16 @@ void far_parse_asm(void) MYCC {
             }
 
             /* -- ordinary character -- */
-            if (!has_content) {
-                has_content = 1;
-                if (line_col > asmcol) emit_str("  ");
-            }
+            asm_emit_indent(&has_content, line_col, asmcol);
             emit_ch(c);
             gnc();
         }
 
         if (has_content) emit_nl();
 
-        /* Consume the newline */
         if (c == '\r' || c == '\n') {
             gnc();
-            if (c == '\r' && ch() == '\n') gnc();
-            else if (c == '\n' && ch() == '\r') gnc();
-            loc[fileid].line++;
-            loc[fileid].col = 1;
-            curr_line++;
-            curr_col = 1;
+            asm_advance_line(c);
         }
     }
 
