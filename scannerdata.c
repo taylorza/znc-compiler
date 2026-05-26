@@ -83,6 +83,7 @@ extern TOKEN tok;
 extern uint8_t token_length;
 extern int16_t intval;
 extern uint8_t in_asm_block;
+extern uint8_t token_line_start_col;
 
 extern uint8_t src_read(void) MYCC;
 
@@ -222,7 +223,140 @@ static void skip_block_comment(void) MYCC {
     }
 }
 
-/* Banked implementation of get_token. Uses far_lookup_keyword (local)
+/* Raw line-at-a-time inline assembly parser.
+ * Reads character-by-character, stripping ; and // comments, and emits
+ * each line verbatim with correct label/instruction indentation.
+ * Strings are passed through verbatim (including escape sequences).
+ * Number prefixes 0x/0b are converted to $/% outside of strings.
+ * asmcol: column threshold - tokens at or below this column are labels.
+ */
+TOKEN_TYPE far_get_token(void) MYCC; /* forward declaration */
+void far_parse_asm(void) MYCC {
+    uint8_t asmcol = token_line_start_col;
+    for (;;) {
+        /* Skip leading whitespace on each line, tracking newlines */
+        char c;
+        while ((c = ch()) && (c == ' ' || c == '\t' || c == '\r' || c == '\n')) {
+            if (c == '\r' || c == '\n') {
+                gnc();
+                if (c == '\r' && ch() == '\n') gnc();
+                else if (c == '\n' && ch() == '\r') gnc();
+                loc[fileid].line++;
+                loc[fileid].col = 1;
+                curr_line++;
+                curr_col = 1;
+            } else {
+                gnc();
+            }
+        }
+
+        c = ch();
+        if (c == '\0' || c == '}') break;
+
+        /* Record the column of the first non-whitespace character on this line */
+        uint8_t line_col = loc[fileid].col;
+
+        /* Read and emit the rest of the line, stripping comments.
+         * Strings (" and ') are passed through verbatim including escape
+         * sequences. Number prefixes 0x/0b are converted to $/% outside
+         * of strings. Comments (; and //) terminate the line. */
+        uint8_t has_content = 0;
+        while ((c = ch()) && c != '\r' && c != '\n') {
+
+            /* -- string/char literal: pass through verbatim -- */
+            if (c == '"' || c == '\'') {
+                char quote = c;
+                if (!has_content) {
+                    has_content = 1;
+                    if (line_col > asmcol) emit_str("  ");
+                }
+                emit_ch(gnc()); /* emit opening quote */
+                while ((c = ch()) && c != '\r' && c != '\n' && c != quote) {
+                    if (c == '\\') {
+                        emit_ch(gnc()); /* emit backslash */
+                        if (ch() && ch() != '\r' && ch() != '\n')
+                            emit_ch(gnc()); /* emit escaped char */
+                    } else {
+                        emit_ch(gnc());
+                    }
+                }
+                if (c == quote) emit_ch(gnc()); /* emit closing quote */
+                continue;
+            }
+
+            /* -- ; comment: discard rest of line -- */
+            if (c == ';') {
+                while ((c = ch()) && c != '\r' && c != '\n') gnc();
+                break;
+            }
+
+            /* -- // comment: discard rest of line -- */
+            if (c == '/') {
+                gnc();
+                if (ch() == '/') {
+                    while ((c = ch()) && c != '\r' && c != '\n') gnc();
+                    break;
+                }
+                if (!has_content) {
+                    has_content = 1;
+                    if (line_col > asmcol) emit_str("  ");
+                }
+                emit_ch('/');
+                continue;
+            }
+
+            /* -- 0x / 0b prefix conversion -- */
+            if (c == '0') {
+                gnc();
+                char p = tolower((unsigned char)ch());
+                if (!has_content) {
+                    has_content = 1;
+                    if (line_col > asmcol) emit_str("  ");
+                }
+                if (p == 'x') {
+                    gnc();
+                    emit_ch('$');
+                } else if (p == 'b') {
+                    gnc();
+                    emit_ch('%');
+                } else {
+                    emit_ch('0');
+                }
+                continue;
+            }
+
+            /* -- ordinary character -- */
+            if (!has_content) {
+                has_content = 1;
+                if (line_col > asmcol) emit_str("  ");
+            }
+            emit_ch(c);
+            gnc();
+        }
+
+        if (has_content) emit_nl();
+
+        /* Consume the newline */
+        if (c == '\r' || c == '\n') {
+            gnc();
+            if (c == '\r' && ch() == '\n') gnc();
+            else if (c == '\n' && ch() == '\r') gnc();
+            loc[fileid].line++;
+            loc[fileid].col = 1;
+            curr_line++;
+            curr_col = 1;
+        }
+    }
+
+    if (ch() == '}') gnc(); /* consume '}' */
+    else error(errSyntax);
+
+    /* Re-sync the scanner - call far_get_token directly since we are
+     * already executing in BANK_42, no bank switch needed */
+    far_get_token();
+}
+
+/* Banked implementation of get_token.
  * instead of the shared `lookup_keyword` wrapper.
  */
 TOKEN_TYPE far_get_token(void) MYCC {
@@ -233,6 +367,7 @@ get_token_start:
     
     skipws();
     token_length = 0;
+    if (loc[fileid].line != token_line) token_line_start_col = loc[fileid].col;
     token_line = loc[fileid].line;
     token_col = loc[fileid].col;
     

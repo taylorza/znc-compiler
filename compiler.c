@@ -45,7 +45,7 @@ void parse_exit(void) MYCC;
 void parse_putc(void) MYCC; 
 void parse_out(void) MYCC;
 void parse_nextreg(void) MYCC;
-void parse_asm(int asmcol) MYCC;
+void parse_asm(void) MYCC;
 void parse_org(void) MYCC;
 void parse_bank(void) MYCC;
 void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC;
@@ -235,7 +235,7 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
         case tokVaEnd: parse_vaend(); break;
         case tokOut: parse_out(); break;
         case tokNextReg: parse_nextreg(); break;
-        case tokAsm: parse_asm(0); break;
+        case tokAsm: parse_asm(); break;
         case tokInclude: parse_include(); break;
         case tokOrg: parse_org(); break;
         case tokBank: parse_bank(); break;
@@ -605,38 +605,13 @@ void parse_nextreg(void) MYCC {
     expect_semi();    
 }
 
-void parse_asm(int asmcol) MYCC {
-    if (asmcol == 0) asmcol = token_col;
-    get_token(); // skip 'asm'
-    expect_LBrace();
+void parse_asm(void) MYCC {
+    get_token(); // skip '__asm__', tok is now tokLBrace
+    if (tok != tokLBrace) { error(errExpected_c, '{'); return; }
+    // Do NOT call get_token() here - far_parse_asm reads the body raw
+    // starting from code which already points past '{'
     enter_asm_block();
-    while (tok != tokRBrace && tok != tokEOS) {
-        int last_token_line = token_line;
-        if (token_col <= asmcol) {
-            emit_str("%s", token);
-        } else {
-            emit_str("  %s ", token);
-        }
-        TOKEN lasttok = tok; 
-       
-        get_token();
-        while (token_line == last_token_line && tok != tokRBrace && tok != tokEOS) {
-            lasttok = tok; 
-            if (tok == tokNumber) {
-                emit_n(intval);
-            }
-            else if (token_type == ttString) {
-                emit_str("\"%s\"",token);
-            }
-            else {
-                emit_str(token);
-            }
-            get_token();                        
-            if ((tok == tokIdent || tok == tokNone && token_type != ttError) && (lasttok == tokIdent)) emit_ch(' ');            
-        }
-        emit_nl();
-    }
-    expect_RBrace();
+    parse_asm_block();
     exit_asm_block();
 }
 
@@ -1132,7 +1107,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
         emit_sname(name); emit_nl();
 
         if (tok == tokAsm) {
-            parse_asm(2);
+            parse_asm();
         }
         else {
             if (tok != tokLBrace) error(errExpected_c, "}");

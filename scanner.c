@@ -13,6 +13,7 @@ uint8_t token_length;
 
 int16_t intval;
 uint8_t in_asm_block = 0;
+uint8_t token_line_start_col = 1;
 
 void enter_asm_block(void) MYCC {
     ++in_asm_block;
@@ -89,10 +90,15 @@ void src_close(void) MYCC {
 #else
     fclose(src->handle);
 #endif
-    
+
     src->filename[0] = '\0';
-    
+
     code = loc[fileid].buf + loc[fileid].ofs;
+
+    if (fileid != 255) {
+        curr_line = loc[fileid].line;
+        curr_col = loc[fileid].col;
+    }
 }
 
 void src_closeall(void) MYCC {
@@ -106,6 +112,14 @@ TOKEN_TYPE get_token(void) MYCC {
     PROLOG(42)
         t = far_get_token();
     EPILOG_RETURN(t)
+}
+
+void far_parse_asm(void) MYCC;
+
+void parse_asm_block(void) MYCC {
+    PROLOG(42)
+        far_parse_asm();
+    EPILOG
 }
 
 void expect(TOKEN t, char ch) {
