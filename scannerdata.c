@@ -50,7 +50,7 @@ KEYWORD keywords[] = {
     {"#ifndef", tokHashIfNDef},
     {"#elif", tokHashElif},
     {"#else", tokHashElse},
-    {"#endif", tokHashEndif},
+    {"#endif", tokHashEndif},   
 };
 
 /* Banked implementation of keyword lookup. Called from shared memory via

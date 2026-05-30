@@ -6,7 +6,7 @@ TARGET = +zxn
 ZCC     = zcc
 ASM     = z80asm
 
-MAX_ALLOCS = 200
+MAX_ALLOCS = 2000
 CFLAGS = -m -c -clib=sdcc_iy -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLOCS)
 AFLAGS =
 LFLAGS = -m -startup=30 -clib=sdcc_iy -subtype=dotn -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLOCS) -pragma-include:zpragma.inc -create-app
@@ -105,8 +105,8 @@ $(OUTPUT_DIR)/typedata2.o: typedata2.c | $(OUTPUT_DIR)
 	@echo "-> Generated $@"
 
 $(OUTPUT_DIR)/exprex.o: exprex.c | $(OUTPUT_DIR)
-	@echo "Compiling BANK 46 (expr extras)"
-	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_46 --codesegBANK_46 --constsegBANK_46 --bsssegBANK_46
+	@echo "Compiling BANK 45 (expr extras)"
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_45 --codesegBANK_45 --constsegBANK_45 --bsssegBANK_45
 	@echo "-> Generated $@"
 
 $(OUTPUT_DIR)/shared.o: shared.c | $(OUTPUT_DIR)

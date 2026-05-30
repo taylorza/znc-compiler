@@ -1,3 +1,6 @@
+2026/06/31 - Version 0.5a
+- Improved inline assembly parsing
+
 2026/05/24 - Version 0.5
 - Restored max identifier length to 12 (reported by Iáń Júkéś)
 - Inline assembly correctly support ';' comments (reported by Iáń Júkéś)

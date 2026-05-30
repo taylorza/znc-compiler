@@ -18,19 +18,19 @@ EXPR_RESULT parse_expr_delayconst(uint8_t minprec, uint8_t expected_type_id) MYC
 }
 
 EXPR_RESULT parse_ternary(EXPR_RESULT expr_result, uint8_t prec, uint8_t expected_type_id) MYCC {
-    PROLOG(46)
+    PROLOG(45)
     EXPR_RESULT r = far_parse_ternary(expr_result, prec, expected_type_id);
     EPILOG_RETURN(r);
 }
 
 void parse_assign(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t type_id) MYCC {
-    PROLOG(46)
+    PROLOG(45)
     far_parse_assign_ex(dereference, sym, indexed, type_id);
     EPILOG
 }
 
 void parse_compound_assign(TOKEN op, uint8_t dereference, SYMBOL sym, uint8_t addr_in_hl, uint8_t type_id) MYCC {
-    PROLOG(46)
+    PROLOG(45)
     far_parse_compound_assign(op, dereference, sym, addr_in_hl, type_id);
     EPILOG
 }

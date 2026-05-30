@@ -79,11 +79,11 @@ static void parse(const char* sourcefile, const char* outfilename, uint8_t entry
     }
 
     uint16_t top_local_lbl = 0;
-    if (entrypoint) {
-        start_lbl = newlbl();
-        emit_lbl(start_lbl);
+    if (entrypoint) {        
         if (tokMakeType == tokNex) {
+            start_lbl = newlbl();
             stack_lbl = newlbl();
+            emit_lbl(start_lbl);
             emit_instr("ld sp,");
             emit_lblref(stack_lbl); emit_nl();
         }
@@ -122,7 +122,6 @@ void emit_make_defines(TOKEN outputTok) {
 void parse_make(const char *filename) MYCC {
     get_token(); // skip 'make'
 
-    
     switch (tok) {
         case tokNex:            
         case tokRaw:
@@ -904,8 +903,8 @@ void do_exit(EXPR_RESULT exit_expr) {
                 emit_instrln("xor a");                            
             } else {
                 if ((type_is_pointer(exit_expr.type_id) && type_is_char(type_get_element_type_id(exit_expr.type_id)))) {
-                emit_rtl("ccpstr"); // convert C string to BASIC string
-                emit_instrln("xor a");                      
+                    emit_rtl("ccpstr"); // convert C string to BASIC string
+                    emit_instrln("xor a");                      
                 } else {
                     emit_instrln("ld a,l");                    
                 }
@@ -930,21 +929,29 @@ void parse_return(void) MYCC {
 
     get_token(); // skip 'return';
 
-    if (type_is_void(func_rettype)) {
-        expect_semi();
-    } 
-    else {
-        if (tok == tokSemi) error(errReturnValueExpected);
-        expr_result = parse_expr(0, func_rettype);        
-        if (!type_check_compatible(expr_result.type_id, func_rettype)) {
-            error(errTypeError);
-        }        
-        expect_semi();
-    }    
-    
-    if (infunc)
+    if (infunc) {
+        if (type_is_void(func_rettype)) {
+            if (tok != tokSemi) error(errReturnValueUnexpected);
+        }
+        else {
+            if (tok == tokSemi) error(errReturnValueExpected);
+            expr_result = parse_expr(0, func_rettype);
+            if (!type_check_compatible(expr_result.type_id, func_rettype)) {
+                error(errTypeError);
+            }
+            expect_semi();
+        }
+
         emit_jp(retlbl);
+    }
     else {
+        if (tok != tokSemi) {
+            expr_result = parse_expr(0, 0);
+        }
+        else {
+            expr_result.type_id = TYPE_ID_INT;
+            expr_result.value = 0;
+        }
         do_exit(expr_result);
     }
 }

@@ -19,6 +19,7 @@ typedef enum ERROR {
     errTooManyTypes,
     errTooManyPointerLevels,
     errReturnValueExpected,
+    errReturnValueUnexpected,
     errBadEscape,
     errTopLevelOnly,
     errUnexpectedElse,

@@ -20,6 +20,7 @@ static const char* errmsg[] = {
     "Too many types",
     "Too many indirections",
     "Return value expected",
+    "Return value unexpected",
     "Bad escape",
     "Top level only",
     "Unexpected #else",
