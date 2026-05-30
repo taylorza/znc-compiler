@@ -249,7 +249,7 @@ static void asm_emit_indent(uint8_t *has_content, uint8_t line_col, uint8_t asmc
 }
 
 void far_parse_asm(void) MYCC {
-    uint8_t asmcol = token_line_start_col;
+    volatile uint8_t asmcol = token_line_start_col;
     for (;;) {
         /* Skip leading whitespace on each line, tracking newlines */
         char c;
@@ -265,8 +265,8 @@ void far_parse_asm(void) MYCC {
         c = ch();
         if (c == '\0' || c == '}') break;
 
-        uint8_t line_col = loc[fileid].col;
-        uint8_t has_content = 0;
+        volatile uint8_t line_col = loc[fileid].col;
+        volatile uint8_t has_content = 0;
         char prev = 0;
 
         while ((c = ch()) && c != '\r' && c != '\n') {
