@@ -165,14 +165,43 @@ EXPR_RESULT parse_onearg(void) MYCC {
     return expr;
 }
 
+/* Consume one statement from the token stream without emitting any code.
+   Handles a balanced { } block or a single ;-terminated statement. */
+static void skip_statement(void) MYCC {
+    if (tok == tokLBrace) {
+        int depth = 1;
+        get_token(); // skip '{'
+        while (tok != tokEOS && depth > 0) {
+            if (tok == tokLBrace) ++depth;
+            else if (tok == tokRBrace) { if (--depth == 0) break; }
+            get_token();
+        }
+        get_token(); // skip final '}'
+    } else {
+        // skip to matching ';', honouring nested parens/brackets
+        int depth = 0;
+        while (tok != tokEOS) {
+            if (tok == tokLParen || tok == tokLBrack) ++depth;
+            else if (tok == tokRParen || tok == tokRBrack) --depth;
+            else if (tok == tokSemi && depth == 0) { get_token(); break; }
+            get_token();
+        }
+    }
+}
+
 static void parse_statement_block(uint16_t brklbl, uint16_t contlbl) MYCC {
     get_token(); // skip '{'
     uint16_t blockframe = push_frame();
     uint8_t old_localcount = localcount;
     uint16_t old_bp = bp_lastlocal;
     while (tok != tokEOS && tok != tokRBrace) {
+        uint8_t was_exit = (tok == tokReturn || tok == tokBreak || tok == tokContinue);
         parse_statement(brklbl, contlbl);
-    }   
+        if (was_exit) {
+            while (tok != tokEOS && tok != tokRBrace)
+                skip_statement();
+        }
+    }
     if (maxlocalcount < localcount) maxlocalcount = localcount;
     bp_lastlocal = old_bp;
     localcount = old_localcount;
@@ -379,10 +408,24 @@ void parse_struct_def(void) MYCC {
 }
 
 void parse_if(uint16_t brklbl, uint16_t contlbl) MYCC {
+    get_token(); // skip 'if'
+    expect_LParen();
+    EXPR_RESULT cond = parse_expr_delayconst(0, 0);
+    expect_RParen();
+
+    if (type_is_const(cond.type_id)) {
+        if (cond.value) {
+            parse_statement(brklbl, contlbl);           // always-true: emit true branch
+            if (tok == tokElse) { get_token(); skip_statement(); } // skip else
+        } else {
+            skip_statement();                           // always-false: skip true branch
+            if (tok == tokElse) { get_token(); parse_statement(brklbl, contlbl); } // emit else
+        }
+        return;
+    }
+
     uint16_t lblEndIf = NO_LABEL;
     uint16_t lblFalse = newlbl();
-                
-    parse_onearg(); // (expr)
     emit_jp_false(lblFalse);
     parse_statement(brklbl, contlbl);
 
@@ -398,7 +441,6 @@ void parse_if(uint16_t brklbl, uint16_t contlbl) MYCC {
         emit_lbl(lblEndIf);
         lblEndIf = NO_LABEL;
     }
-    
 }
 
 void parse_switch(uint16_t contlbl) MYCC {
@@ -468,18 +510,27 @@ void parse_switch(uint16_t contlbl) MYCC {
 }
 
 void parse_while(void) MYCC {
+    get_token(); // skip 'while'
+    expect_LParen();
+
     uint16_t lblCond = newlbl();
     uint16_t lblEndWhile = newlbl();
-    
-    emit_lbl(lblCond);
+    emit_lbl(lblCond); // label must precede condition code in output
 
-    parse_onearg(); // (expr)
+    EXPR_RESULT cond = parse_expr_delayconst(0, 0);
+    expect_RParen();
 
-    emit_jp_false(lblEndWhile);
+    if (type_is_const(cond.type_id) && !cond.value) {
+        skip_statement(); // while(0) { ... } — skip body, emit nothing
+        return;           // lblCond emitted but unreferenced — harmless
+    }
+
+    if (!type_is_const(cond.type_id))
+        emit_jp_false(lblEndWhile);
     parse_statement(lblEndWhile, lblCond);
     emit_jp(lblCond);
 
-    emit_lbl(lblEndWhile);    
+    emit_lbl(lblEndWhile);
 }
 
 void parse_for(void) MYCC {
@@ -518,7 +569,28 @@ void parse_for(void) MYCC {
 	if (tok != tokSemi) {
 		lblCond = newlbl();
 		emit_lbl(lblCond);
-		parse_expr(0, 0); 
+		EXPR_RESULT cond = parse_expr_delayconst(0, 0);
+		if (type_is_const(cond.type_id) && !cond.value) {
+			// for(; 0; ...) — skip post-expr and body, emit nothing
+			expect_semi();
+			// skip post-expression, respecting nested parens
+			int pdepth = 0;
+			while (tok != tokEOS) {
+				if (tok == tokLParen || tok == tokLBrack) ++pdepth;
+				else if (tok == tokRParen || tok == tokRBrack) {
+					if (pdepth == 0) break; // this is the for's closing ')'
+					--pdepth;
+				}
+				get_token();
+			}
+			expect_RParen();
+			skip_statement(); // skip body
+			if (maxlocalcount < localcount) maxlocalcount = localcount;
+			bp_lastlocal = old_bp;
+			localcount = old_localcount;
+			pop_frame(blockframe);
+			return;
+		}
 		emit_jp_false(lblEndFor);
 	}
 	expect_semi();
