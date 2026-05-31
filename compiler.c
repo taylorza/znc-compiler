@@ -247,6 +247,7 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
         case tokConst:
         case tokVoid:
         case tokChar:
+        case tokByte:
         case tokInt:
         case tokFixed:
             parse_decl();
@@ -321,6 +322,7 @@ static uint8_t make_const_type(uint8_t type_id) MYCC {
     
     TypeKind kind = type_get_kind(type_id);
     if (kind == TK_CHAR) return type_make_char(1);
+    else if (kind == TK_BYTE) return type_make_byte(1);
     else if (kind == TK_INT) return type_make_int(1);
     else if (kind == TK_FIXED) return type_make_fixed(1);
     else if (kind == TK_STRUCT) {
@@ -567,7 +569,7 @@ void parse_for(void) MYCC {
 
 	// parse initializer
 	uint8_t init_is_decl = 0;
-	if (tok == tokConst || tok == tokChar || tok == tokInt || tok == tokFixed || tok == tokVoid) {
+	if (tok == tokConst || tok == tokChar || tok == tokByte || tok == tokInt || tok == tokFixed || tok == tokVoid) {
 		init_is_decl = 1;
 	} else if (tok == tokIdent) {
 		if (find_struct(token) >= 0 || type_find_by_name(token) != -1)
@@ -715,7 +717,10 @@ void parse_type(uint8_t *type_id_out) MYCC {
         case tokChar: 
             base_type_id = TYPE_ID_CHAR;
             break;
-        case tokInt: 
+        case tokByte:
+            base_type_id = TYPE_ID_BYTE;
+            break;
+        case tokInt:
             base_type_id = TYPE_ID_INT;
             break;
         case tokFixed:
@@ -929,12 +934,12 @@ void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
 
             /* Emit fixed-point conversion if needed between compatible scalar types */
             if (type_is_fixed(expected_type) && !type_is_fixed(actual_type) &&
-                (type_is_int(actual_type) || type_is_char(actual_type) ||
+                (type_is_int(actual_type) || type_is_char(actual_type) || type_is_byte(actual_type) ||
                  type_is_const(actual_type))) {
                 /* int/char -> fixed: shift left 4 */
                 emit_int_to_fixed();
             } else if (!type_is_fixed(expected_type) && type_is_fixed(actual_type) &&
-                       (type_is_int(expected_type) || type_is_char(expected_type))) {
+                       (type_is_int(expected_type) || type_is_char(expected_type) || type_is_byte(expected_type))) {
                 /* fixed -> int/char: shift right 4 (arithmetic) */
                 emit_fixed_to_int();
             }

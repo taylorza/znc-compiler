@@ -10,7 +10,7 @@ KEYWORD keywords[] = {
     {"const", tokConst},
     {"void", tokVoid},
     {"char", tokChar},
-    {"byte", tokChar},
+    {"byte", tokByte},
     {"int", tokInt},
     {"fixed", tokFixed},
     {"va_list", tokInt},
@@ -241,7 +241,7 @@ static void asm_advance_line(char c) MYCC {
     curr_col = 1;
 }
 
-static void asm_emit_indent(uint8_t *has_content, uint8_t line_col, uint8_t asmcol) MYCC {
+static void asm_emit_indent(volatile uint8_t *has_content, uint8_t line_col, uint8_t asmcol) MYCC {
     if (!*has_content) {
         *has_content = 1;
         if (line_col > asmcol) emit_str("  ");

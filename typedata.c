@@ -131,11 +131,11 @@ uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC
     kind_to = (t1.kind_and_flags >> 5) & 0x07;
     kind_from = (t2.kind_and_flags >> 5) & 0x07;
     
-    /* For non-pointer scalars (char/int/fixed), allow compatibility between them */
+    /* For non-pointer scalars (char/byte/int/fixed), allow compatibility between them */
     if (indir_to == 0 && indir_from == 0 && 
-        (kind_to == TK_CHAR || kind_to == TK_INT || kind_to == TK_FIXED) && 
-        (kind_from == TK_CHAR || kind_from == TK_INT || kind_from == TK_FIXED)) {
-        /* TK_CHAR, TK_INT and TK_FIXED are compatible in both directions */
+        (kind_to == TK_CHAR || kind_to == TK_BYTE || kind_to == TK_INT || kind_to == TK_FIXED) && 
+        (kind_from == TK_CHAR || kind_from == TK_BYTE || kind_from == TK_INT || kind_from == TK_FIXED)) {
+        /* TK_CHAR, TK_BYTE, TK_INT and TK_FIXED are compatible in both directions */
         return 1;
     }
     
@@ -200,7 +200,7 @@ uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC
      */
     if (indir_to > 0 && indir_from == 0) {
         /* Target is pointer, source is non-pointer: allow scalar -> pointer */
-        if (kind_from == TK_CHAR || kind_from == TK_INT) return 1;
+        if (kind_from == TK_CHAR || kind_from == TK_BYTE || kind_from == TK_INT) return 1;
         return 0;
     }
     if (indir_from > 0 && indir_to == 0) {

@@ -14,6 +14,7 @@ extern void type_write_to_bank(uint8_t type_id, TypeEntry entry) MYCC;
 /* Predefined type IDs - in shared memory so accessible from all banks */
 uint8_t TYPE_ID_VOID = 0;
 uint8_t TYPE_ID_CHAR = 0;
+uint8_t TYPE_ID_BYTE = 0;
 uint8_t TYPE_ID_INT = 0;
 uint8_t TYPE_ID_FIXED = 0;
 uint8_t TYPE_ID_CHAR_PTR = 0;
@@ -51,6 +52,7 @@ void type_init(void) MYCC {
     /* Create predefined types */
     TYPE_ID_VOID = type_make_void();
     TYPE_ID_CHAR = type_make_char(0);
+    TYPE_ID_BYTE = type_make_byte(0);
     TYPE_ID_INT = type_make_int(0);
     TYPE_ID_FIXED = type_make_fixed(0);
     TYPE_ID_CHAR_PTR = type_make_pointer(TYPE_ID_CHAR, 1);
@@ -69,6 +71,13 @@ uint8_t type_as_const(uint8_t type_id) MYCC {
 uint8_t type_make_char(uint8_t is_const) MYCC {
     TypeEntry entry = {0};
     TYPE_SET_KIND(entry.kind_and_flags, TK_CHAR);
+    if (is_const) TYPE_SET_CONST(entry.kind_and_flags);
+    return far_type_intern(entry);
+}
+
+uint8_t type_make_byte(uint8_t is_const) MYCC {
+    TypeEntry entry = {0};
+    TYPE_SET_KIND(entry.kind_and_flags, TK_BYTE);
     if (is_const) TYPE_SET_CONST(entry.kind_and_flags);
     return far_type_intern(entry);
 }
@@ -177,6 +186,10 @@ uint8_t type_is_char(uint8_t type_id) MYCC {
     return type_get_kind(type_id) == TK_CHAR && type_get_indirection(type_id) == 0;
 }
 
+uint8_t type_is_byte(uint8_t type_id) MYCC {
+    return type_get_kind(type_id) == TK_BYTE && type_get_indirection(type_id) == 0;
+}
+
 uint8_t type_is_int(uint8_t type_id) MYCC {
     return type_get_kind(type_id) == TK_INT && type_get_indirection(type_id) == 0;
 }
@@ -248,6 +261,7 @@ uint16_t type_size(uint8_t type_id) MYCC {
     
     /* Scalars */
     if (kind == TK_CHAR) return 1;
+    if (kind == TK_BYTE) return 1;
     if (kind == TK_INT) return 2;
     if (kind == TK_FIXED) return 2;  /* 16-bit fixed point 12.4 */
     

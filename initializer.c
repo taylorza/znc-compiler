@@ -30,7 +30,7 @@ uint16_t far_parse_brace_initializer_elements(uint8_t element_type_id) MYCC {
 
     /* Tracks whether the currently open directive line is db (1) or dw (0).
      * When the next value has a different width we flush and start a new line. */
-    uint8_t last_is_char = type_is_char(element_type_id);
+    uint8_t last_is_char = type_size(element_type_id) == 1;
 
     /* For struct types, iterate fields so we know each field's type */
     uint8_t is_struct = type_is_struct(element_type_id);
@@ -115,14 +115,14 @@ uint16_t far_parse_brace_initializer_elements(uint8_t element_type_id) MYCC {
                 /* Fixed-size array field: e.g. int[4] coords = {1,2,3,4} */
                 uint8_t  arr_elem = type_get_element_type_id(field_type_id);
                 uint16_t arr_len  = type_get_array_length(field_type_id);
-                uint8_t  arr_char = type_is_char(arr_elem);
+                uint8_t  arr_char = type_size(arr_elem) == 1;
                 for (uint16_t ai = 0; ai < arr_len; ai++) {
                     EXPR_RESULT aelem = parse_expr_delayconst(0, arr_elem);
                     if (!type_is_const(aelem.type_id)) error(errConstExpected);
                     if (!type_check_compatible(aelem.type_id, arr_elem) && arr_elem != 0) error(errTypeError);
                     uint16_t emit_val = aelem.value;
                     if (type_is_fixed(arr_elem) && !type_is_fixed(aelem.type_id) &&
-                        (type_is_int(aelem.type_id) || type_is_char(aelem.type_id)))
+                        (type_is_int(aelem.type_id) || type_is_char(aelem.type_id) || type_is_byte(aelem.type_id)))
                         emit_val = (uint16_t)((int16_t)emit_val << 4);
                     EMIT_VAL(arr_char, emit_val);
                     if (ai < arr_len - 1) {
@@ -136,21 +136,21 @@ uint16_t far_parse_brace_initializer_elements(uint8_t element_type_id) MYCC {
                 for (int sfi_idx = 0; sfi_idx < field_count; sfi_idx++) {
                     FIELDINFO sfi     = get_struct_field(struct_id, sfi_idx);
                     uint8_t ftype     = sfi.type_id;
-                    uint8_t f_is_char = type_is_char(ftype);
+                    uint8_t f_is_char = type_size(ftype) == 1;
 
                     if (type_is_array(ftype) && tok == tokLBrace) {
                         /* Array member inside nested struct */
                         get_token(); /* skip '{' */
                         uint8_t  fa_elem = type_get_element_type_id(ftype);
                         uint16_t fa_len  = type_get_array_length(ftype);
-                        uint8_t  fa_char = type_is_char(fa_elem);
+                        uint8_t  fa_char = type_size(fa_elem) == 1;
                         for (uint16_t ai = 0; ai < fa_len; ai++) {
                             EXPR_RESULT aelem = parse_expr_delayconst(0, fa_elem);
                             if (!type_is_const(aelem.type_id)) error(errConstExpected);
                             if (!type_check_compatible(aelem.type_id, fa_elem) && fa_elem != 0) error(errTypeError);
                             uint16_t emit_val = aelem.value;
                             if (type_is_fixed(fa_elem) && !type_is_fixed(aelem.type_id) &&
-                                (type_is_int(aelem.type_id) || type_is_char(aelem.type_id)))
+                                (type_is_int(aelem.type_id) || type_is_char(aelem.type_id) || type_is_byte(aelem.type_id)))
                                 emit_val = (uint16_t)((int16_t)emit_val << 4);
                             EMIT_VAL(fa_char, emit_val);
                             if (ai < fa_len - 1) {
@@ -166,7 +166,7 @@ uint16_t far_parse_brace_initializer_elements(uint8_t element_type_id) MYCC {
                         if (!type_check_compatible(selem.type_id, ftype) && ftype != 0) error(errTypeError);
                         uint16_t emit_val = selem.value;
                         if (type_is_fixed(ftype) && !type_is_fixed(selem.type_id) &&
-                            (type_is_int(selem.type_id) || type_is_char(selem.type_id)))
+                            (type_is_int(selem.type_id) || type_is_char(selem.type_id) || type_is_byte(selem.type_id)))
                             emit_val = (uint16_t)((int16_t)emit_val << 4);
                         EMIT_VAL(f_is_char, emit_val);
                     }
@@ -198,7 +198,7 @@ uint16_t far_parse_brace_initializer_elements(uint8_t element_type_id) MYCC {
             }
 
             ++elementcount;
-            uint8_t field_is_char = is_func ? 0 : type_is_char(field_type_id);
+            uint8_t field_is_char = is_func ? 0 : (type_size(field_type_id) == 1);
             if (is_func) {
                 /* Function references are always word-sized; flush if currently on a db line */
                 if (counter > 0 && last_is_char) { emit_nl(); counter = 0; }
@@ -212,7 +212,7 @@ uint16_t far_parse_brace_initializer_elements(uint8_t element_type_id) MYCC {
                 uint16_t emit_val = element.value;
                 /* Coerce int/char constants into Q4 when element type is fixed */
                 if (type_is_fixed(field_type_id) && !type_is_fixed(element.type_id) &&
-                    (type_is_int(element.type_id) || type_is_char(element.type_id))) {
+                    (type_is_int(element.type_id) || type_is_char(element.type_id) || type_is_byte(element.type_id))) {
                     emit_val = (uint16_t)((int16_t)emit_val << 4);
                 }
                 EMIT_VAL(0, emit_val);

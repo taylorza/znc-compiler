@@ -470,18 +470,21 @@ static EXPR_RESULT handle_binary_op(EXPR_RESULT left, TOKEN op, uint8_t p) MYCC 
         }
     }
 
+    uint8_t use_unsigned = pointer ||
+        type_is_byte(left.type_id) || type_is_byte(r_result.type_id);
+
     switch (op) {
         case tokLt:
-            emit_rtl(pointer ? "ccult" : "cclt");
+            emit_rtl(use_unsigned ? "ccult" : "cclt");
             break;
         case tokLeq:
-            emit_rtl(pointer ? "ccule" : "ccle");
+            emit_rtl(use_unsigned ? "ccule" : "ccle");
             break;
         case tokGt:
-            emit_rtl(pointer ? "ccugt" : "ccgt");
+            emit_rtl(use_unsigned ? "ccugt" : "ccgt");
             break;
         case tokGeq:
-            emit_rtl(pointer ? "ccuge" : "ccge");
+            emit_rtl(use_unsigned ? "ccuge" : "ccge");
             break;
         case tokEq:
             emit_rtl("cceq");
@@ -608,11 +611,11 @@ EXPR_RESULT far_parse_expr(uint8_t minprec, uint8_t expected_type_id) MYCC {
         uint16_t val = expr_result.value;
         if (expected_type_id != 0 && type_is_fixed(expected_type_id) &&
             !type_is_fixed(expr_result.type_id) &&
-            (type_is_int(expr_result.type_id) || type_is_char(expr_result.type_id))) {
+            (type_is_int(expr_result.type_id) || type_is_char(expr_result.type_id) || type_is_byte(expr_result.type_id))) {
             val = (uint16_t)((int16_t)val << 4);
         } else if (expected_type_id != 0 && !type_is_fixed(expected_type_id) &&
                    type_is_fixed(expr_result.type_id) &&
-                   (type_is_int(expected_type_id) || type_is_char(expected_type_id))) {
+                   (type_is_int(expected_type_id) || type_is_char(expected_type_id) || type_is_byte(expected_type_id))) {
             val = (uint16_t)((int16_t)val >> 4);
         }
         emit_ld_const(val);
@@ -622,10 +625,10 @@ EXPR_RESULT far_parse_expr(uint8_t minprec, uint8_t expected_type_id) MYCC {
     } else if (expected_type_id != 0) {
         /* Emit runtime fixed <-> int/char conversion when expected type differs */
         if (type_is_fixed(expected_type_id) && !type_is_fixed(expr_result.type_id) &&
-            (type_is_int(expr_result.type_id) || type_is_char(expr_result.type_id))) {
+            (type_is_int(expr_result.type_id) || type_is_char(expr_result.type_id) || type_is_byte(expr_result.type_id))) {
             emit_int_to_fixed();
         } else if (!type_is_fixed(expected_type_id) && type_is_fixed(expr_result.type_id) &&
-                   (type_is_int(expected_type_id) || type_is_char(expected_type_id))) {
+                   (type_is_int(expected_type_id) || type_is_char(expected_type_id) || type_is_byte(expected_type_id))) {
             emit_fixed_to_int();
         }
     }
