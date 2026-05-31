@@ -166,7 +166,8 @@ EXPR_RESULT parse_onearg(void) MYCC {
 }
 
 /* Consume one statement from the token stream without emitting any code.
-   Handles a balanced { } block or a single ;-terminated statement. */
+   Handles a balanced { } block, compound control-flow statements, or a
+   single ;-terminated statement.  Recursive for nested if/else/while/for. */
 static void skip_statement(void) MYCC {
     if (tok == tokLBrace) {
         int depth = 1;
@@ -177,8 +178,22 @@ static void skip_statement(void) MYCC {
             get_token();
         }
         get_token(); // skip final '}'
+    } else if (tok == tokIf || tok == tokWhile || tok == tokFor || tok == tokSwitch) {
+        get_token(); // skip keyword
+        // skip the '(' ... ')' header
+        int depth = 1;
+        get_token(); // skip '('
+        while (tok != tokEOS && depth > 0) {
+            if (tok == tokLParen) ++depth;
+            else if (tok == tokRParen) { if (--depth == 0) break; }
+            get_token();
+        }
+        get_token(); // skip final ')'
+        skip_statement(); // skip body
+        if (tok == tokElse) { get_token(); skip_statement(); } // skip else branch
     } else {
-        // skip to matching ';', honouring nested parens/brackets
+        // skip single statement up to and including ';'
+        // must handle nested parens/brackets to not misread a ';' inside for(;;)
         int depth = 0;
         while (tok != tokEOS) {
             if (tok == tokLParen || tok == tokLBrack) ++depth;
@@ -591,7 +606,8 @@ void parse_for(void) MYCC {
 			pop_frame(blockframe);
 			return;
 		}
-		emit_jp_false(lblEndFor);
+		if (!type_is_const(cond.type_id))
+			emit_jp_false(lblEndFor);
 	}
 	expect_semi();
 
