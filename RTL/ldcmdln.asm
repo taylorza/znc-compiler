@@ -1,4 +1,7 @@
  ld de,_args
+ ld a,h
+ or l
+ jr z,.l2
  ld b,79
  xor a
  ld (.q),a
