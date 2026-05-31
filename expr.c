@@ -353,18 +353,20 @@ static EXPR_RESULT handle_binary_op(EXPR_RESULT left, TOKEN op, uint8_t p) MYCC 
             if (lf && !rf) { r_result.value = r_result.value << 4; rf = 1; }
             else if (rf && !lf) { left.value = left.value << 4; lf = 1; }
         }
+        uint8_t fold_unsigned = pointer ||
+            (type_is_byte(left.type_id) && type_is_byte(r_result.type_id));
         switch (op) {
             case tokLt:
-                left.value = pointer ? (left.value < r_result.value) : ((int16_t)left.value < (int16_t)r_result.value);
+                left.value = fold_unsigned ? (left.value < r_result.value) : ((int16_t)left.value < (int16_t)r_result.value);
                 break;
             case tokLeq:
-                left.value = pointer ? (left.value <= r_result.value) : ((int16_t)left.value <= (int16_t)r_result.value);
+                left.value = fold_unsigned ? (left.value <= r_result.value) : ((int16_t)left.value <= (int16_t)r_result.value);
                 break;
             case tokGt:
-                left.value = pointer ? (left.value > r_result.value) : ((int16_t)left.value > (int16_t)r_result.value);
+                left.value = fold_unsigned ? (left.value > r_result.value) : ((int16_t)left.value > (int16_t)r_result.value);
                 break;
             case tokGeq:
-                left.value = pointer ? (left.value >= r_result.value) : ((int16_t)left.value >= (int16_t)r_result.value);
+                left.value = fold_unsigned ? (left.value >= r_result.value) : ((int16_t)left.value >= (int16_t)r_result.value);
                 break;
             case tokEq: left.value = left.value == r_result.value; break;
             case tokNeq: left.value = left.value != r_result.value; break;
@@ -471,7 +473,7 @@ static EXPR_RESULT handle_binary_op(EXPR_RESULT left, TOKEN op, uint8_t p) MYCC 
     }
 
     uint8_t use_unsigned = pointer ||
-        type_is_byte(left.type_id) || type_is_byte(r_result.type_id);
+        (type_is_byte(left.type_id) && type_is_byte(r_result.type_id));
 
     switch (op) {
         case tokLt:

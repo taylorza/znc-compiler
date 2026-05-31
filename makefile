@@ -11,7 +11,7 @@ CFLAGS = -m -c -clib=sdcc_iy -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLO
 AFLAGS =
 LFLAGS = -m -startup=30 -clib=sdcc_iy -subtype=dotn -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLOCS) -pragma-include:zpragma.inc -create-app
 
-SOURCES = identtbl_stub.c strtbl_stub.c sym_stub.c rtl_stub.c expr_stub.c errordata_stub.c initializer_stub.c shared.c typedata.c typedata2.c errordata.c struct_stub.c struct.c strtbl.c identtbl.c initializer.c codegen.c compiler.c dataarea.c error.c expr.c exprex.c type.c main.c rtl.c scanner.c scannerdata.c sym.c util.c
+SOURCES = identtbl_stub.c strtbl_stub.c sym_stub.c rtl_stub.c expr_stub.c errordata_stub.c initializer_stub.c shared.c typedata.c typedata2.c errordata.c struct_stub.c struct.c strtbl.c identtbl.c initializer.c codegen.c compiler.c compilerex.c dataarea.c error.c expr.c exprex.c type.c main.c rtl.c scanner.c scannerdata.c sym.c util.c
 
 OBJFILES = $(patsubst %.c,$(OUTPUT_DIR)/%.o,$(SOURCES))
 
@@ -107,6 +107,11 @@ $(OUTPUT_DIR)/typedata2.o: typedata2.c | $(OUTPUT_DIR)
 $(OUTPUT_DIR)/exprex.o: exprex.c | $(OUTPUT_DIR)
 	@echo "Compiling BANK 45 (expr extras)"
 	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_45 --codesegBANK_45 --constsegBANK_45 --bsssegBANK_45
+	@echo "-> Generated $@"
+
+$(OUTPUT_DIR)/compilerex.o: compilerex.c | $(OUTPUT_DIR)
+	@echo "Compiling BANK 47 (compiler extras)"
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_47 --codesegBANK_47 --constsegBANK_47 --bsssegBANK_47
 	@echo "-> Generated $@"
 
 $(OUTPUT_DIR)/shared.o: shared.c | $(OUTPUT_DIR)

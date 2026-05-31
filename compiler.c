@@ -61,7 +61,39 @@ void parse_make(const char* outfilename) MYCC;
 
 EXPR_RESULT parse_onearg(void) MYCC;
 
-static void parse(const char* sourcefile, const char* outfilename, uint8_t entrypoint) MYCC {
+/* ------------------------------------------------------------------ *
+ * Far declarations for compilerex.c (BANK_47) implementations        *
+ * ------------------------------------------------------------------ */
+void far_parse_include(void) MYCC;
+void far_parse_while(void) MYCC;
+void far_parse_break(uint16_t brklbl) MYCC;
+void far_parse_continue(uint16_t contlbl) MYCC;
+void far_parse_putc(void) MYCC;
+void far_parse_out(void) MYCC;
+void far_parse_nextreg(void) MYCC;
+void far_parse_return(void) MYCC;
+void far_parse_exit(void) MYCC;
+void far_parse_vastart(void) MYCC;
+void far_parse_vaend(void) MYCC;
+void far_parse_org(void) MYCC;
+
+/* Called from the far_parse_include stub (BANK_47) — opens and parses an
+ * included source file.  Must live in the main bank so it can call the
+ * static parse() function. token[] is in the main bank so passing it
+ * directly is safe; the far side reads it before any bank switch. */
+void skip_statement(void) MYCC;
+
+void parse_include_file(const char* filename) MYCC {
+    parse(filename, NULL, 0);
+}
+
+/* Called from far_parse_while (BANK_47) to skip a statement.
+ * skip_statement() is no longer static so BANK_47 can reach it via this stub. */
+void skip_statement_far(void) MYCC {
+    skip_statement();
+}
+
+void parse(const char* sourcefile, const char* outfilename, uint8_t entrypoint) MYCC {
     if (!src_open(sourcefile)) {
         printf("can't open '%s'", sourcefile);
         exit(1);
@@ -168,7 +200,9 @@ EXPR_RESULT parse_onearg(void) MYCC {
 /* Consume one statement from the token stream without emitting any code.
    Handles a balanced { } block, compound control-flow statements, or a
    single ;-terminated statement.  Recursive for nested if/else/while/for. */
-static void skip_statement(void) MYCC {
+/* Called from compilerex.c (BANK_47) via the main-bank stub skip_statement_far()
+ * to skip a statement without emitting code. Must not be static. */
+void skip_statement(void) MYCC {
     if (tok == tokLBrace) {
         int depth = 1;
         get_token(); // skip '{'
@@ -306,12 +340,9 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
 }
 
 void parse_include(void) MYCC {
-    get_token(); // skip 'include'
-    if (tok != tokString) error(errExpected_s, "filename");
-    
-    parse(token, NULL, 0);
-
-    get_token(); // skip filename    
+    PROLOG(47)
+    far_parse_include();
+    EPILOG
 }
 
 /* Helper: Convert type to const version, checking for validity */
@@ -527,27 +558,9 @@ void parse_switch(uint16_t contlbl) MYCC {
 }
 
 void parse_while(void) MYCC {
-    get_token(); // skip 'while'
-    expect_LParen();
-
-    uint16_t lblCond = newlbl();
-    uint16_t lblEndWhile = newlbl();
-    emit_lbl(lblCond); // label must precede condition code in output
-
-    EXPR_RESULT cond = parse_expr_delayconst(0, 0);
-    expect_RParen();
-
-    if (type_is_const(cond.type_id) && !cond.value) {
-        skip_statement(); // while(0) { ... } — skip body, emit nothing
-        return;           // lblCond emitted but unreferenced — harmless
-    }
-
-    if (!type_is_const(cond.type_id))
-        emit_jp_false(lblEndWhile);
-    parse_statement(lblEndWhile, lblCond);
-    emit_jp(lblCond);
-
-    emit_lbl(lblEndWhile);
+    PROLOG(47)
+    far_parse_while();
+    EPILOG
 }
 
 void parse_for(void) MYCC {
@@ -642,56 +655,33 @@ void parse_for(void) MYCC {
 }
 
 void parse_break(uint16_t brklbl) MYCC {
-    get_token(); // skip 'break'
-    if (brklbl == NO_LABEL) error(errBreakOutsideLoop);
-    expect_semi();    
-    emit_jp(brklbl);
+    PROLOG(47)
+    far_parse_break(brklbl);
+    EPILOG
 }
 
 void parse_continue(uint16_t contlbl) MYCC {
-    get_token(); // skip 'continue'
-    if (contlbl == NO_LABEL) error(errContinueOutsideLoop);
-    expect_semi();    
-    emit_jp(contlbl);
+    PROLOG(47)
+    far_parse_continue(contlbl);
+    EPILOG
 }
 
 void parse_putc(void) MYCC {
-    parse_onearg(); // (expr)
-    expect_semi();
-
-    emit_rtl("putc");
+    PROLOG(47)
+    far_parse_putc();
+    EPILOG
 }
 
 void parse_out(void) MYCC {
-    get_token(); // skip 'out'
-    expect_LParen();
-   
-    parse_expr(0, 0);
-    emit_copy_hl_to_bc();
-    expect_comma();
-    parse_expr(0, 0);
-    emit_instrln("out (c),l");
-    expect_RParen();
-    expect_semi();
+    PROLOG(47)
+    far_parse_out();
+    EPILOG
 }
 
 void parse_nextreg(void) MYCC {
-    get_token(); // skip 'nextreg'
-    expect_LParen();
-    
-    parse_expr(0, 0);
-    emit_push();
-    expect_comma();
-    parse_expr(0, 0);
-    emit_pop_de();
-
-    emit_instrln("ld bc,9275");
-    emit_instrln("out (c),e");
-    emit_instrln("inc b");
-    emit_instrln("out (c),l");
-   
-    expect_RParen();
-    expect_semi();    
+    PROLOG(47)
+    far_parse_nextreg();
+    EPILOG
 }
 
 void parse_asm(void) MYCC {
@@ -1018,79 +1008,27 @@ void do_exit(EXPR_RESULT exit_expr) {
 }
 
 void parse_return(void) MYCC {
-    EXPR_RESULT expr_result = { .type_id = TYPE_ID_VOID };
-
-    get_token(); // skip 'return';
-
-    if (infunc) {
-        if (type_is_void(func_rettype)) {
-            if (tok != tokSemi) error(errReturnValueUnexpected);
-        }
-        else {
-            if (tok == tokSemi) error(errReturnValueExpected);
-            expr_result = parse_expr(0, func_rettype);
-            if (!type_check_compatible(expr_result.type_id, func_rettype)) {
-                error(errTypeError);
-            }
-            expect_semi();
-        }
-
-        emit_jp(retlbl);
-    }
-    else {
-        if (tok != tokSemi) {
-            expr_result = parse_expr(0, 0);
-        }
-        else {
-            expr_result.type_id = TYPE_ID_INT;
-            expr_result.value = 0;
-        }
-        do_exit(expr_result);
-    }
+    PROLOG(47)
+    far_parse_return();
+    EPILOG
 }
 
 void parse_exit(void) MYCC {
-    EXPR_RESULT expr_result = parse_onearg();
-    do_exit(expr_result);
+    PROLOG(47)
+    far_parse_exit();
+    EPILOG
 }
 
 void parse_vastart(void) MYCC {
-    get_token(); // skip 'va_start'
-    expect_LParen();
-    SYMBOL valist = lookupIdent(token);
-    if (valist.klass != VARIABLE) {
-        error(errTypeError);
-    }
-    get_token(); // skip valist
-    if (tok == tokComma) {
-        get_token(); // skip ','
-        SYMBOL last_fixed = lookupIdent(token);
-        if (last_fixed.klass != ARGUMENT) {
-            error(errTypeError);
-        }
-        get_token(); // skip last_fixed
-        emit_ld_symaddr(&last_fixed);
-    }
-    else {
-        emit_rtl("ccvafirst");
-        emit_instrln("inc de");
-        emit_instrln("inc de"); // Point to just before the first variadic argument
-    }
-    expect_RParen();
-    expect_semi(); 
-    emit_store_sym(&valist);
+    PROLOG(47)
+    far_parse_vastart();
+    EPILOG
 }
 
 void parse_vaend(void) MYCC {
-    get_token(); // skip 'va_end'
-    expect_LParen();
-    SYMBOL valist = lookupIdent(token);
-    if (valist.klass != VARIABLE) {
-        error(errTypeError);
-    }
-    get_token(); // skip valist
-    expect_RParen();
-    expect_semi();
+    PROLOG(47)
+    far_parse_vaend();
+    EPILOG
 }
 
 void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
@@ -1239,11 +1177,9 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
 }
 
 void parse_org(void) MYCC {
-    get_token(); // skip 'org'
-    EXPR_RESULT expr_result = parse_expr_delayconst(0, 0);
-    if (!type_is_const(expr_result.type_id)) error(errConstExpected);
-    emit_org(expr_result.value);
-    expect_semi();
+    PROLOG(47)
+    far_parse_org();
+    EPILOG
 }
 
 void parse_bank(void) MYCC {
