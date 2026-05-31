@@ -71,7 +71,9 @@ uint8_t src_open(const char* filename) MYCC {
 #endif
     
     SOURCEPOS* src = &loc[++fileid];
-    strncpy(src->filename, filename, MAX_FILENAME_LEN);
+    src->arena_marker = arena_get_marker(); // Save marker; filename+buf freed together on src_close
+    src->filename = arena_strdup(filename, strlen(filename));
+    src->buf = (char*)arena_alloc(MAX_READ_BUF);
     src->handle = handle;
     src->line = 1;
     src->ofs = 0;
@@ -85,17 +87,18 @@ uint8_t src_open(const char* filename) MYCC {
 
 void src_close(void) MYCC {
     SOURCEPOS *src = &loc[fileid--];
+    arena_free_to_marker(src->arena_marker);
 #ifdef __ZXNEXT
     esxdos_f_close(src->handle);
 #else
     fclose(src->handle);
 #endif
 
-    src->filename[0] = '\0';
-
-    code = loc[fileid].buf + loc[fileid].ofs;
+    src->filename = NULL;
+    src->buf = NULL;
 
     if (fileid != 255) {
+        code = loc[fileid].buf + loc[fileid].ofs;
         curr_line = loc[fileid].line;
         curr_col = loc[fileid].col;
     }

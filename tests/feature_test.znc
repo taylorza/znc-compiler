@@ -896,18 +896,18 @@ void test_recurse() {
 
 #if TEST_TYPEMIX
 void test_typemix() {
-    // byte is an alias for char: both are signed 8-bit
+    // byte is unsigned
     byte bv = 127;
     bv = bv + 1;
-    chk("tmx_bsgn",   bv == -128);
+    chk("tmx_bsgn",   bv == 128);
 
-    // char: same overflow behaviour
+    // char: overflow behaviour
     char cv = 127;
     cv = cv + 1;
     chk("tmx_csgn",   cv == -128);
 
-    // 8-bit wrap: -1 + 1 == 0
-    byte bw = -1;
+    // 8-bit wrap: 255 + 1 == 0
+    byte bw = 255;
     bw = bw + 1;
     chk("tmx_bwrap",  bw == 0);
 
@@ -922,12 +922,14 @@ void test_typemix() {
     byte  lo  = big;
     chk("tmx_i2b",    lo == 0x34);
 
-    // 0xFF stored as byte/char is -1 (signed)
+    // 0xFF stored as char is -1 (signed)
     int   ni  = 0xFF;
     char  sc  = ni;
     chk("tmx_i2c",    sc == -1);
+
+    // 0xFF stored as byte is 255 (unsigned)
     byte  sb  = ni;
-    chk("tmx_i2by",   sb == -1);
+    chk("tmx_i2by",   sb == 255);
 
     // comparison: byte vs int
     byte  bx = 100;

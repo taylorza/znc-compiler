@@ -5,8 +5,9 @@
 #define MAX_STR_LEN 80
 
 typedef struct SOURCEPOS {
-    char filename[MAX_FILENAME_LEN];
-    char buf[MAX_READ_BUF];
+    uint16_t arena_marker; /* marker saved before filename+buf arena allocations */
+    char* filename;
+    char* buf;
     uint16_t line;
     uint8_t col;
     uint8_t ofs;
