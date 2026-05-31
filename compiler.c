@@ -1193,6 +1193,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
         if (defined) error(errAlreadyDefined_s, name);
 
         symfunc.klass = FUNCTION;
+        updatesym(&symfunc); // update before parsing body so recursive calls see correct arg_count
         infunc = 1;
         func_rettype = rettype_id;
         func_is_variadic = is_variadic;
