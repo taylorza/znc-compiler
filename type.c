@@ -190,6 +190,14 @@ uint8_t type_is_byte(uint8_t type_id) MYCC {
     return type_get_kind(type_id) == TK_BYTE && type_get_indirection(type_id) == 0;
 }
 
+uint8_t type_is_integral(uint8_t type_id) MYCC { /* char, byte, int */
+    return (type_get_kind(type_id) == TK_CHAR || type_get_kind(type_id) == TK_BYTE || type_get_kind(type_id) == TK_INT)   && type_get_indirection(type_id) == 0;
+}
+
+uint8_t type_is_8bit(uint8_t type_id) MYCC {    /* char, byte */
+    return (type_get_kind(type_id) == TK_CHAR || type_get_kind(type_id) == TK_BYTE)   && type_get_indirection(type_id) == 0;
+}
+
 uint8_t type_is_int(uint8_t type_id) MYCC {
     return type_get_kind(type_id) == TK_INT && type_get_indirection(type_id) == 0;
 }

@@ -54,6 +54,9 @@ uint8_t type_is_struct(uint8_t type_id) MYCC;
 uint8_t type_is_function(uint8_t type_id) MYCC;
 uint8_t type_is_delegate(uint8_t type_id) MYCC;
 
+uint8_t type_is_integral(uint8_t type_id) MYCC; /* char, byte, int */
+uint8_t type_is_8bit(uint8_t type_id) MYCC;    /* char, byte */
+
 /* Array/struct/function accessors */
 uint8_t type_get_element_type(uint8_t array_type_id) MYCC;
 uint16_t type_get_array_length(uint8_t array_type_id) MYCC;

@@ -487,7 +487,7 @@ void emit_ld_symval(SYMBOL* sym) MYCC {
             emit_sname_id(sym->name_id);
             emit_nl();
         }
-        else if (!type_is_pointer(type_id) && (type_is_char(type_id) || type_is_byte(type_id))) {
+        else if (!type_is_pointer(type_id) && type_is_8bit(type_id)) {
             emit_instr("ld a,(");
             emit_sname_id(sym->name_id);
             emit_ch(')');
@@ -525,7 +525,7 @@ void emit_ld_symval(SYMBOL* sym) MYCC {
                 return;
             }
             
-            if (!type_is_pointer(type_id) && (type_is_char(type_id) || type_is_byte(type_id))) {
+            if (!type_is_pointer(type_id) && type_is_8bit(type_id)) {
                 /* Char/byte scalar: load single byte */
                 int16_t low_off = compute_symbol_base_offset(sym);
 
@@ -621,7 +621,7 @@ void emit_store_sym(SYMBOL* sym) MYCC {
     if (type_is_array(type_id)) error(errNotlvalue);
     
     if (sym->scope == GLOBAL) {
-        if (!type_is_pointer(type_id) && (type_is_char(type_id) || type_is_byte(type_id))) {
+        if (!type_is_pointer(type_id) && type_is_8bit(type_id)) {
             emit_instrln("ld a,l");
             emit_instr("ld ("); emit_sname_id(sym->name_id); emit_strln("),a");
         }
@@ -636,7 +636,7 @@ void emit_store_sym(SYMBOL* sym) MYCC {
             return;
         }
 
-        if (sym->klass == VARIABLE && !type_is_pointer(type_id) && (type_is_char(type_id) || type_is_byte(type_id))) {
+        if (sym->klass == VARIABLE && !type_is_pointer(type_id) && type_is_8bit(type_id)) {
             int16_t low_off = -(sym->stk.offset + 1);
             
             if (low_off >= -128 && low_off <= 127) {
@@ -671,7 +671,7 @@ void emit_store_sym(SYMBOL* sym) MYCC {
 void emit_store(uint8_t type_id) MYCC {
     emit_swap();         // value in DE
     emit_pop_hl();       // target address in HL
-    if (type_is_void(type_id) || type_is_char(type_id) || type_is_byte(type_id)) {
+    if (type_is_void(type_id) || type_is_8bit(type_id)) {
         emit_store_byte_at_hl();
     } else {
         emit_store_word_at_hl();
@@ -692,7 +692,7 @@ void emit_load(uint8_t type_id) MYCC {
         if (elem != TYPE_ID_VOID) effective_type = elem;
     }
 
-    if (type_is_void(effective_type) || type_is_char(effective_type) || type_is_byte(effective_type)) {
+    if (type_is_void(effective_type) || type_is_8bit(effective_type)) {
         emit_instrln("ld a,(hl)");
         if (type_is_byte(effective_type)) { emit_instrln("ld l,a"); emit_instrln("ld h,0"); }
         else emit_rtl("ccsxt");

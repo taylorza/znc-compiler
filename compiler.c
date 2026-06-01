@@ -924,13 +924,12 @@ void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
 
             /* Emit fixed-point conversion if needed between compatible scalar types */
             if (type_is_fixed(expected_type) && !type_is_fixed(actual_type) &&
-                (type_is_int(actual_type) || type_is_char(actual_type) || type_is_byte(actual_type) ||
-                 type_is_const(actual_type))) {
-                /* int/char -> fixed: shift left 4 */
+                (type_is_integral(actual_type) || type_is_const(actual_type))) {
+                /* int/char/byte -> fixed: shift left 4 */
                 emit_int_to_fixed();
             } else if (!type_is_fixed(expected_type) && type_is_fixed(actual_type) &&
-                       (type_is_int(expected_type) || type_is_char(expected_type) || type_is_byte(expected_type))) {
-                /* fixed -> int/char: shift right 4 (arithmetic) */
+                       type_is_integral(expected_type)) {
+                /* fixed -> int/char/byte: shift right 4 (arithmetic) */
                 emit_fixed_to_int();
             }
         }
@@ -1167,12 +1166,12 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
         }
         emit_lbl(skiplbl);
 
-        pop_frame(funcframe);
         infunc = 0;
         func_rettype = TYPE_ID_VOID;
         func_is_variadic = 0;
         retlbl = oldretlbl;
     }
+    pop_frame(funcframe);
     updatesym(&symfunc);
 }
 

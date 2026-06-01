@@ -122,7 +122,7 @@ uint16_t far_parse_brace_initializer_elements(uint8_t element_type_id) MYCC {
                     if (!type_check_compatible(aelem.type_id, arr_elem) && arr_elem != 0) error(errTypeError);
                     uint16_t emit_val = aelem.value;
                     if (type_is_fixed(arr_elem) && !type_is_fixed(aelem.type_id) &&
-                        (type_is_int(aelem.type_id) || type_is_char(aelem.type_id) || type_is_byte(aelem.type_id)))
+                        type_is_integral(aelem.type_id))
                         emit_val = (uint16_t)((int16_t)emit_val << 4);
                     EMIT_VAL(arr_char, emit_val);
                     if (ai < arr_len - 1) {
@@ -150,7 +150,7 @@ uint16_t far_parse_brace_initializer_elements(uint8_t element_type_id) MYCC {
                             if (!type_check_compatible(aelem.type_id, fa_elem) && fa_elem != 0) error(errTypeError);
                             uint16_t emit_val = aelem.value;
                             if (type_is_fixed(fa_elem) && !type_is_fixed(aelem.type_id) &&
-                                (type_is_int(aelem.type_id) || type_is_char(aelem.type_id) || type_is_byte(aelem.type_id)))
+                                type_is_integral(aelem.type_id))
                                 emit_val = (uint16_t)((int16_t)emit_val << 4);
                             EMIT_VAL(fa_char, emit_val);
                             if (ai < fa_len - 1) {
@@ -166,7 +166,7 @@ uint16_t far_parse_brace_initializer_elements(uint8_t element_type_id) MYCC {
                         if (!type_check_compatible(selem.type_id, ftype) && ftype != 0) error(errTypeError);
                         uint16_t emit_val = selem.value;
                         if (type_is_fixed(ftype) && !type_is_fixed(selem.type_id) &&
-                            (type_is_int(selem.type_id) || type_is_char(selem.type_id) || type_is_byte(selem.type_id)))
+                            type_is_integral(selem.type_id))
                             emit_val = (uint16_t)((int16_t)emit_val << 4);
                         EMIT_VAL(f_is_char, emit_val);
                     }
@@ -212,7 +212,7 @@ uint16_t far_parse_brace_initializer_elements(uint8_t element_type_id) MYCC {
                 uint16_t emit_val = element.value;
                 /* Coerce int/char constants into Q4 when element type is fixed */
                 if (type_is_fixed(field_type_id) && !type_is_fixed(element.type_id) &&
-                    (type_is_int(element.type_id) || type_is_char(element.type_id) || type_is_byte(element.type_id))) {
+                    type_is_integral(element.type_id)) {
                     emit_val = (uint16_t)((int16_t)emit_val << 4);
                 }
                 EMIT_VAL(0, emit_val);

@@ -77,20 +77,20 @@ void far_parse_compound_assign(TOKEN op, uint8_t dereference, SYMBOL sym, uint8_
     if (type_is_const(rhs.type_id)) {
         /* Fold fixed <-> int/char conversion at compile time */
         if (type_is_fixed(type_id) && !type_is_fixed(rhs.type_id) &&
-            (type_is_int(rhs.type_id) || type_is_char(rhs.type_id))) {
+            type_is_integral(rhs.type_id)) {
             rhs.value = (uint16_t)((int16_t)rhs.value << 4);
         } else if (!type_is_fixed(type_id) && type_is_fixed(rhs.type_id) &&
-                   (type_is_int(type_id) || type_is_char(type_id))) {
+                   type_is_integral(type_id)) {
             rhs.value = (uint16_t)((int16_t)rhs.value >> 4);
         }
         emit_ld_immed(); emit_n(rhs.value); emit_nl();
     } else {
         /* Emit runtime fixed <-> int/char conversion if types differ */
         if (type_is_fixed(type_id) && !type_is_fixed(rhs.type_id) &&
-            (type_is_int(rhs.type_id) || type_is_char(rhs.type_id))) {
+            type_is_integral(rhs.type_id)) {
             emit_int_to_fixed();
         } else if (!type_is_fixed(type_id) && type_is_fixed(rhs.type_id) &&
-                   (type_is_int(type_id) || type_is_char(type_id))) {
+                   type_is_integral(type_id)) {
             emit_fixed_to_int();
         }
     }
@@ -149,10 +149,10 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8
         if (!type_is_const(r.type_id)) error(errConstExpected);
         /* Apply fixed <-> int/char conversion at compile time, same as the non-const path. */
         if (type_is_fixed(sym.type_id) && !type_is_fixed(r.type_id) &&
-            (type_is_int(r.type_id) || type_is_char(r.type_id))) {
+            type_is_integral(r.type_id)) {
             r.value = (uint16_t)((int16_t)r.value << 4);
         } else if (!type_is_fixed(sym.type_id) && type_is_fixed(r.type_id) &&
-                   (type_is_int(sym.type_id) || type_is_char(sym.type_id))) {
+                   type_is_integral(sym.type_id)) {
             r.value = (uint16_t)((int16_t)r.value >> 4);
         }
         sym.stk.offset = r.value;
@@ -315,11 +315,11 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8
     if (type_is_const(r_result.type_id)) {
         /* Fold fixed <-> int/char conversion at compile time for constant RHS */
         if (type_is_fixed(type_id) && !type_is_fixed(r_result.type_id) &&
-            (type_is_int(r_result.type_id) || type_is_char(r_result.type_id))) {
+            type_is_integral(r_result.type_id)) {
             /* int/char constant -> fixed: pre-shift value into Q4 at compile time */
             r_result.value = (uint16_t)((int16_t)r_result.value << 4);
         } else if (!type_is_fixed(type_id) && type_is_fixed(r_result.type_id) &&
-                   (type_is_int(type_id) || type_is_char(type_id))) {
+                   type_is_integral(type_id)) {
             /* fixed constant -> int/char: truncate Q4 value at compile time */
             r_result.value = (uint16_t)((int16_t)r_result.value >> 4);
         }
@@ -329,11 +329,11 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8
     } else {
         /* Emit runtime fixed <-> int/char conversion if types differ */
         if (type_is_fixed(type_id) && !type_is_fixed(r_result.type_id) &&
-            (type_is_int(r_result.type_id) || type_is_char(r_result.type_id))) {
+            type_is_integral(r_result.type_id)) {
             /* int/char -> fixed: shift left 4 */
             emit_int_to_fixed();
         } else if (!type_is_fixed(type_id) && type_is_fixed(r_result.type_id) &&
-                   (type_is_int(type_id) || type_is_char(type_id))) {
+                   type_is_integral(type_id)) {
             /* fixed -> int/char: shift right 4 (arithmetic) */
             emit_fixed_to_int();
         }
