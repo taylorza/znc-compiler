@@ -20,7 +20,7 @@ void far_set_str_search_base(size_t base) MYCC {
 int16_t far_lookupstr(const char* s, uint8_t len) MYCC {
     for (size_t i = str_search_base; i < laststr;) {
         const char* literal = &strtbl[i];
-        if (memcmp(s, literal, len) == 0) {
+        if (strtbl[i + len] == '\0' && memcmp(s, literal, len) == 0) {
             return (uint16_t)i;
         }
         i += strlen(literal)+1;
