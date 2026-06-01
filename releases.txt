@@ -1,5 +1,11 @@
-2026/06/31 - Version 0.5a
+2026/06/xx - Version 0.6
 - Improved inline assembly parsing
+- Datatype byte is now unsigned, char remains signed
+- Added simple dead code elimination
+- Fix: String interning bug (reported by Henk de Groot)
+- Fix: Command line parsing error (reported by Henk de Groot)
+- Fix: ZIDE command line termination (reported by Henk de Groot)
+- Fix: Inline assembly parse char literals to double quoted literals for the assembler (Issue found by Henk de Groot)
 
 2026/05/24 - Version 0.5
 - Restored max identifier length to 12 (reported by Iáń Júkéś)

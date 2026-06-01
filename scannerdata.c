@@ -275,7 +275,7 @@ void far_parse_asm(void) MYCC {
             if (c == '"' || c == '\'') {
                 char quote = c;
                 asm_emit_indent(&has_content, line_col, asmcol);
-                emit_ch(gnc()); /* emit opening quote */
+                emit_ch('"'); gnc();/* emit opening quote */
                 while ((c = ch()) && c != '\r' && c != '\n' && c != quote) {
                     if (c == '\\') {
                         emit_ch(gnc()); /* emit backslash */
@@ -285,7 +285,7 @@ void far_parse_asm(void) MYCC {
                         emit_ch(gnc());
                     }
                 }
-                if (c == quote) emit_ch(gnc()); /* emit closing quote */
+                if (c == quote) emit_ch('"'); gnc(); /* emit closing quote */
                 prev = 0; /* treat end-of-string as non-alnum boundary */
                 continue;
             }
