@@ -936,6 +936,32 @@ void test_typemix() {
     int   ix = 100;
     chk("tmx_beqi",   bx == ix);
 
+    // byte holds values > 127 (unsigned range)
+    byte bhi = 200;
+    chk("tmx_byte_hi", bhi == 200);
+
+    // byte > 127 is true (unsigned); same bits in char would be negative
+    chk("tmx_bgt127",  bhi > 127);
+    char csame = bhi;                         // 0xC8 reinterpreted as signed = -56
+    chk("tmx_b2c",     csame == -56);
+    chk("tmx_clt127",  csame < 0);
+
+    // char negative → byte reinterprets as unsigned
+    char cneg = -10;                          // 0xF6
+    chk("tmx_char_neg", cneg < 0);
+    byte cunsigned = cneg;                    // 0xF6 as unsigned = 246
+    chk("tmx_c2b",     cunsigned == 246);
+
+    // byte + char with values that expose signed/unsigned: 200 + (-10) = 190
+    byte  bm = 200;
+    char  cm = -10;
+    int   rm = bm + cm;
+    chk("tmx_bcadd",   rm == 190);
+
+    // byte - char: 200 - (-10) = 210
+    int   rs = bm - cm;
+    chk("tmx_bcsub",   rs == 210);
+
     // pointer from int literal (address cast)
     int addr2 = 0x4000;
     byte *rptr = addr2;

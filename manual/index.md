@@ -13,7 +13,7 @@ Chapters
 - [Expressions & Operators](expressions.md)
 - [Control Flow](control_flow.md)
 - [Functions](functions.md)
- - [Delegates (Named Function Pointers)](delegates.md)
+- [Delegates (Named Function Pointers)](delegates.md)
 - [I/O & Hardware Registers](io_and_registers.md)
 - [Inline Assembly & __asm__](inline_asm.md)
 - [Directives & Conditional Compilation](directives.md)

@@ -1,0 +1,17 @@
+make dot "libcompile.dot";
+
+include "ay.znc"
+include "datetime.znc"
+include "io.znc"
+include "joystick.znc"
+include "memory.znc"
+include "mouse.znc"
+include "printf.znc"
+include "rnd.znc"
+include "sprite.znc"
+include "string.znc"
+include "strcontains.znc"
+include "strtoint.znc"
+include "version.znc"
+
+puts("\r\r\rIncludes worked\r");
