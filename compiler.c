@@ -162,12 +162,11 @@ void parse_make(const char *filename) MYCC {
             
             get_token(); // skip output type
             if (tok == tokString) {
-                strcpy(outfilename, token);
+                snprintf(outfilename, MAX_FILENAME_LEN, "%s", token);
                 get_token(); // skip string
             }
             else {
-                strcpy(outfilename, filename);
-                if (tokMakeType == tokNex) strcat(outfilename, ".nex");
+                snprintf(outfilename, MAX_FILENAME_LEN, "%s%s", filename, tokMakeType == tokNex ? ".nex" : "");
             }
             expect_semi(); 
             
@@ -380,7 +379,7 @@ void parse_decl(void) MYCC {
     if (tok != tokIdent) error(errExpected_s, "identifier");
 
     char name[MAX_IDENT_LEN + 1];
-    strncpy(name, token, MAX_IDENT_LEN);
+    snprintf(name, sizeof(name), "%s", token);
 
     get_token(); // skip name
 
@@ -403,7 +402,7 @@ void parse_decl(void) MYCC {
 
             if (tok != tokComma) break;
             get_token(); // skip ','
-            strncpy(name, token, MAX_IDENT_LEN);
+            snprintf(name, sizeof(name), "%s", token);
             get_token(); // skip name
         }
         expect_semi();
