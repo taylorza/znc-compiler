@@ -127,6 +127,14 @@ uint8_t type_make_struct(uint8_t struct_id, uint8_t is_const) MYCC {
     return far_type_intern(entry);
 }
 
+uint8_t type_make_enum(uint8_t enum_id, uint8_t is_const) MYCC {
+    TypeEntry entry = {0};
+    TYPE_SET_KIND(entry.kind_and_flags, TK_INT);
+    if (is_const) TYPE_SET_CONST(entry.kind_and_flags);
+    entry.aux0 = (uint8_t)(enum_id + 1);
+    return far_type_intern(entry);
+}
+
 uint8_t type_make_function(uint8_t signature_id) MYCC {
     TypeEntry entry = {0};
     TYPE_SET_KIND(entry.kind_and_flags, TK_FUNCTION);
@@ -190,8 +198,8 @@ uint8_t type_is_byte(uint8_t type_id) MYCC {
     return type_get_kind(type_id) == TK_BYTE && type_get_indirection(type_id) == 0;
 }
 
-uint8_t type_is_integral(uint8_t type_id) MYCC { /* char, byte, int */
-    return (type_get_kind(type_id) == TK_CHAR || type_get_kind(type_id) == TK_BYTE || type_get_kind(type_id) == TK_INT)   && type_get_indirection(type_id) == 0;
+uint8_t type_is_integral(uint8_t type_id) MYCC { /* char, byte, int, enum */
+    return (type_get_kind(type_id) == TK_CHAR || type_get_kind(type_id) == TK_BYTE || type_get_kind(type_id) == TK_INT || type_get_kind(type_id) == TK_ENUM)   && type_get_indirection(type_id) == 0;
 }
 
 uint8_t type_is_8bit(uint8_t type_id) MYCC {    /* char, byte */
@@ -208,6 +216,11 @@ uint8_t type_is_fixed(uint8_t type_id) MYCC {
 
 uint8_t type_is_struct(uint8_t type_id) MYCC {
     return type_get_kind(type_id) == TK_STRUCT && type_get_indirection(type_id) == 0;
+}
+
+uint8_t type_is_enum(uint8_t type_id) MYCC {
+    TypeEntry entry = type_get(type_id);
+    return TYPE_GET_KIND(&entry) == TK_INT && TYPE_GET_INDIR(&entry) == 0 && entry.aux0 != 0;
 }
 
 uint8_t type_is_function(uint8_t type_id) MYCC {
@@ -235,6 +248,12 @@ uint8_t type_get_struct_id(uint8_t struct_type_id) MYCC {
     TypeEntry entry = type_get(struct_type_id);
     if (TYPE_GET_KIND(&entry) != TK_STRUCT) return 0;
     return entry.aux0;
+}
+
+uint8_t type_get_enum_id(uint8_t enum_type_id) MYCC {
+    TypeEntry entry = type_get(enum_type_id);
+    if (TYPE_GET_KIND(&entry) != TK_INT || TYPE_GET_INDIR(&entry) != 0 || entry.aux0 == 0) return 0;
+    return (uint8_t)(entry.aux0 - 1);
 }
 
 uint8_t type_get_function_sig(uint8_t func_type_id) MYCC {
@@ -266,7 +285,10 @@ uint16_t type_size(uint8_t type_id) MYCC {
         if (struct_id == 0) return 0;
         return get_struct_size(struct_id - 1);  /* struct_id is 1-based */
     }
-    
+
+    /* Enums behave like int-sized scalars */
+    if (kind == TK_ENUM) return 2;
+
     /* Scalars */
     if (kind == TK_CHAR) return 1;
     if (kind == TK_BYTE) return 1;

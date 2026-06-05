@@ -52,6 +52,7 @@ void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC;
 void parse_switch(uint16_t contlbl) MYCC;
 void parse_vastart(void) MYCC;
 void parse_vaend(void) MYCC;
+void parse_enum_def(void) MYCC;
 
 /* Forward declaration for struct parser (defined later) */
 void parse_struct_def(void) MYCC;
@@ -76,6 +77,9 @@ void far_parse_exit(void) MYCC;
 void far_parse_vastart(void) MYCC;
 void far_parse_vaend(void) MYCC;
 void far_parse_org(void) MYCC;
+void far_parse_enum(void) MYCC;
+void far_parse_struct_def(void) MYCC;
+EXPR_RESULT far_parse_enum_member(const char* enum_name) MYCC;
 
 /* Called from the far_parse_include stub (BANK_47) — opens and parses an
  * included source file.  Must live in the main bank so it can call the
@@ -258,7 +262,7 @@ static void parse_statement_block(uint16_t brklbl, uint16_t contlbl) MYCC {
 }
 
 void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
-    /* If the current token is an identifier that is a known struct type, treat this
+    /* If the current token is an identifier that is a known struct or enum type, treat this
      * as a declaration (e.g. `Point p;`). This must be checked before falling back
      * to expression parsing so type names can be used like in C++.
      */
@@ -294,6 +298,10 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
             /* struct definitions are top-level only (<top_decl> in the grammar) */
             if (infunc) error(errTopLevelOnly);
             parse_struct_def();
+            break;
+        case tokEnum:
+            if (infunc) error(errTopLevelOnly);
+            parse_enum_def();
             break;
 
         case tokLBrace:
@@ -410,48 +418,15 @@ void parse_decl(void) MYCC {
 }
 
 void parse_struct_def(void) MYCC {
-    static char name[MAX_IDENT_LEN+1];
+    PROLOG(47)
+    far_parse_struct_def();
+    EPILOG
+}
 
-    /* parse: struct Name { <field-decls> } ; */
-    get_token(); // skip 'struct'
-    if (tok != tokIdent) {
-        error(errExpected_s, "identifier");
-        return;
-    }
-    
-    if (find_struct(token) != -1) {
-        error(errAlreadyDefined_s, token);
-        return;
-    }
-
-    int sid = add_struct(token);
-
-    get_token(); // skip name
-    expect_LBrace();
-
-    while (tok != tokRBrace && tok != tokEOS) {
-        uint8_t ftype_id;
-        parse_type(&ftype_id);
-
-        for (;;) {
-            if (tok != tokIdent) error(errExpected_s, "field name");
-
-            strncpy(name, token, MAX_IDENT_LEN);
-            get_token(); // skip field name
-
-            add_struct_field(sid, name, ftype_id);
-
-            if (tok == tokComma) {
-                get_token(); // skip ',' and continue
-                continue;
-            }
-            break;
-        }
-        expect_semi();
-    }
-
-    expect_RBrace();
-    if (tok == tokSemi) get_token(); // optional semicolon
+void parse_enum_def(void) MYCC {
+    PROLOG(47)
+    far_parse_enum();
+    EPILOG
 }
 
 void parse_if(uint16_t brklbl, uint16_t contlbl) MYCC {
@@ -1178,6 +1153,12 @@ void parse_org(void) MYCC {
     PROLOG(47)
     far_parse_org();
     EPILOG
+}
+
+EXPR_RESULT parse_enum_member(const char* enum_name) MYCC {
+    PROLOG(47)
+    EXPR_RESULT r = far_parse_enum_member(enum_name);
+    EPILOG_RETURN(r)
 }
 
 void parse_bank(void) MYCC {

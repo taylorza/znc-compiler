@@ -10,7 +10,8 @@ typedef enum TypeKind {
     TK_ARRAY = 4,
     TK_VOID = 5,
     TK_FIXED = 6,  /* 16-bit fixed point 12.4 format */
-    TK_BYTE = 7    /* unsigned 8-bit */
+    TK_BYTE = 7,   /* unsigned 8-bit */
+    TK_ENUM = 8    /* named enumeration */
 } TypeKind;
 
 /* Compact type descriptor (now 4 bytes with uint16_t aux1 for larger arrays) */
@@ -35,6 +36,7 @@ uint8_t type_make_fixed(uint8_t is_const) MYCC;
 uint8_t type_make_void(void) MYCC;
 uint8_t type_make_pointer(uint8_t base_type_id, uint8_t extra_indir) MYCC;
 uint8_t type_make_struct(uint8_t struct_id, uint8_t is_const) MYCC;
+uint8_t type_make_enum(uint8_t enum_id, uint8_t is_const) MYCC;
 uint8_t type_make_function(uint8_t signature_id) MYCC;
 uint8_t type_make_array(uint8_t element_type_id, uint16_t length) MYCC;
 
@@ -51,6 +53,7 @@ uint8_t type_is_byte(uint8_t type_id) MYCC;
 uint8_t type_is_int(uint8_t type_id) MYCC;
 uint8_t type_is_fixed(uint8_t type_id) MYCC;
 uint8_t type_is_struct(uint8_t type_id) MYCC;
+uint8_t type_is_enum(uint8_t type_id) MYCC;
 uint8_t type_is_function(uint8_t type_id) MYCC;
 uint8_t type_is_delegate(uint8_t type_id) MYCC;
 
@@ -61,6 +64,7 @@ uint8_t type_is_8bit(uint8_t type_id) MYCC;    /* char, byte */
 uint8_t type_get_element_type(uint8_t array_type_id) MYCC;
 uint16_t type_get_array_length(uint8_t array_type_id) MYCC;
 uint8_t type_get_struct_id(uint8_t struct_type_id) MYCC;
+uint8_t type_get_enum_id(uint8_t enum_type_id) MYCC;
 uint8_t type_get_function_sig(uint8_t func_type_id) MYCC;
 
 /* Type name registry (for typedef-like named types such as delegates) */

@@ -253,11 +253,6 @@ static uint8_t handle_incdec_internal(uint8_t is_prefix, SYMBOL *sym, uint8_t lv
     return 1;
 }
 
-/* Wrapper for normal case where operator is in tok */
-static uint8_t handle_incdec(uint8_t is_prefix, SYMBOL *sym, uint8_t lvalue_type_id, uint8_t addr_in_hl) MYCC {
-    return handle_incdec_internal(is_prefix, sym, lvalue_type_id, addr_in_hl, tokNone);
-}
-
 /* Helper: Lookup struct field and return field info. Returns 0 on error, 1 on success. */
 static uint8_t lookup_struct_member(uint8_t check_type_id, FIELDINFO *fi_out, uint16_t *offset_out) MYCC {
     if (!type_is_struct(check_type_id)) {
@@ -342,6 +337,11 @@ static EXPR_RESULT handle_binary_op(EXPR_RESULT left, TOKEN op, uint8_t p) MYCC 
                 error(errIllegalOp);
                 break;
         }
+    }
+
+    if (is_cmp_op && type_is_enum(left.type_id) && type_is_enum(r_result.type_id) &&
+        type_get_enum_id(left.type_id) != type_get_enum_id(r_result.type_id)) {
+        error(errTypeError);
     }
 
     if (type_is_const(left.type_id) && type_is_const(r_result.type_id)) {
@@ -909,8 +909,8 @@ static void parse_factor_postfix(EXPR_RESULT* result, uint8_t* dereference, uint
 
         if (tok == tokInc || tok == tokDec) {
             if (result->has_sym || *addr_in_hl) {
-                handle_incdec(0, result->has_sym ? &result->sym : NULL,
-                              result->type_id, *addr_in_hl);
+                handle_incdec_internal(0, result->has_sym ? &result->sym : NULL,
+                              result->type_id, *addr_in_hl, tokNone);
                 *addr_in_hl = 0;
                 *dereference = 0;
                 result->has_sym = 0;
@@ -925,27 +925,33 @@ static void parse_factor_postfix(EXPR_RESULT* result, uint8_t* dereference, uint
 
 #define is_compound_assign(t) ((t) >= tokAddAssign && (t) <= tokShrAssign)
 
+/* Bit-flags for parse_factor local state — packed into a single byte to
+ * reduce the recursive stack frame on the Z80 (each saved byte matters). */
+#define PF_NEG          0x01
+#define PF_NOT          0x02
+#define PF_CMPL         0x04
+#define PF_PREFIX_INC   0x08
+#define PF_PREFIX_DEC   0x10
+#define PF_IDENT_ARENA  0x20
+
 EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
     EXPR_RESULT factor_result = { .type_id = expected_type_id, .has_sym = 0 };
-    uint8_t prefix_inc = 0;
-    uint8_t prefix_dec = 0;
-    uint8_t neg = 0;
-    uint8_t not = 0;
-    uint8_t cmpl = 0;
+    uint8_t flags = 0;   /* PF_* bit-flags: neg/not/cmpl/prefix_inc/prefix_dec/ident_arena */
     uint8_t addr_in_hl = 0;
     uint8_t initial_deref = dereference;
-    
+    ARENA_MARKER ident_mark = 0;
+
     /* Handle prefix ++/-- */
     while (tok == tokInc || tok == tokDec) {
-        if (tok == tokInc) prefix_inc = 1;
-        if (tok == tokDec) prefix_dec = 1;
+        if (tok == tokInc) flags |= PF_PREFIX_INC;
+        if (tok == tokDec) flags |= PF_PREFIX_DEC;
         get_token();
     }
 
     while (tok == tokPlus || tok == tokMinus || tok == tokNot || tok == tokBitNot) {
-        if (tok == tokMinus) neg ^= 1;
-        if (tok == tokNot) not ^= 1;
-        if (tok == tokBitNot) cmpl ^= 1;
+        if (tok == tokMinus) flags ^= PF_NEG;
+        if (tok == tokNot) flags ^= PF_NOT;
+        if (tok == tokBitNot) flags ^= PF_CMPL;
         get_token();
     }
 
@@ -973,7 +979,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             get_token(); // skip '('
             
             /* Check for prefix ++(*ptr) or --(*ptr) patterns only if we have prefix operators */
-            if (tok == tokStar && (prefix_inc || prefix_dec)) {
+            if (tok == tokStar && (flags & (PF_PREFIX_INC | PF_PREFIX_DEC))) {
                 get_token(); // skip '*'
 
                 /* Parse the pointer expression - this will load the pointer into HL */
@@ -984,12 +990,11 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
                 uint8_t elem_type_id = type_get_element_type_id(factor_result.type_id);
 
                 /* This is ++(*ptr) or --(*ptr) (prefix) */
-                TOKEN op = prefix_inc ? tokInc : tokDec;
+                TOKEN op = (flags & PF_PREFIX_INC) ? tokInc : tokDec;
                 handle_incdec_internal(1, NULL, elem_type_id, 1, op);
                 factor_result.type_id = elem_type_id;
                 /* Clear the flags so they don't get processed again */
-                prefix_inc = 0;
-                prefix_dec = 0;
+                flags &= ~(PF_PREFIX_INC | PF_PREFIX_DEC);
                 break;
             }
             
@@ -1127,17 +1132,17 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             break;
 
         case tokNumber:
-            if (neg) {
+            if (flags & PF_NEG) {
                 intval = -intval;
-                neg = 0;
+                flags &= ~PF_NEG;
             }
-            if (not) {
+            if (flags & PF_NOT) {
                 intval = !intval;
-                not = 0;
+                flags &= ~PF_NOT;
             }
-            if (cmpl) {
+            if (flags & PF_CMPL) {
                 intval = ~intval;
-                cmpl = 0;
+                flags &= ~PF_CMPL;
             }
             get_token();
             if (dereference) {
@@ -1152,9 +1157,9 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
 
         case tokFixedLit:
             /* intval already holds the 12.4 Q4 value from the scanner */
-            if (neg) {
+            if (flags & PF_NEG) {
                 intval = -intval;
-                neg = 0;
+                flags &= ~PF_NEG;
             }
             get_token();
             if (dereference) {
@@ -1167,11 +1172,23 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             }
             break;
                                
-        case tokIdent:
+        case tokIdent: {
+            ident_mark = arena_get_marker();
+            flags |= PF_IDENT_ARENA;
+            char* ident_name = arena_strdup(token, strnlen(token, MAX_IDENT_LEN));
+            uint8_t maybe_type_id = (uint8_t)type_find_by_name(token);
+
             factor_result.sym = lookupIdent(token);
             if (not_defined(&factor_result.sym)) {
+                if (maybe_type_id != 0xFF && type_is_enum(maybe_type_id)) {
+                    get_token(); // skip enum name
+                    if (tok == tokMember) {
+                        factor_result = parse_enum_member(ident_name);
+                        goto ident_cleanup;
+                    }
+                }
                 error(errNotDefined_s, token);
-                return factor_result;
+                goto ident_cleanup;
             }
 
             get_token(); // skip identifier
@@ -1181,10 +1198,10 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
 
             if (type_is_const(factor_result.sym.type_id)) {
                 factor_result.value = factor_result.sym.stk.offset;
-                if (neg) factor_result.value = -factor_result.value;
-                if (not) factor_result.value = !factor_result.value;
-                if (cmpl) factor_result.value = ~factor_result.value;
-                return factor_result;
+                if (flags & PF_NEG) factor_result.value = -factor_result.value;
+                if (flags & PF_NOT) factor_result.value = !factor_result.value;
+                if (flags & PF_CMPL) factor_result.value = ~factor_result.value;
+                goto ident_cleanup;
             }
 
             /* For function symbols used as addresses (not called), return early like constants
@@ -1193,11 +1210,12 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
              */
             if (is_func_or_proto(&factor_result.sym) && tok != tokLParen && tok != tokLBrack) {
                 factor_result.value = 0;                  /* Functions don't have a numeric value */
-                return factor_result;
+                goto ident_cleanup;
             }
-            
+
             /* Don't handle postfix operators here - let the postfix loop handle them */
             break;
+        }
         default:
             error(errExpected_s, "expression");
             break;
@@ -1207,8 +1225,8 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
     parse_factor_postfix(&factor_result, &dereference, &addr_in_hl);
     
     /* Handle prefix ++/-- operators (applied after postfix operators are done) */
-    if ((prefix_inc || prefix_dec) && !type_is_const(factor_result.type_id)) {
-        TOKEN prefix_op = prefix_inc ? tokInc : tokDec;
+    if ((flags & (PF_PREFIX_INC | PF_PREFIX_DEC)) && !type_is_const(factor_result.type_id)) {
+        TOKEN prefix_op = (flags & PF_PREFIX_INC) ? tokInc : tokDec;
         handle_incdec_internal(1, factor_result.has_sym ? &factor_result.sym : NULL, 
                              factor_result.type_id, addr_in_hl, prefix_op);
         addr_in_hl = 0;  /* After inc/dec, value is in HL, not an address */
@@ -1262,9 +1280,12 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
         dereference = 0;
     }
     
-    if (neg) emit_neg();
-    if (not) emit_rtl("ccnot");
-    if (cmpl) emit_rtl("cccom");
+    ident_cleanup:
+    if (flags & PF_IDENT_ARENA) arena_free_to_marker(ident_mark);
+
+    if (flags & PF_NEG) emit_neg();
+    if (flags & PF_NOT) emit_rtl("ccnot");
+    if (flags & PF_CMPL) emit_rtl("cccom");
     return factor_result;
 }
 

@@ -22,6 +22,7 @@ typedef enum TOKEN {
     tokFixedLit,    // fixed-point literal (e.g. 3.14) - value pre-computed in 12.4 format in intval
     tokString,      // string
     tokStruct,      // 'struct' keyword
+    tokEnum,        // 'enum' keyword
     tokDelegate,    // 'delegate' keyword
     tokMember,      // '.' member operator
 

@@ -131,14 +131,27 @@ uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC
     kind_to = (t1.kind_and_flags >> 5) & 0x07;
     kind_from = (t2.kind_and_flags >> 5) & 0x07;
     
+    /* Enums: only same-enum compatibility is strict; enum/scalar mixing is allowed. */
+    uint8_t is_enum_to = (kind_to == TK_ENUM) ? 1 : 0;
+    uint8_t is_enum_from = (kind_from == TK_ENUM) ? 1 : 0;
+    if (is_enum_to || is_enum_from) {
+        if (is_enum_to && is_enum_from) return (t1.aux0 == t2.aux0) ? 1 : 0;
+        if (indir_to == 0 && indir_from == 0) {
+            uint8_t scalar_to = (kind_to == TK_CHAR || kind_to == TK_BYTE || kind_to == TK_INT || kind_to == TK_FIXED);
+            uint8_t scalar_from = (kind_from == TK_CHAR || kind_from == TK_BYTE || kind_from == TK_INT || kind_from == TK_FIXED);
+            if (scalar_to || scalar_from) return 1;
+        }
+        return 0;
+    }
+
     /* For non-pointer scalars (char/byte/int/fixed), allow compatibility between them */
     if (indir_to == 0 && indir_from == 0 && 
         (kind_to == TK_CHAR || kind_to == TK_BYTE || kind_to == TK_INT || kind_to == TK_FIXED) && 
         (kind_from == TK_CHAR || kind_from == TK_BYTE || kind_from == TK_INT || kind_from == TK_FIXED)) {
-        /* TK_CHAR, TK_BYTE, TK_INT and TK_FIXED are compatible in both directions */
+        /* Scalars are compatible in both directions */
         return 1;
     }
-    
+
     /* Detect arrays regardless of indirection (arrays may degrade to pointers) */
     uint8_t is_array_to = (kind_to == TK_ARRAY) ? 1 : 0;
     uint8_t is_array_from = (kind_from == TK_ARRAY) ? 1 : 0;
@@ -212,7 +225,7 @@ uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC
     if (t1.kind_and_flags != t2.kind_and_flags) return 0;
     if (t1.aux0 != t2.aux0) return 0;
     if (t1.aux1 != t2.aux1) return 0;
-    
+
     return 1;
 }
 

@@ -14,8 +14,9 @@ const int TEST_STRUCTS = TEST_G1;   // structs, dlgs
 const int TEST_VARGS   = TEST_G1;   // vargs
 const int TEST_ASM     = TEST_G1;   // asm
 const int TEST_CCOMP   = TEST_G1;   // ccomp (conditional compilation)
+const int TEST_ENUM    = TEST_G1;   // enum declarations and type conversions
 
-const int TEST_FIXED   = TEST_G2;   // fixed-point
+const int TEST_FIXED   = TEST_G2;
 const int TEST_PTRADV  = TEST_G2;   // rawref, tconv
 const int TEST_FORINIT = TEST_G2;   // for-initializer declarations
 const int TEST_ELIF    = TEST_G2;   // #elif
@@ -83,6 +84,9 @@ struct FxPair {
     fixed[2] pts;
     int      tag;
 };
+
+enum Color { RED, GREEN, BLUE };
+enum Dir   { NORTH, SOUTH, EAST, WEST };
 
 // ============================================================
 // Section 4: Global variables of every scalar type
@@ -1040,6 +1044,84 @@ void test_ptrst() {
 }
 #endif
 
+#if TEST_ENUM
+void test_enum() {
+    // Member values auto-increment from 0
+    chk("en_red",   Color.RED   == 0);
+    chk("en_grn",   Color.GREEN == 1);
+    chk("en_blu",   Color.BLUE  == 2);
+    chk("en_north", Dir.NORTH   == 0);
+    chk("en_west",  Dir.WEST    == 3);
+
+    // Enum variable declaration and assignment
+    Color c = Color.GREEN;
+    chk("en_var",   c == 1);
+    chk("en_eq",    c == Color.GREEN);
+    chk("en_ne",    c != Color.RED);
+
+    // Enum-to-int implicit conversion
+    int n = Color.BLUE;
+    chk("en_e2i",   n == 2);
+
+    // Int-to-enum implicit conversion
+    Color c2 = 0;
+    chk("en_i2e",   c2 == Color.RED);
+
+    // Enum to byte and char
+    byte bv = Color.BLUE;
+    chk("en_e2b",   bv == 2);
+    char cv = Color.GREEN;
+    chk("en_e2c",   cv == 1);
+
+    // Arithmetic using enum member literals
+    int sum = Color.RED + Color.GREEN + Color.BLUE;
+    chk("en_arith", sum == 3);
+
+    // Enum variable in arithmetic expression
+    Color e = Color.BLUE;
+    int diff = e - 1;
+    chk("en_sub",   diff == 1);
+
+    // Comparison operators
+    chk("en_lt",    Color.RED  < Color.BLUE);
+    chk("en_gt",    Color.BLUE > Color.GREEN);
+
+    // Ternary with enum variable
+    Color sel = Color.GREEN;
+    int t = (sel == Color.GREEN ? 10 : 0);
+    chk("en_tern",  t == 10);
+
+    // Switch on enum variable with int case labels
+    int r = 0;
+    switch (c) {
+        case 0: r = 10; break;
+        case 1: r = 20; break;
+        case 2: r = 30; break;
+        default: r = 0; break;
+    }
+    chk("en_sw_i",  r == 20);
+
+    // Switch with enum member case labels
+    r = 0;
+    switch (Color.BLUE) {
+        case Color.RED:   r = 1; break;
+        case Color.GREEN: r = 2; break;
+        case Color.BLUE:  r = 3; break;
+        default:          r = 0; break;
+    }
+    chk("en_sw_e",  r == 3);
+
+    // Enum value as array index
+    int[3] lut;
+    lut[0] = 10; lut[1] = 20; lut[2] = 30;
+    chk("en_idx",   lut[Color.GREEN] == 20);
+
+    // Const int initialised from enum member
+    const int EN_K = Color.BLUE;
+    chk("en_const", EN_K == 2);
+}
+#endif
+
 pass_count = 0;
 fail_count = 0;
 
@@ -1109,6 +1191,9 @@ test_ncall();
 #endif
 #if TEST_PTRST
 test_ptrst();
+#endif
+#if TEST_ENUM
+test_enum();
 #endif
 
 puts("================\r");

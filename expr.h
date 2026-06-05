@@ -15,6 +15,7 @@ typedef struct EXPR_RESULT {
 EXPR_RESULT parse_expr(uint8_t minprec, uint8_t expected_type_id) MYCC;
 EXPR_RESULT parse_expr_delayconst(uint8_t minprec, uint8_t expected_type_id) MYCC;
 EXPR_RESULT parse_ternary(EXPR_RESULT expr_result, uint8_t prec, uint8_t expected_type_id) MYCC;
+EXPR_RESULT parse_enum_member(const char* enum_name) MYCC;
 void parse_assign(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t type_id) MYCC;
 
 /* Far entry points in BANK_45 (exprex.c) */
