@@ -131,13 +131,21 @@ uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC
     kind_to = (t1.kind_and_flags >> 5) & 0x07;
     kind_from = (t2.kind_and_flags >> 5) & 0x07;
     
-    /* Enums: only same-enum compatibility is strict; enum/scalar mixing is allowed. */
-    uint8_t is_enum_to = (kind_to == TK_ENUM) ? 1 : 0;
-    uint8_t is_enum_from = (kind_from == TK_ENUM) ? 1 : 0;
+    /* Enums are encoded as TK_INT with aux0 = enum_id + 1 (aux0 != 0).
+     * Two sides are enum-typed when: kind == TK_INT, indir == 0, aux0 != 0.
+     * Rules:
+     *   enum A   <- enum A   : allowed (same type)
+     *   enum A   <- enum B   : REJECTED (different enum types)
+     *   enum A   <- scalar   : allowed (int literal, char, byte, etc.)
+     *   scalar   <- enum A   : allowed
+     */
+    uint8_t is_enum_to   = (kind_to   == TK_INT && indir_to   == 0 && t1.aux0 != 0) ? 1 : 0;
+    uint8_t is_enum_from = (kind_from == TK_INT && indir_from == 0 && t2.aux0 != 0) ? 1 : 0;
     if (is_enum_to || is_enum_from) {
         if (is_enum_to && is_enum_from) return (t1.aux0 == t2.aux0) ? 1 : 0;
+        /* One side is enum, the other is a plain scalar — allow */
         if (indir_to == 0 && indir_from == 0) {
-            uint8_t scalar_to = (kind_to == TK_CHAR || kind_to == TK_BYTE || kind_to == TK_INT || kind_to == TK_FIXED);
+            uint8_t scalar_to   = (kind_to   == TK_CHAR || kind_to   == TK_BYTE || kind_to   == TK_INT || kind_to   == TK_FIXED);
             uint8_t scalar_from = (kind_from == TK_CHAR || kind_from == TK_BYTE || kind_from == TK_INT || kind_from == TK_FIXED);
             if (scalar_to || scalar_from) return 1;
         }
@@ -164,7 +172,11 @@ uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC
 
     /* Reject passing a non-array, non-pointer value to an array parameter */
     if (is_array_to && !is_array_from && indir_from == 0) return 0;
-    if (is_array_from && !is_array_to && indir_to == 0) return 0;
+    if (is_array_from && !is_array_to && indir_to == 0) {
+        /* Allow array -> int/char/byte: scalar holds the array base address */
+        if (kind_to == TK_CHAR || kind_to == TK_BYTE || kind_to == TK_INT) return 1;
+        return 0;
+    }
 
     /* Array <-> Pointer: treat T[] and T* as interchangeable (C semantics).
      * Both array->pointer and pointer->array are allowed when element types match. */
@@ -196,6 +208,10 @@ uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC
         TypeEntry bf = type_table[base_from];
         uint8_t bt_kind = (bt.kind_and_flags >> 5) & 0x07;
         uint8_t bf_kind = (bf.kind_and_flags >> 5) & 0x07;
+        /* Allow char*<->byte* interchangeably: both are 8-bit element pointers */
+        uint8_t bt_8bit = (bt_kind == TK_CHAR || bt_kind == TK_BYTE);
+        uint8_t bf_8bit = (bf_kind == TK_CHAR || bf_kind == TK_BYTE);
+        if (bt_8bit && bf_8bit) return 1;
         if (bt_kind != bf_kind) return 0;
         /* For structs, ensure struct ids match */
         if (bt_kind == TK_STRUCT && bt.aux0 != bf.aux0) return 0;
@@ -213,11 +229,12 @@ uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC
      */
     if (indir_to > 0 && indir_from == 0) {
         /* Target is pointer, source is non-pointer: allow scalar -> pointer */
-        if (kind_from == TK_CHAR || kind_from == TK_BYTE || kind_from == TK_INT) return 1;
+        if (kind_from == TK_CHAR || kind_from == TK_BYTE || kind_from == TK_INT || kind_from == TK_FIXED) return 1;
         return 0;
     }
     if (indir_from > 0 && indir_to == 0) {
-        /* Source is pointer, target is non-pointer: disallow */
+        /* Source is pointer, target is scalar integer: allow (int/char/byte hold the address value) */
+        if (kind_to == TK_CHAR || kind_to == TK_BYTE || kind_to == TK_INT) return 1;
         return 0;
     }
     

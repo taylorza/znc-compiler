@@ -70,8 +70,11 @@ uint16_t far_parse_brace_initializer_elements(uint8_t element_type_id) MYCC {
         }
 
         if (tok == tokString) {
-            uint8_t field_is_ptr   = type_is_pointer(field_type_id) && type_is_char(type_get_element_type_id(field_type_id));
-            uint8_t field_is_arr   = type_is_array(field_type_id)   && type_is_char(type_get_element_type_id(field_type_id));
+            uint8_t field_elem     = type_get_element_type_id(field_type_id);
+            uint8_t field_is_ptr   = type_is_pointer(field_type_id) &&
+                                     (type_is_char(field_elem) || type_is_byte(field_elem));
+            uint8_t field_is_arr   = type_is_array(field_type_id) &&
+                                     (type_is_char(field_elem) || type_is_byte(field_elem));
             uint8_t field_inferred = (element_type_id == 0);
 
             if (field_is_ptr || field_inferred) {

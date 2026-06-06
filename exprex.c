@@ -312,6 +312,12 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8
     }
     EXPR_RESULT r_result = parse_expr_delayconst(0, type_id);
 
+    /* Reject cross-enum assignment: enum A <- enum B is always an error.
+     * Same-enum is allowed; enum <- scalar and scalar <- enum are allowed. */
+    if (!type_check_compatible(r_result.type_id, type_id)) {
+        error(errTypeError);
+    }
+
     if (type_is_const(r_result.type_id)) {
         /* Fold fixed <-> int/char conversion at compile time for constant RHS */
         if (type_is_fixed(type_id) && !type_is_fixed(r_result.type_id) &&
