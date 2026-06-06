@@ -1015,7 +1015,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
                 }
                 else {
                     emit_load(factor_result.type_id);
-                    factor_result = parse_op_right(factor_result, 0, expected_type_id);
+                    parse_op_right(&factor_result, 0, expected_type_id);
                     expect_RParen();                    
                 }
                 break;
