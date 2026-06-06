@@ -116,25 +116,24 @@ static void emit_sym_address_with_offset(SYMBOL *sym, uint16_t offset) MYCC {
 }
 
 /* Helper: Parse and scale array index expression. */
-static EXPR_RESULT parse_and_scale_index(uint8_t elemtype_id) MYCC {
+static void parse_and_scale_index(EXPR_RESULT *result, uint8_t elemtype_id) MYCC {
     get_token();
-    EXPR_RESULT index_result = far_parse_expr_delayconst(0, TYPE_ID_INT);
+    *result = far_parse_expr_delayconst(0, TYPE_ID_INT);
     expect(tokRBrack, ']');
 
     uint16_t scale = (uint16_t)type_size(elemtype_id);
 
-    if (type_is_const(index_result.type_id)) {
+    if (type_is_const(result->type_id)) {
         /* Convert const fixed index to int by shifting right 4 */
-        if (type_is_fixed(index_result.type_id))
-            index_result.value = (uint16_t)((int16_t)index_result.value >> 4);
-        index_result.value = (uint16_t)(index_result.value * scale);
+        if (type_is_fixed(result->type_id))
+            result->value = (uint16_t)((int16_t)result->value >> 4);
+        result->value = (uint16_t)(result->value * scale);
     } else {
         /* Convert runtime fixed index to int before element scaling */
-        if (type_is_fixed(index_result.type_id))
+        if (type_is_fixed(result->type_id))
             emit_fixed_to_int();
         emit_scale_reg(scale, SCALE_HL);
-    }
-    return index_result;
+    }    
 }
 
 /* Helper: Compute indexed address (sym[index]) into HL.
@@ -149,8 +148,10 @@ typedef struct {
 
 static INDEXED_RESULT compute_indexed_address(SYMBOL *sym, uint16_t base_offset, TOKEN next_tok) MYCC {
     INDEXED_RESULT result;
+    EXPR_RESULT idx;
+    
     uint8_t elemtype_id = type_get_element_type_id(sym->type_id);
-    EXPR_RESULT idx = parse_and_scale_index(elemtype_id);
+    parse_and_scale_index(&idx, elemtype_id);
     
     if (type_is_const(idx.type_id)) {
         uint16_t total_offset = base_offset + idx.value;
