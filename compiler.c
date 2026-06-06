@@ -404,7 +404,7 @@ void parse_decl(void) MYCC {
             sym = decl_in_scope(type_id, VARIABLE, name);
                
             if (tok == tokAssign) {
-                parse_assign(0, sym, 0, type_id);
+                parse_assign(0, &sym, 0, type_id);
             }
             else if (constdecl) error(errExpected_s, "initializer");
 

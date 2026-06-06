@@ -55,7 +55,7 @@ void far_parse_ternary(EXPR_RESULT *result, uint8_t prec, uint8_t expected_type_
     return;
 }
 
-void far_parse_compound_assign(TOKEN op, uint8_t dereference, SYMBOL sym, uint8_t addr_in_hl, uint8_t type_id) MYCC {
+void far_parse_compound_assign(TOKEN op, uint8_t dereference, SYMBOL *sym, uint8_t addr_in_hl, uint8_t type_id) MYCC {
     get_token(); // skip op=
 
     /* If dereference: push address first, then load old value.
@@ -63,12 +63,12 @@ void far_parse_compound_assign(TOKEN op, uint8_t dereference, SYMBOL sym, uint8_
      * emit_store (for dereference path) pops address from below the result. */
     if (dereference) {
         if (!addr_in_hl) {
-            emit_ld_symval(&sym);
+            emit_ld_symval(sym);
         }
         emit_push();         /* push address for store-back */
         emit_load(type_id);  /* HL = old value */
     } else {
-        emit_ld_symval(&sym); /* HL = old value */
+        emit_ld_symval(sym); /* HL = old value */
     }
     emit_push();             /* push old value onto stack */
 
@@ -136,27 +136,27 @@ void far_parse_compound_assign(TOKEN op, uint8_t dereference, SYMBOL sym, uint8_
         /* emit_store: swap(HL<->DE), pop address into HL, store DE at [HL] */
         emit_store(type_id);
     } else {
-        emit_store_sym(&sym);
+        emit_store_sym(sym);
     }
 }
 
 
-void far_parse_assign_ex(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t type_id) MYCC {
+void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint8_t type_id) MYCC {
     get_token(); // skip '='
 
-    if (sym.klass != CLASS_UNDEFINED && type_is_const(sym.type_id)) {
+    if (sym->klass != CLASS_UNDEFINED && type_is_const(sym->type_id)) {
         EXPR_RESULT r = parse_expr_delayconst(0, 0);
         if (!type_is_const(r.type_id)) error(errConstExpected);
         /* Apply fixed <-> int/char conversion at compile time, same as the non-const path. */
-        if (type_is_fixed(sym.type_id) && !type_is_fixed(r.type_id) &&
+        if (type_is_fixed(sym->type_id) && !type_is_fixed(r.type_id) &&
             type_is_integral(r.type_id)) {
             r.value = (uint16_t)((int16_t)r.value << 4);
-        } else if (!type_is_fixed(sym.type_id) && type_is_fixed(r.type_id) &&
-                   type_is_integral(sym.type_id)) {
+        } else if (!type_is_fixed(sym->type_id) && type_is_fixed(r.type_id) &&
+                   type_is_integral(sym->type_id)) {
             r.value = (uint16_t)((int16_t)r.value >> 4);
         }
-        sym.stk.offset = r.value;
-        updatesym(&sym);
+        sym->stk.offset = r.value;
+        updatesym(sym);
         return;
     }
 
@@ -170,13 +170,13 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8
         uint16_t datalbl = newlbl();
         uint16_t datalen = NO_LABEL;
 
-        if (sym.klass == CLASS_UNDEFINED && !dereference) error(errNotlvalue);
+        if (sym->klass == CLASS_UNDEFINED && !dereference) error(errNotlvalue);
 
         if (!dereference && !type_is_array(type_id) && !type_is_struct(type_id)) {
             /* Pointer/scalar variable: store the address of the inline data into the variable */
             emit_ld_immed(); emit_lblref(datalbl); emit_nl();
-            if (sym.klass != CLASS_UNDEFINED) {
-                emit_store_sym(&sym);
+            if (sym->klass != CLASS_UNDEFINED) {
+                emit_store_sym(sym);
             }
             else {
                 emit_store(type_id);
@@ -187,10 +187,10 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8
 
             if (!dereference && (type_is_array(type_id) || type_is_struct(type_id))) {
                 /* Array/struct variable: destination is the variable's own storage address */
-                emit_ld_symaddr(&sym);
+                emit_ld_symaddr(sym);
             }
-            else if (sym.klass != CLASS_UNDEFINED) {
-                emit_ld_symval(&sym);
+            else if (sym->klass != CLASS_UNDEFINED) {
+                emit_ld_symval(sym);
             }
             /* else: HL already contains the pointer value from parse_factor (*p case) */
             if (indexed) {
@@ -256,9 +256,9 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8
              */
             emit_push();  /* Save source address on stack */
 
-            if (sym.klass != CLASS_UNDEFINED) {
+            if (sym->klass != CLASS_UNDEFINED) {
                 /* Load the pointer value (the address it points to) */
-                emit_ld_symval(&sym);
+                emit_ld_symval(sym);
             }
             /* else: HL already has dest address from parse_factor */
 
@@ -278,8 +278,8 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8
             /* Direct struct assignment: p1 = p2 */
             emit_push();  /* Save source address */
 
-            if (sym.klass != CLASS_UNDEFINED) {
-                emit_ld_symaddr(&sym);
+            if (sym->klass != CLASS_UNDEFINED) {
+                emit_ld_symaddr(sym);
             } else {
                 error(errNotlvalue);
                 return;
@@ -293,7 +293,7 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8
         return;
     }
 
-    if (sym.klass == CLASS_UNDEFINED) {
+    if (sym->klass == CLASS_UNDEFINED) {
         // HL contains address to write to
         emit_push();
         parse_expr(0, type_id);
@@ -302,7 +302,7 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8
     }
 
     if (dereference) {
-        emit_ld_symval(&sym);
+        emit_ld_symval(sym);
         if (indexed) {
             emit_pop_de();
             emit_add16();
@@ -363,6 +363,6 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8
         emit_store(type_id);
     }
     else {
-        emit_store_sym(&sym);
+        emit_store_sym(sym);
     }
 }

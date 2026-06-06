@@ -10,7 +10,7 @@ void error(ERROR err, ...) {
     char buf[64];     /* Final formatted message buffer */
     va_list v;
 
-#ifdef __ZXNEXT
+#ifdef __ZXNEXT0
     __asm
         db 0xfd, 0x00
     __endasm;
@@ -23,8 +23,8 @@ void error(ERROR err, ...) {
     vsnprintf(buf, sizeof(buf), errmsg, v);
     va_end(v);
     
-    //printf("%c%s(%d,%d): error: %s%c", NL, loc[fileid].filename, token_line, token_col, buf, NL);
-    if (fileid != 255) 
+    if (fileid != 255)         
+        //printf("%c%s(%d,%d): error: %s%c", NL, loc[fileid].filename, token_line, token_col, buf, NL);
         printf("%c%s(%d,%d): error: %s%c", NL, loc[fileid].filename, curr_line, curr_col, buf, NL);
     else
         printf("%cerror: %s%c", NL, buf, NL);

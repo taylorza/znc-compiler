@@ -23,13 +23,13 @@ void parse_ternary(EXPR_RESULT *result, uint8_t prec, uint8_t expected_type_id) 
     EPILOG
 }
 
-void parse_assign(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t type_id) MYCC {
+void parse_assign(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint8_t type_id) MYCC {
     PROLOG(45)
     far_parse_assign_ex(dereference, sym, indexed, type_id);
     EPILOG
 }
 
-void parse_compound_assign(TOKEN op, uint8_t dereference, SYMBOL sym, uint8_t addr_in_hl, uint8_t type_id) MYCC {
+void parse_compound_assign(TOKEN op, uint8_t dereference, SYMBOL *sym, uint8_t addr_in_hl, uint8_t type_id) MYCC {
     PROLOG(45)
     far_parse_compound_assign(op, dereference, sym, addr_in_hl, type_id);
     EPILOG

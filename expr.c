@@ -746,7 +746,7 @@ static void parse_factor_ampersand(EXPR_RESULT *result) MYCC {
  * SYMBOL base_sym (8 bytes) and EXPR_RESULT index_result (12 bytes) are
  * branch-exclusive and would inflate parse_factor_postfix's frame if inlined. */
 static void postfix_subscript(EXPR_RESULT* result, uint8_t* dereference, uint8_t* addr_in_hl) MYCC {
-    SYMBOL base_sym = result->has_sym ? result->sym : undefined_sym;
+    SYMBOL *base_sym = result->has_sym ? &result->sym : &undefined_sym;
     uint8_t had_sym = result->has_sym;
 
     if (*addr_in_hl) {
@@ -781,9 +781,9 @@ static void postfix_subscript(EXPR_RESULT* result, uint8_t* dereference, uint8_t
         if (type_is_fixed(index_result.type_id))
             index_result.value = (uint16_t)((int16_t)index_result.value >> 4);
         uint16_t offset = index_result.value * scale;
-        if (had_sym && type_is_array(base_sym.type_id)) {
-            if (offset) emit_ld_symaddr_offset(&base_sym, offset);
-            else emit_ld_symaddr(&base_sym);
+        if (had_sym && type_is_array(base_sym->type_id)) {
+            if (offset) emit_ld_symaddr_offset(base_sym, offset);
+            else emit_ld_symaddr(base_sym);
         } else {
             if (!had_sym) emit_pop_hl();
             if (offset) { emit_ldde_immed_n(offset); emit_add16(); }
@@ -791,9 +791,9 @@ static void postfix_subscript(EXPR_RESULT* result, uint8_t* dereference, uint8_t
     } else {
         if (type_is_fixed(index_result.type_id)) emit_fixed_to_int();
         if (scale > 1) emit_scale_reg(scale, 1);
-        if (had_sym && type_is_array(base_sym.type_id)) {
+        if (had_sym && type_is_array(base_sym->type_id)) {
             emit_swap();
-            emit_ld_symaddr(&base_sym);
+            emit_ld_symaddr(base_sym);
         } else {
             emit_pop_de();
         }
@@ -1095,11 +1095,10 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             }
             if (tok == tokAssign) {
                 uint8_t elem_type_id = type_get_element_type_id(factor_result.type_id);
-                parse_assign(1, factor_result.has_sym ? factor_result.sym : undefined_sym, 0, elem_type_id);
+                parse_assign(1, factor_result.has_sym ? &factor_result.sym : &undefined_sym, 0, elem_type_id);
             } else if (is_compound_assign(tok)) {
                 uint8_t elem_type_id = type_get_element_type_id(factor_result.type_id);
-                SYMBOL csym = factor_result.has_sym ? factor_result.sym : undefined_sym;
-                parse_compound_assign(tok, 1, csym, 0, elem_type_id);
+                parse_compound_assign(tok, 1, factor_result.has_sym ? &factor_result.sym : &undefined_sym, 0, elem_type_id);
             } else {
                 uint8_t elem_type_id = type_get_element_type_id(factor_result.type_id);
                 /* When dereferencing a plain scalar used as a raw address (e.g. int used
@@ -1235,17 +1234,17 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
     if ((tok == tokAssign || is_compound_assign(tok)) && !initial_deref) {
         if (tok == tokAssign) {
             if (addr_in_hl) {
-                parse_assign(1, undefined_sym, 0, factor_result.type_id);
+                parse_assign(1, &undefined_sym, 0, factor_result.type_id);
             } else if (factor_result.has_sym) {
-                parse_assign(dereference, factor_result.sym, 0, factor_result.type_id);
+                parse_assign(dereference, &factor_result.sym, 0, factor_result.type_id);
             } else {
                 error(errNotlvalue);
             }
         } else {
             if (addr_in_hl) {
-                parse_compound_assign(tok, 1, undefined_sym, 1, factor_result.type_id);
+                parse_compound_assign(tok, 1, NULL, 1, factor_result.type_id);
             } else if (factor_result.has_sym) {
-                parse_compound_assign(tok, dereference, factor_result.sym, 0, factor_result.type_id);
+                parse_compound_assign(tok, dereference, &factor_result.sym, 0, factor_result.type_id);
             } else {
                 error(errNotlvalue);
             }
