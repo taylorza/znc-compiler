@@ -79,7 +79,7 @@ void far_parse_vaend(void) MYCC;
 void far_parse_org(void) MYCC;
 void far_parse_enum(void) MYCC;
 void far_parse_struct_def(void) MYCC;
-EXPR_RESULT far_parse_enum_member(const char* enum_name) MYCC;
+void far_parse_enum_member(EXPR_RESULT *result, const char* enum_name) MYCC;
 
 /* Called from the far_parse_include stub (BANK_47) — opens and parses an
  * included source file.  Must live in the main bank so it can call the
@@ -1155,10 +1155,10 @@ void parse_org(void) MYCC {
     EPILOG
 }
 
-EXPR_RESULT parse_enum_member(const char* enum_name) MYCC {
+ void parse_enum_member(EXPR_RESULT *result, const char* enum_name) MYCC {
     PROLOG(47)
-    EXPR_RESULT r = far_parse_enum_member(enum_name);
-    EPILOG_RETURN(r)
+    far_parse_enum_member(result, enum_name);
+    EPILOG
 }
 
 void parse_bank(void) MYCC {

@@ -10,7 +10,7 @@ void error(ERROR err, ...) {
     char buf[64];     /* Final formatted message buffer */
     va_list v;
 
-#ifdef __ZXNEXT0
+#ifdef __ZXNEXT
     __asm
         db 0xfd, 0x00
     __endasm;

@@ -1,6 +1,6 @@
 // place stack
 
-#pragma output REGISTER_SP = 0xbffd
+#pragma output REGISTER_SP = 0xbffe
 
 // limit size of stdio
 #pragma printf = %s %c %d
@@ -37,5 +37,5 @@
 
 // Dynamic Memory
 #pragma output CLIB_MALLOC_HEAP_SIZE   = 0      // default =  -1  : size of malloc heap (0 = do not create a heap, -1 = place heap between bss and bottom of stack)
-#pragma output CLIB_STDIO_HEAP_SIZE    = 256    // default = 256  : size of stdio heap (0 = do not allocate bytes for opening of files)
+#pragma output CLIB_STDIO_HEAP_SIZE    = 128    // default = 256  : size of stdio heap (0 = do not allocate bytes for opening of files)
 #pragma output CLIB_BALLOC_TABLE_SIZE  = 0      // default =   0  : number of queues created for block memory allocator

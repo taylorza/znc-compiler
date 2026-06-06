@@ -46,7 +46,7 @@ int8_t prec(TOKEN op) MYCC {
 EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC;
 EXPR_RESULT far_parse_expr(uint8_t minprec, uint8_t expected_type_id) MYCC;
 EXPR_RESULT far_parse_expr_delayconst(uint8_t minprec, uint8_t expected_type_id) MYCC;
-EXPR_RESULT parse_op_right(EXPR_RESULT left, uint8_t minprec, uint8_t expected_type_id);
+void parse_op_right(EXPR_RESULT *left, uint8_t minprec, uint8_t expected_type_id);
 
 
 /* Helper: Emit scaling of value in HL or DE by given scale factor */
@@ -282,12 +282,12 @@ static uint8_t lookup_struct_member(uint8_t check_type_id, FIELDINFO *fi_out, ui
  * scaleL/R, flags) are only live while this helper is on the stack, so they
  * do not inflate the frame of the outer loop during tokOr/tokAnd/ternary
  * recursion paths. */
-static EXPR_RESULT handle_binary_op(EXPR_RESULT left, TOKEN op, uint8_t p) MYCC {
+static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
     uint16_t scaleL = 0;
     uint16_t scaleR = 0;
     EXPR_RESULT r_result = { .type_id = TYPE_ID_VOID };
 
-    if (!type_is_const(left.type_id)) {
+    if (!type_is_const(left->type_id)) {
         emit_push();
     }
 
@@ -297,9 +297,9 @@ static EXPR_RESULT handle_binary_op(EXPR_RESULT left, TOKEN op, uint8_t p) MYCC 
     uint8_t is_cmp_op = (op == tokEq || op == tokNeq || op == tokLt || op == tokLeq || op == tokGt || op == tokGeq);
     if (!is_cmp_op) {
         /* Fixed-type offsets in pointer arithmetic are first converted to int (>> 4) */
-        if ((type_is_pointer(left.type_id) || type_is_array(left.type_id)) &&
+        if ((type_is_pointer(left->type_id) || type_is_array(left->type_id)) &&
             (type_is_int(r_result.type_id) || type_is_fixed(r_result.type_id))) {
-            uint8_t elem_id = type_get_element_type_id(left.type_id);
+            uint8_t elem_id = type_get_element_type_id(left->type_id);
             scaleR = type_size(elem_id);
             /* If the offset is fixed, convert it to int BEFORE scaling. */
             if (type_is_fixed(r_result.type_id)) {
@@ -313,17 +313,17 @@ static EXPR_RESULT handle_binary_op(EXPR_RESULT left, TOKEN op, uint8_t p) MYCC 
             }
         }
         if ((type_is_pointer(r_result.type_id) || type_is_array(r_result.type_id)) &&
-            (type_is_int(left.type_id) || type_is_fixed(left.type_id))) {
+            (type_is_int(left->type_id) || type_is_fixed(left->type_id))) {
             uint8_t elem_id = type_get_element_type_id(r_result.type_id);
             scaleL = type_size(elem_id);
-            if (type_is_const(left.type_id) && type_is_fixed(left.type_id))
-                left.value = (uint16_t)((int16_t)left.value >> 4);
+            if (type_is_const(left->type_id) && type_is_fixed(left->type_id))
+                left->value = (uint16_t)((int16_t)left->value >> 4);
         }
     }
 
     if (scaleL && scaleR) error(errIllegalOp);
 
-    uint8_t pointer = type_is_pointer(left.type_id) || type_is_pointer(r_result.type_id);
+    uint8_t pointer = type_is_pointer(left->type_id) || type_is_pointer(r_result.type_id);
 
     if (pointer) {
         switch (op) {
@@ -339,65 +339,65 @@ static EXPR_RESULT handle_binary_op(EXPR_RESULT left, TOKEN op, uint8_t p) MYCC 
         }
     }
 
-    if (is_cmp_op && type_is_enum(left.type_id) && type_is_enum(r_result.type_id) &&
-        type_get_enum_id(left.type_id) != type_get_enum_id(r_result.type_id)) {
+    if (is_cmp_op && type_is_enum(left->type_id) && type_is_enum(r_result.type_id) &&
+        type_get_enum_id(left->type_id) != type_get_enum_id(r_result.type_id)) {
         error(errTypeError);
     }
 
-    if (type_is_const(left.type_id) && type_is_const(r_result.type_id)) {
-        uint8_t lf = type_is_fixed(left.type_id);
+    if (type_is_const(left->type_id) && type_is_const(r_result.type_id)) {
+        uint8_t lf = type_is_fixed(left->type_id);
         uint8_t rf = type_is_fixed(r_result.type_id);
         /* For arithmetic/comparison ops mixing fixed and int/char constants,
          * convert the non-fixed operand into Q4 format before folding. */
         if ((lf || rf) && op_needs_fixed_align(op)) {
             if (lf && !rf) { r_result.value = r_result.value << 4; rf = 1; }
-            else if (rf && !lf) { left.value = left.value << 4; lf = 1; }
+            else if (rf && !lf) { left->value = left->value << 4; lf = 1; }
         }
         uint8_t fold_unsigned = pointer ||
-            (type_is_byte(left.type_id) && type_is_byte(r_result.type_id));
+            (type_is_byte(left->type_id) && type_is_byte(r_result.type_id));
         switch (op) {
             case tokLt:
-                left.value = fold_unsigned ? (left.value < r_result.value) : ((int16_t)left.value < (int16_t)r_result.value);
+                left->value = fold_unsigned ? (left->value < r_result.value) : ((int16_t)left->value < (int16_t)r_result.value);
                 break;
             case tokLeq:
-                left.value = fold_unsigned ? (left.value <= r_result.value) : ((int16_t)left.value <= (int16_t)r_result.value);
+                left->value = fold_unsigned ? (left->value <= r_result.value) : ((int16_t)left->value <= (int16_t)r_result.value);
                 break;
             case tokGt:
-                left.value = fold_unsigned ? (left.value > r_result.value) : ((int16_t)left.value > (int16_t)r_result.value);
+                left->value = fold_unsigned ? (left->value > r_result.value) : ((int16_t)left->value > (int16_t)r_result.value);
                 break;
             case tokGeq:
-                left.value = fold_unsigned ? (left.value >= r_result.value) : ((int16_t)left.value >= (int16_t)r_result.value);
+                left->value = fold_unsigned ? (left->value >= r_result.value) : ((int16_t)left->value >= (int16_t)r_result.value);
                 break;
-            case tokEq: left.value = left.value == r_result.value; break;
-            case tokNeq: left.value = left.value != r_result.value; break;
+            case tokEq: left->value = left->value == r_result.value; break;
+            case tokNeq: left->value = left->value != r_result.value; break;
             case tokPlus:
-                if (scaleR) left.value = left.value + (r_result.value * scaleR);
-                else if (scaleL) left.value = (left.value * scaleL) + r_result.value;
-                else left.value = left.value + r_result.value;
+                if (scaleR) left->value = left->value + (r_result.value * scaleR);
+                else if (scaleL) left->value = (left->value * scaleL) + r_result.value;
+                else left->value = left->value + r_result.value;
                 break;
             case tokMinus:
-                if (scaleR) left.value = left.value - (r_result.value * scaleR);
-                else if (scaleL) left.value = (left.value * scaleL) - r_result.value;
-                else left.value = left.value - r_result.value;
+                if (scaleR) left->value = left->value - (r_result.value * scaleR);
+                else if (scaleL) left->value = (left->value * scaleL) - r_result.value;
+                else left->value = left->value - r_result.value;
                 break;
             case tokStar:
                 /* fixed * fixed in Q4: (a*b)>>4 */
                 /* Cast to int32_t before multiply to avoid overflow on 16-bit targets (SDCC). */
-                if (lf && rf) left.value = (uint16_t)(((int32_t)(int16_t)left.value * (int32_t)(int16_t)r_result.value) >> 4);
-                else left.value = left.value * r_result.value;
+                if (lf && rf) left->value = (uint16_t)(((int32_t)(int16_t)left->value * (int32_t)(int16_t)r_result.value) >> 4);
+                else left->value = left->value * r_result.value;
                 break;
             case tokDiv:
                 /* fixed / fixed in Q4: (a<<4)/b */
                 /* Cast to int32_t before shift to avoid overflow on 16-bit targets (SDCC). */
-                if (lf && rf) left.value = (uint16_t)(((int32_t)(int16_t)left.value << 4) / (int32_t)(int16_t)r_result.value);
-                else left.value = left.value / r_result.value;
+                if (lf && rf) left->value = (uint16_t)(((int32_t)(int16_t)left->value << 4) / (int32_t)(int16_t)r_result.value);
+                else left->value = left->value / r_result.value;
                 break;
-            case tokMod: left.value = left.value % r_result.value; break;
-            case tokShl: left.value = left.value << (rf ? (uint16_t)((int16_t)r_result.value >> 4) : r_result.value); break;
-            case tokShr: left.value = left.value >> (rf ? (uint16_t)((int16_t)r_result.value >> 4) : r_result.value); break;
-            case tokBitOr: left.value = left.value | r_result.value; break;
-            case tokBitAnd: left.value = left.value & r_result.value; break;
-            case tokBitXor: left.value = left.value ^ r_result.value; break;
+            case tokMod: left->value = left->value % r_result.value; break;
+            case tokShl: left->value = left->value << (rf ? (uint16_t)((int16_t)r_result.value >> 4) : r_result.value); break;
+            case tokShr: left->value = left->value >> (rf ? (uint16_t)((int16_t)r_result.value >> 4) : r_result.value); break;
+            case tokBitOr: left->value = left->value | r_result.value; break;
+            case tokBitAnd: left->value = left->value & r_result.value; break;
+            case tokBitXor: left->value = left->value ^ r_result.value; break;
             default:
                 error(errIllegalOp);
                 break;
@@ -407,30 +407,30 @@ static EXPR_RESULT handle_binary_op(EXPR_RESULT left, TOKEN op, uint8_t p) MYCC 
             case tokEq: case tokNeq:
             case tokLt: case tokLeq:
             case tokGt: case tokGeq:
-                left.type_id = type_make_int(1);
+                left->type_id = type_make_int(1);
                 break;
             case tokShl: case tokShr:
                 /* Shift result follows the left operand only (right is the count) */
-                if (lf) left.type_id = type_make_fixed(1);
+                if (lf) left->type_id = type_make_fixed(1);
                 break;
             default:
-                if (lf || rf) left.type_id = type_make_fixed(1);
+                if (lf || rf) left->type_id = type_make_fixed(1);
                 break;
         }
-        left.has_sym = 0;  /* Result is a folded value, not a direct symbol reference */
-        return left;
+        left->has_sym = 0;  /* Result is a folded value, not a direct symbol reference */  
+        return;      
     }
 
     /* Load constants with pre-applied scaling */
-    uint8_t left_is_fixed = type_is_fixed(left.type_id);
+    uint8_t left_is_fixed = type_is_fixed(left->type_id);
     uint8_t right_is_fixed = type_is_fixed(r_result.type_id);
     uint8_t either_fixed = left_is_fixed || right_is_fixed;
 
-    if (type_is_const(left.type_id)) {
-        uint16_t val = left.value;
+    if (type_is_const(left->type_id)) {
+        uint16_t val = left->value;
         if (scaleL) val = val * scaleL;
         /* If right is fixed and left is a plain int constant, pre-shift it */
-        if (right_is_fixed && !type_is_fixed(left.type_id) && op_needs_fixed_align(op)) {
+        if (right_is_fixed && !type_is_fixed(left->type_id) && op_needs_fixed_align(op)) {
             val = val << 4;
             left_is_fixed = 1;
         }
@@ -473,7 +473,7 @@ static EXPR_RESULT handle_binary_op(EXPR_RESULT left, TOKEN op, uint8_t p) MYCC 
     }
 
     uint8_t use_unsigned = pointer ||
-        (type_is_byte(left.type_id) && type_is_byte(r_result.type_id));
+        (type_is_byte(left->type_id) && type_is_byte(r_result.type_id));
 
     switch (op) {
         case tokLt:
@@ -547,40 +547,40 @@ static EXPR_RESULT handle_binary_op(EXPR_RESULT left, TOKEN op, uint8_t p) MYCC 
     }
 
     /* After emitting runtime code, result is no longer const or a simple symbol */
-    if (type_is_const(left.type_id)) {
-        left.type_id = TYPE_ID_INT;
+    if (type_is_const(left->type_id)) {
+        left->type_id = TYPE_ID_INT;
     }
     /* Comparison/relational operators always produce an int (0 or 1) result */
     if (op == tokEq || op == tokNeq || op == tokLt || op == tokLeq || op == tokGt || op == tokGeq) {
-        left.type_id = TYPE_ID_INT;
+        left->type_id = TYPE_ID_INT;
     }
     /* If either operand was fixed and this is an arithmetic op, result is fixed */
     if (either_fixed && (op == tokPlus || op == tokMinus || op == tokStar || op == tokDiv || op == tokMod)) {
-        left.type_id = TYPE_ID_FIXED;
+        left->type_id = TYPE_ID_FIXED;
     }
     /* Shift result follows the left operand type only (right operand is the count) */
     if (left_is_fixed && (op == tokShl || op == tokShr)) {
-        left.type_id = TYPE_ID_FIXED;
+        left->type_id = TYPE_ID_FIXED;
     }
-    left.has_sym = 0;  /* Result is computed, not a direct symbol reference */
-    return left;
+    left->has_sym = 0;  /* Result is computed, not a direct symbol reference */
+    return;
 }
 
-EXPR_RESULT parse_op_right(EXPR_RESULT left, uint8_t minprec, uint8_t expected_type_id) {
+void parse_op_right(EXPR_RESULT *left, uint8_t minprec, uint8_t expected_type_id) {
     uint8_t p;
     while ((p = prec(tok)) && p && p >= minprec) {
         TOKEN op = tok;
         get_token(); // skip op
 
         if (op == tokCond) {
-            left = parse_ternary(left, p, expected_type_id);
+            parse_ternary(left, p, expected_type_id);
         }
         else if (op == tokOr || op == tokAnd) {
             uint16_t short_circuit_lbl = newlbl();
             uint8_t short_circuit = 0;
-            if (type_is_const(left.type_id)) {
-                emit_ld_const(left.value);
-                short_circuit = (op == tokOr) ? (left.value != 0) : (left.value == 0);
+            if (type_is_const(left->type_id)) {
+                emit_ld_const(left->value);
+                short_circuit = (op == tokOr) ? (left->value != 0) : (left->value == 0);
             }
             if (!short_circuit) {
                 (op == tokOr) ? emit_jp_true(short_circuit_lbl) : emit_jp_false(short_circuit_lbl);
@@ -588,15 +588,14 @@ EXPR_RESULT parse_op_right(EXPR_RESULT left, uint8_t minprec, uint8_t expected_t
             else {
                 emit_jp(short_circuit_lbl);
             }
-            left = far_parse_expr(p + 1, 0);
+            *left = far_parse_expr(p + 1, 0);
             emit_lbl(short_circuit_lbl);
-            left.type_id = TYPE_ID_INT;
+            left->type_id = TYPE_ID_INT;
         }
         else {
-            left = handle_binary_op(left, op, p);
+            handle_binary_op(left, op, p);
         }
     }
-    return left;
 }
 
 /* Grammar: <expr> ::= <assignment>
@@ -606,7 +605,7 @@ EXPR_RESULT parse_op_right(EXPR_RESULT left, uint8_t minprec, uint8_t expected_t
  * This matches the corrected right-associative assignment rule. */
 EXPR_RESULT far_parse_expr(uint8_t minprec, uint8_t expected_type_id) MYCC {
     EXPR_RESULT expr_result = parse_factor(0, expected_type_id);
-    expr_result = parse_op_right(expr_result, minprec, expected_type_id);
+    parse_op_right(&expr_result, minprec, expected_type_id);
     
     if (type_is_const(expr_result.type_id)) {
         /* Coerce constant to expected type at compile time */
@@ -640,23 +639,22 @@ EXPR_RESULT far_parse_expr(uint8_t minprec, uint8_t expected_type_id) MYCC {
 
 EXPR_RESULT far_parse_expr_delayconst(uint8_t minprec, uint8_t expected_type_id) MYCC {
     EXPR_RESULT expr_result = parse_factor(0, expected_type_id);
-    expr_result = parse_op_right(expr_result, minprec, expected_type_id);
+    parse_op_right(&expr_result, minprec, expected_type_id);
     return expr_result;
 }
 
 /* Forward declarations for parse_factor helpers */
-static EXPR_RESULT parse_factor_ampersand(void) MYCC;
+static void parse_factor_ampersand(EXPR_RESULT *result) MYCC;
 static void parse_factor_postfix(EXPR_RESULT* result, uint8_t* dereference, uint8_t* addr_in_hl) MYCC;
 
 /* Grammar: "&" <lvalue_expr>
  * Handles &ident, &ident[expr], &ident.field (chains of [] and . are supported).
  * Note: &(*ptr) is not explicitly handled here, but &(*ptr) == ptr, so callers
  * can use the pointer value directly. Dereference-then-address-of is a no-op. */
-static EXPR_RESULT parse_factor_ampersand(void) MYCC {
-    EXPR_RESULT result;
-    result.type_id = 0;
-    result.value = 0;
-    result.has_sym = 0;
+static void parse_factor_ampersand(EXPR_RESULT *result) MYCC {
+    result->type_id = 0;
+    result->value = 0;
+    result->has_sym = 0;
 
     get_token(); // skip '&'
     if (tok != tokIdent) error(errNotlvalue);
@@ -667,15 +665,15 @@ static EXPR_RESULT parse_factor_ampersand(void) MYCC {
     }
 
     get_token(); // skip identifier
-    result.type_id = sym.type_id;
-    result.has_sym = 1;
-    result.sym = sym;
+    result->type_id = sym.type_id;
+    result->has_sym = 1;
+    result->sym = sym;
 
     uint8_t addr_base_sym = 1;
 
     while (tok == tokLBrack || tok == tokMember) {
         if (tok == tokLBrack) {
-            uint8_t elemtype_id = type_get_element_type_id(result.type_id);
+            uint8_t elemtype_id = type_get_element_type_id(result->type_id);
             uint16_t scale = (uint16_t)type_size(elemtype_id);
 
             get_token(); // skip '['
@@ -716,10 +714,10 @@ static EXPR_RESULT parse_factor_ampersand(void) MYCC {
                     emit_add16();
                 }
             }
-            result.type_id = elemtype_id;
+            result->type_id = elemtype_id;
         } else if (tok == tokMember) {
             get_token();
-            uint8_t check_type_id = result.type_id;
+            uint8_t check_type_id = result->type_id;
             if (type_is_pointer(check_type_id))
                 check_type_id = type_get_element_type_id(check_type_id);
             if (!type_is_struct(check_type_id)) { error(errNotAStruct); break; }
@@ -734,15 +732,14 @@ static EXPR_RESULT parse_factor_ampersand(void) MYCC {
             } else {
                 if (offset) { emit_ldde_immed_n(offset); emit_add16(); }
             }
-            result.type_id = fi.type_id;
+            result->type_id = fi.type_id;
         }
     }
 
     if (addr_base_sym) emit_ld_symaddr(&sym);
 
-    result.type_id = type_make_pointer(result.type_id, 1);
-    result.has_sym = 0;
-    return result;
+    result->type_id = type_make_pointer(result->type_id, 1);
+    result->has_sym = 0;    
 }
 
 /* Postfix subscript handler - extracted to minimise parse_factor_postfix frame.
@@ -1083,7 +1080,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
         }
 
         case tokAmp:
-            factor_result = parse_factor_ampersand();
+            parse_factor_ampersand(&factor_result);
             dereference = 0;
             addr_in_hl = 1;
             break;
@@ -1183,7 +1180,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
                 if (maybe_type_id != 0xFF && type_is_enum(maybe_type_id)) {
                     get_token(); // skip enum name
                     if (tok == tokMember) {
-                        factor_result = parse_enum_member(ident_name);
+                        parse_enum_member(&factor_result, ident_name);
                         goto ident_cleanup;
                     }
                 }

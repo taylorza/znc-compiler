@@ -307,37 +307,38 @@ void far_parse_org(void) MYCC {
     expect_semi();
 }
 
-EXPR_RESULT far_parse_enum_member(const char* enum_name) MYCC {
-    EXPR_RESULT result = { .type_id = TYPE_ID_VOID, .value = 0, .has_sym = 0 };
+void far_parse_enum_member(EXPR_RESULT *result, const char* enum_name) MYCC {
+    result->type_id = TYPE_ID_VOID;
+    result->value = 0;
+    result->has_sym = 0;
 
     if (tok != tokMember) {
         error(errExpected_c, '.');
-        return result;
+        return;
     }
     get_token(); // skip '.'
     if (tok != tokIdent) {
         error(errExpected_s, "member name");
-        return result;
+        return;
     }
 
     char* enum_copy = arena_strdup(enum_name, strnlen(enum_name, MAX_IDENT_LEN));
     uint8_t enum_type_id = type_find_by_name(enum_copy);
     if (enum_type_id == 0xFF || !type_is_enum(enum_type_id)) {
         error(errNotDefined_s, enum_name);
-        return result;
+        return;
     }
 
     uint8_t enum_id = type_get_enum_id(enum_type_id);
     uint16_t value = 0;
     if (far_find_enum_member(enum_id, token, &value) < 0) {
         error(errNotDefined_s, token);
-        return result;
+        return;
     }
 
     get_token(); // skip member name
-    result.type_id = type_make_enum(enum_id, 1);
-    result.value = value;
-    return result;
+    result->type_id = type_make_enum(enum_id, 1);
+    result->value = value;    
 }
 
 void far_parse_enum(void) MYCC {

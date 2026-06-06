@@ -9,12 +9,12 @@
  * (parse_expr / parse_expr_delayconst / parse_assign) so that
  * bank-switch is handled correctly on ZX Next. */
 
-EXPR_RESULT far_parse_ternary(EXPR_RESULT expr_result, uint8_t prec, uint8_t expected_type_id) MYCC {
+void far_parse_ternary(EXPR_RESULT *result, uint8_t prec, uint8_t expected_type_id) MYCC {
     uint16_t altlbl = newlbl();
     uint16_t donelbl = newlbl();
 
-    if (type_is_const(expr_result.type_id)) {
-        emit_ld_const(expr_result.value);
+    if (type_is_const(result->type_id)) {
+        emit_ld_const(result->value);
     }
     emit_jp_false(altlbl);
     EXPR_RESULT ptyp = parse_expr(0, expected_type_id);  // primary expression
@@ -37,9 +37,9 @@ EXPR_RESULT far_parse_ternary(EXPR_RESULT expr_result, uint8_t prec, uint8_t exp
 
     emit_lbl(donelbl);
 
-    expr_result.has_sym = 0;
+    result->has_sym = 0;
     if (expected_type_id != 0) {
-        expr_result.type_id = expected_type_id;
+        result->type_id = expected_type_id;
     } else {
         /* Infer result type from the true-branch, but ternary always produces a
          * runtime value so the const qualifier must be stripped. */
@@ -50,9 +50,9 @@ EXPR_RESULT far_parse_ternary(EXPR_RESULT expr_result, uint8_t prec, uint8_t exp
             else if (k == TK_FIXED) inferred = type_make_fixed(0);
             else                    inferred = type_make_int(0);
         }
-        expr_result.type_id = inferred;
+        result->type_id = inferred;
     }
-    return expr_result;
+    return;
 }
 
 void far_parse_compound_assign(TOKEN op, uint8_t dereference, SYMBOL sym, uint8_t addr_in_hl, uint8_t type_id) MYCC {

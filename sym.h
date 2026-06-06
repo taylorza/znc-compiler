@@ -1,21 +1,12 @@
 #ifndef SYM_H_
 #define SYM_H_
 
-
 typedef enum SYM_CLASS { CLASS_UNDEFINED, VARIABLE, ARGUMENT, FUNCTION, FUNCTION_PROTO } SYM_CLASS;
 typedef enum SYM_SCOPE { SCOPE_UNDEFINED, GLOBAL, LOCAL } SYM_SCOPE;
 
-typedef struct VALUE {
-    uint8_t type_id;
-    uint16_t value;
-} VALUE;
-
 typedef struct SYMBOL {
     IDENT_ID name_id;
-    uint8_t type_id;
-    SYM_CLASS klass;
-    SYM_SCOPE scope;
-
+    
     union {
         struct {
             uint8_t arg_count;
@@ -24,7 +15,10 @@ typedef struct SYMBOL {
         struct {
             uint16_t offset;
         } stk;
-    };    
+    };
+    uint8_t type_id;
+    uint8_t klass;
+    uint8_t scope;    
     uint8_t flags;
 } SYMBOL;
 

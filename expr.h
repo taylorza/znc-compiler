@@ -6,20 +6,21 @@
 #define CLASS_POINTER 0x80
 
 typedef struct EXPR_RESULT {
-    uint8_t type_id;
+    SYMBOL sym;    /* copy of symbol when expression is a simple identifier */        
     uint16_t value;
-    SYMBOL sym;    /* copy of symbol when expression is a simple identifier */
+    uint8_t type_id;
     uint8_t has_sym; /* whether sym is valid */
+    
 } EXPR_RESULT;
 
 EXPR_RESULT parse_expr(uint8_t minprec, uint8_t expected_type_id) MYCC;
 EXPR_RESULT parse_expr_delayconst(uint8_t minprec, uint8_t expected_type_id) MYCC;
-EXPR_RESULT parse_ternary(EXPR_RESULT expr_result, uint8_t prec, uint8_t expected_type_id) MYCC;
-EXPR_RESULT parse_enum_member(const char* enum_name) MYCC;
+void parse_ternary(EXPR_RESULT *result, uint8_t prec, uint8_t expected_type_id) MYCC;
+void parse_enum_member(EXPR_RESULT *result, const char* enum_name) MYCC;
 void parse_assign(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t type_id) MYCC;
 
 /* Far entry points in BANK_45 (exprex.c) */
-EXPR_RESULT far_parse_ternary(EXPR_RESULT expr_result, uint8_t prec, uint8_t expected_type_id) MYCC;
+void far_parse_ternary(EXPR_RESULT *result, uint8_t prec, uint8_t expected_type_id) MYCC;
 void far_parse_assign_ex(uint8_t dereference, SYMBOL sym, uint8_t indexed, uint8_t type_id) MYCC;
 void far_parse_compound_assign(TOKEN op, uint8_t dereference, SYMBOL sym, uint8_t addr_in_hl, uint8_t type_id) MYCC;
 
