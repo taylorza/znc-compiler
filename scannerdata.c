@@ -202,7 +202,6 @@ static void skip_block_comment(void) MYCC {
             gnc(); /* skip '*' */
             depth++;
         } else if (c == '*' && ch() == '/') {
-            gnc(); /* skip '/' */
             depth--;
         } else if (c == '\r') {
             if (ch() == '\n') gnc();
