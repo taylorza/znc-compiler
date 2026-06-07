@@ -3,6 +3,8 @@
 - Increased BASIC stack size when running code from ZIDE
 - Code size and stack utilization optimizations
 - Fix: Block comments miscounted newlines at the end of the comment (reported by Henk de Groot)
+- Added simple "Space Shooter" example game
+- Added 'kbd.znc' to the standard library - provides a simple way to detect key presses
 
 2026/06/01 - Version 0.5b
 - Fix: Inline assembly parse char literals to double quoted literals for the assembler (Issue found by Henk de Groot)
