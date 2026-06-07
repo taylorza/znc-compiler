@@ -76,3 +76,18 @@ int arr[4];
 int *p = arr;
 p = p + 2; // advances by 2 * sizeof(int) == 4 bytes
 ```
+
+Enum example:
+
+```c
+enum Color { RED, GREEN, BLUE };
+
+Color c = Color.GREEN;
+int n = Color.BLUE;
+
+switch (c) {
+  case Color.RED:   puts("red");   break;
+  case Color.GREEN: puts("green"); break;
+  case Color.BLUE:  puts("blue");  break;
+}
+```

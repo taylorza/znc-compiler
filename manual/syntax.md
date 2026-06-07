@@ -5,6 +5,7 @@ A ZNC source file is split into directives and code. The language uses a C-like 
 - Statements end with `;`
 - Blocks use `{ ... }`
 - Identifiers are case-sensitive
+- Top-level declarations can include functions, structs, delegates, and enums.
 
 Comments
 

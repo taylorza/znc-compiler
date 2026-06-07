@@ -26,4 +26,6 @@ fixed h = HALF; // HALF folded to immediate value 0x08 (Q4 representation of 0.5
 
 The compiler records the constant value at compile time — there is no separate storage emitted for `const` values.
 
+Enum members are also compile-time constants and can be used in constant-expression contexts (for example in `case` labels).
+
 Array/initializer notes are in the Arrays chapter.

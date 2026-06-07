@@ -21,7 +21,7 @@ for (init; cond; post) { ... }
 
 Switch
 
-`switch` with `case` and `default` is supported. Cases must be compile-time constants.
+`switch` with `case` and `default` is supported. Cases must be compile-time constants (including enum members such as `Color.GREEN`).
 
 Example:
 
@@ -40,6 +40,24 @@ switch (val) {
 ```
 
 Notes: adjacent `case` labels can fall through if there is no `break`; use this intentionally to group cases.
+
+Enum example:
+
+```c
+enum Color { RED, GREEN, BLUE };
+
+switch (Color.BLUE) {
+  case Color.RED:
+    puts("red");
+    break;
+  case Color.GREEN:
+    puts("green");
+    break;
+  case Color.BLUE:
+    puts("blue");
+    break;
+}
+```
 
 Break/Continue
 

@@ -338,11 +338,12 @@ pp.x = 3;  // pointer-to-struct also uses '.'
    Declarations — separated by context
    ---------------------------------------------------------------- *)
 
-(* Top-level: function definitions, prototypes, delegates allowed *)
+(* Top-level: function definitions, prototypes, delegates, enums allowed *)
 <top_decl>        ::= <vardecl>
                     | <funcdecl>
                     | <funcproto>
                     | <structdef>
+                    | <enumdef>
                     | <delegatedef>
 
 (* Block-level: only variable and struct declarations *)
@@ -350,6 +351,9 @@ pp.x = 3;  // pointer-to-struct also uses '.'
                     | <structdef>
 
 <structdef>       ::= "struct" <ident> "{" { <vardecl> } "}" [ ";" ]
+
+<enumdef>         ::= "enum" <ident> "{" <enum_member_decl> { "," <enum_member_decl> } [ "," ] "}" [ ";" ]
+<enum_member_decl> ::= <ident> [ "=" <const_expr> ]
 
 <delegatedef>     ::= "delegate" <rettype> <ident> "(" [ <arglist> ] ")" ";"
 
@@ -373,8 +377,8 @@ pp.x = 3;  // pointer-to-struct also uses '.'
    a semantic check may restrict maximum pointer depth if required. *)
 <type>            ::= <basetype> { "*" } [ "[" [ <const_expr> ] "]" ]
 
-(* "struct" <ident> is unambiguous. Bare <ident> resolves a named delegate
-   or struct type via the symbol table (context-sensitive; semantic restriction). *)
+(* "struct" <ident> is unambiguous. Bare <ident> resolves a named delegate,
+   struct, or enum type via the symbol table (context-sensitive; semantic restriction). *)
 <basetype>        ::= "char"
                     | "byte"
                     | "int"
@@ -452,11 +456,16 @@ pp.x = 3;  // pointer-to-struct also uses '.'
 (* Dereference and address-of removed; brace-init moved to <brace_init> *)
 <primary>         ::= <number>
                     | <string>
+                    | <enum_member_ref>
                     | <ident>
                     | "(" <expr> ")"
                     | "in" "(" <expr> ")"
                     | "readreg" "(" <expr> ")"
                     | <brace_init>
+
+(* Enum member reference uses type-qualified syntax, e.g. Color.GREEN.
+   The first identifier must resolve to an enum type name. *)
+<enum_member_ref> ::= <ident> "." <ident>
 
 (* lvalue_expr: syntactically valid assignment targets and operands for "&".
    Left-recursive via indexing and field access (natural for a postfix grammar). *)
@@ -484,6 +493,7 @@ pp.x = 3;  // pointer-to-struct also uses '.'
 <const_unary>     ::= { "+" | "-" | "~" | "!" } <const_primary>
 
 <const_primary>   ::= <number>
+                    | <enum_member_ref>
                     | <ident>               (* must be a const-qualified variable *)
                     | "(" <const_expr> ")"
 

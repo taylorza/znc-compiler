@@ -50,7 +50,7 @@ void cleanup(void) MYCC {
 }
 
 void show_banner(void) MYCC {
-    printf("ZNC Compiler v0.5b (c)2026\n%s %s\n",__DATE__, __TIME__);
+    printf("ZNC Compiler v0.6 (c)2026\n%s %s\n",__DATE__, __TIME__);
 }
 
 void show_help(const char *msg) MYCC {    

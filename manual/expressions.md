@@ -11,6 +11,7 @@ ZNC provides a C-like expression language:
 - Pre/post increment and decrement: `++x`, `x++`, `--x`, `x--` (supported for scalars and indexed lvalues)
 - Compound assignment: `+=`, `-=`, `*=`, `/=`, `%=`, `<<=`, `>>=`, `&=`, `|=`, `^=`
 - Member access: `obj.field` (supports nested structs; `obj` can be a struct variable or a pointer to struct)
+- Enum member reference: `TypeName.Member` (for example, `Color.GREEN`)
 - Address-of and dereference: `&name` yields the address; `*ptr` dereferences a pointer
 
 Fixed-point arithmetic
@@ -28,4 +29,5 @@ Notes
 - When using pointer types, arithmetic scales by element size.
 - String literals adjacent in source are concatenated at compile time (e.g. `"Hi" "!"` → `"Hi!"`).
 - Struct variables evaluate to their address when used in expressions; member access computes the correct byte offset automatically.
+- Enum members evaluate as compile-time constants and can be used in constant-expression contexts.
 - Assignment uses `=`.

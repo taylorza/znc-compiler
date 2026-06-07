@@ -7,6 +7,7 @@ Base types
 - `int`: signed 16‑bit scalar.
 - `fixed`: signed 16-bit fixed-point in **Q4 (12.4)** format. The upper 12 bits hold the integer part and the lower 4 bits hold the fractional part. Range: approximately **-2048.0 to +2047.9375**, precision **0.0625** (1/16). Write fixed-point literals with a decimal point: `3.14`, `0.5`, `-1.25`.
 - `void`: used only for function return types and as the base of a generic pointer (`void*`).
+- Named enum types: declared with `enum Name { ... };` and then used as a type name (for example, `Name v;`).
 
 Composite types
 - Pointers: `T*` (size: 2 bytes). Pointer arithmetic scales by `sizeof(T)`.
@@ -20,9 +21,11 @@ Named function-pointer types (delegates)
 
 Const qualifier
 - `const` can be applied only to scalar types (`char`, `int`, `fixed`) to produce compile-time constants. `const` is not permitted on `void`, pointers, or arrays. Const values are folded into code with no storage allocated.
+- Enum members themselves are compile-time constants and can be used where constant expressions are required.
 
 Sizes
 - `sizeof(char)` = 1, `sizeof(int)` = 2, `sizeof(fixed)` = 2.
+- `sizeof(enum)` = 2.
 - Pointers are 2 bytes regardless of base type.
 - `sizeof(struct)` is the sum of its field sizes; array sizes are computed statically where a fixed length is provided.
 
@@ -37,6 +40,10 @@ Type compatibility rules
 	- Base element types must match for non-`void*` pointers.
 - Scalars ↔ pointers: assigning an integer (char/int) to a pointer is allowed (commonly used for absolute addresses). Assigning a pointer to a scalar is not allowed.
 - Structs: only exact struct types (same struct ID) are compatible; no implicit conversions between different structs.
+- Enums:
+	- Same enum type is compatible with itself.
+	- Different enum types are not compatible with each other.
+	- Enum and scalar assignments are allowed in both directions.
 - Delegates/function pointers: assignment requires a matching signature (same return type, argument types, and variadic flag). Calls are checked against the callee’s signature.
 
 Notes
