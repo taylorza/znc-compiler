@@ -269,14 +269,38 @@ void far_parse_asm(void) MYCC {
         volatile uint8_t has_content = 0;
         char prev = 0;
 
-        while ((c = ch()) && c != '\r' && c != '\n') {
+        while ((c = ch()) && c != '\r' && c != '\n' && c != '}') {
+            /* -- handle single quote string -- */
+            if (c == '\'') {
+                asm_emit_indent(&has_content, line_col, asmcol);
+                char c1 = gnc();
+                char c2 = gnc();
+                char c3 = gnc();                
+                if (c1 == '\'' && c3 == '\'') {
+                    emit_n(c2); /* emit char literal 'x' as chr(x) */
+                }
+                else {
+                    /* Not a valid char literal - emit as normal chars */                    
+                    if (c1) emit_ch(c1);
+                   
+                    if (c2) {
+                       emit_ch(c2);
+                       if (c2 == '\r' || c2 == '\n') asm_advance_line(c2);                                                    
+                    }
 
-            /* -- string/char literal: pass through verbatim -- */
-            if (c == '"' || c == '\'') {
-                char quote = c;
+                    if (c3) {
+                        emit_ch(c3);
+                        if (c3 == '\r' || c3 == '\n') asm_advance_line(c3);
+                    }
+                }               
+                continue;
+            }
+
+            /* -- string literal: pass through verbatim -- */
+            if (c == '"') {
                 asm_emit_indent(&has_content, line_col, asmcol);
                 emit_ch('"'); gnc();/* emit opening quote */
-                while ((c = ch()) && c != '\r' && c != '\n' && c != quote) {
+                while ((c = ch()) && c != '\r' && c != '\n' && c != '"') {
                     if (c == '\\') {
                         emit_ch(gnc()); /* emit backslash */
                         if (ch() && ch() != '\r' && ch() != '\n')
@@ -285,7 +309,7 @@ void far_parse_asm(void) MYCC {
                         emit_ch(gnc());
                     }
                 }
-                if (c == quote) emit_ch('"'); gnc(); /* emit closing quote */
+                if (c == '"') emit_ch('"'); gnc(); /* emit closing quote */
                 prev = 0; /* treat end-of-string as non-alnum boundary */
                 continue;
             }

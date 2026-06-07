@@ -34,7 +34,15 @@
                 "Make",
             ],
             "problemMatcher": []
-        },  
+        },
+        {
+            "label": "Update Space Shooter",
+            "type": "shell",            
+            "command": "${workspaceFolder}/sync_spaceshooter.bat ${workspaceFolder}",            
+            "dependsOrder": "sequence",
+            "dependsOn": [],
+            "problemMatcher": []
+        },       
         {
             "label": "Update Test",
             "type": "shell",            

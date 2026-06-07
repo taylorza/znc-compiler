@@ -1,0 +1,74 @@
+#ifndef KBD__
+const byte KBD__=1;
+void updatekeys() __asm__ {
+_
+  ; reset key flags
+  ld hl,keys
+  ld (hl),0
+  ld de,keys+1
+  ld bc,3
+  ldir
+
+  ; check keys
+  push ix
+  ld ix,keys
+  ld hl,.map
+  ld d,8
+  ld c,$fe
+.read
+  ld b,(hl)
+  inc hl
+  in a,(c)
+  ld e,5
+.test
+  rrca
+  jr nc, .key
+.cont
+  inc hl
+  dec e
+  jr nz, .test
+  dec d
+  jr nz, .read
+  pop ix
+  ret
+.key
+  ex af,af'
+  ld a,(hl)
+  ld (ix),a
+  inc ix
+  ex af,af'
+  jr .cont
+.map
+  db $fe,001,'Z','X','C','V'
+  db $fd,'A','S','D','F','G'
+  db $fb,'Q','W','E','R','T'
+  db $f7,'1','2','3','4','5'
+  db $ef,'0','9','8','7','6'
+  db $df,'P','O','I','U','Y'
+  db $bf,013,'L','K','J','H'
+  db $7f,' ',002,'M','N','B'
+
+keys ds 4
+}
+
+byte is_pressed(char c) __asm__ {
+_
+  ld hl,2     // low byte of c arg
+  add hl,sp
+  ld a,(hl)
+  cp "a"
+  jr c, .keep
+  cp "z"+1
+  jr nc,.keep
+  sub 32      // Convert to upper case
+.keep
+  ld hl,keys
+  ld bc,4
+  cpir
+  ld hl, 0
+  jr nz,.done
+  inc l
+.done
+  ret
+}
+#endif // KBD__
