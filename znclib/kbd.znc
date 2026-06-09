@@ -1,13 +1,18 @@
 #ifndef KBD__
 const byte KBD__=1;
+
 void updatekeys() __asm__ {
+MAXKEYS EQU 5
 _
   ; reset key flags
   ld hl,keys
   ld (hl),0
   ld de,keys+1
-  ld bc,3
+  ld bc,MAXKEYS-1
   ldir
+
+  ld a,MAXKEYS
+  ld (.cnt),a
 
   ; check keys
   push ix
@@ -29,6 +34,7 @@ _
   jr nz, .test
   dec d
   jr nz, .read
+.done
   pop ix
   ret
 .key
@@ -36,8 +42,13 @@ _
   ld a,(hl)
   ld (ix),a
   inc ix
+  ld a,(.cnt)
+  dec a
+  jr z,.done
+  ld (.cnt),a
   ex af,af'
   jr .cont
+.cnt db 0
 .map
   db $fe,001,'Z','X','C','V'
   db $fd,'A','S','D','F','G'
@@ -48,7 +59,7 @@ _
   db $bf,013,'L','K','J','H'
   db $7f,' ',002,'M','N','B'
 
-keys ds 4
+keys ds MAXKEYS
 }
 
 byte is_pressed(char c) __asm__ {
@@ -63,12 +74,21 @@ _
   sub 32      // Convert to upper case
 .keep
   ld hl,keys
-  ld bc,4
+  ld bc,MAXKEYS
   cpir
   ld hl, 0
   jr nz,.done
   inc l
 .done
+  ret
+}
+
+byte getch() __asm__ {
+_
+  ld hl,keys
+  ld a,(hl)
+  ld l,a
+  ld h,0
   ret
 }
 #endif // KBD__
