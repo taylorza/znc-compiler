@@ -1267,6 +1267,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
         } else {
             emit_ld_symval(&factor_result.sym);
         }
+        factor_result.has_sym = 0;
         addr_in_hl = 0;
     }
     
