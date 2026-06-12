@@ -1316,7 +1316,7 @@ void compile(const char *filename, const char *asmfilename) MYCC {
     
     parse(filename, asmfilename, 1);
     
-    dump_rtl(filename);
+    dump_rtl();
     dump_globals();
     dump_strings();
 
