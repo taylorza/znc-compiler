@@ -8,6 +8,7 @@ TOKEN tokMakeType = tokRaw; // type of make command
 
 uint8_t infunc = 0;         // 1 if parsing a function
 uint8_t func_rettype = 0;   // return type of current function (0 = void)
+uint8_t bankseen = 0;       // set to 1 the first time a bank directive is encountered
 uint8_t inbank = 0;         // 1 if in explicit bank
 
 uint8_t func_argcount;      // number of arguments for function being parsed
@@ -86,10 +87,6 @@ void far_parse_enum_member(EXPR_RESULT *result, const char* enum_name) MYCC;
  * static parse() function. token[] is in the main bank so passing it
  * directly is safe; the far side reads it before any bank switch. */
 void skip_statement(void) MYCC;
-
-void parse_include_file(const char* filename) MYCC {
-    parse(filename, NULL, 0);
-}
 
 /* Called from far_parse_while (BANK_47) to skip a statement.
  * skip_statement() is no longer static so BANK_47 can reach it via this stub. */
@@ -1183,14 +1180,27 @@ void parse_bank(void) MYCC {
         offset = offset_result.value;
     }
     expect_RParen();
-    emit_bank(bankid, offset);
+    
     uint16_t bank_gbl_start = get_lastgbl();
     size_t bank_str_start = get_laststr();
+    if (!bankseen) {
+        bankseen = 1;
+        /* Emit global non-banked strings and variables */
+        dump_globals_range(0, bank_gbl_start);
+        dump_strings_range("str", 0, bank_str_start);
+        if (tokMakeType == tokDot) {
+            emit_instrln("ds $-$4000");
+        }
+    }
+
+    emit_bank(bankid, offset);
     char bank_str_lbl[16];
     snprintf(bank_str_lbl, sizeof(bank_str_lbl), "str_b%d", bankid);
     set_strref_ctx(bank_str_lbl, (uint16_t)bank_str_start);
     set_str_search_base(bank_str_start);
+    
     parse_statement_block(NO_LABEL, NO_LABEL);
+    
     uint16_t bank_gbl_end = get_lastgbl();
     size_t bank_str_end = get_laststr();
     dump_globals_range(bank_gbl_start, bank_gbl_end);
@@ -1306,7 +1316,7 @@ void compile(const char *filename, const char *asmfilename) MYCC {
     
     parse(filename, asmfilename, 1);
     
-    dump_rtl();
+    dump_rtl(filename);
     dump_globals();
     dump_strings();
 

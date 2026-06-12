@@ -1,3 +1,8 @@
+2026/06/xx - Version 0.6a
+- Fixed kdb.znc - potential buffer overrun if more than 4 keys pressed concurrently (reported by Janko Stamenović)
+- Fixed issue #9: Boolean logic error (reported by Henk de Groot)
+- Initial support for DOT commands larger than 8K
+
 2026/06/01 - Version 0.6
 - Added support for enums
 - Increased BASIC stack size when running code from ZIDE
