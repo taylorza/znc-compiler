@@ -53,17 +53,17 @@ byte[] alien = {
 
 // Bullet (16×16)
 byte[] bullet = {
+  0xe3, 0xf8, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3,
+  0xf8, 0xfd, 0xf8, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3,
+  0xf8, 0xfd, 0xf8, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3,
+  0xf8, 0xfd, 0xf8, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3,
+  0xf8, 0xfd, 0xf8, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3,
+  0xe3, 0xf8, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3,
   0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3,
   0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3,
   0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3,
   0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3,
   0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3,
-  0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xf8, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3,
-  0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xf8, 0xfd, 0xf8, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3,
-  0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xf8, 0xfd, 0xf8, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3,
-  0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xf8, 0xfd, 0xf8, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3,
-  0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xf8, 0xfd, 0xf8, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3,
-  0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xf8, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3,
   0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3,
   0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3,
   0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3, 0xe3,
@@ -206,34 +206,17 @@ STATE game_state;
 // Spawn Alien
 // ------------------------------------------------------------
 Alien *newAlien;
-Alien *curAlien;
 void spawnAlien(byte n) {
+  spr_hide(SPR_EXPLODE+n);
+  
   newAlien = &aliens[n];
 
   newAlien.alive = 1;
-  newAlien.y = -32;
+  newAlien.x = rnd() % 304;
+  newAlien.y = -16 - (rnd()%16);
   newAlien.dy = 1 + (rnd()%2);
   newAlien.expl_frame = 0;
   newAlien.expl_timer = 0;
-  
-  spr_hide(SPR_EXPLODE+n);
-  for(;;) {    
-    byte overlap = 0;
-    int x = rnd() % 304;
-    for (byte i=0; i<MAX_ALIENS;++i) {
-      curAlien = &aliens[i];
-      if (n == i) continue;
-      if (!curAlien.alive) continue;
-
-      if (x < curAlien.x+16 && x+16 > curAlien.x) {
-        overlap = 1;
-      }
-    }
-    if (!overlap) {
-      newAlien.x = x;
-      break;
-    }
-  }
 }
 
 // ------------------------------------------------------------
@@ -323,6 +306,19 @@ void game_over(){
   game_state = STATE.Title;
 }
 
+void updateHud() {
+  gotoxy(0,0); puts("SCORE:"); printnum(score); putc(' ');
+  gotoxy(24,0); puts("LIVES:"); printnum(lives);
+}
+
+byte collision(int ax, int ay, int aw, int ah, 
+               int bx, int by, int bw, int bh) {
+  return (ax < bx + bw) &&
+         (bx < ax + aw) &&
+         (ay < by + bh) &&
+         (by < ay + ah);
+}
+
 void play() {
   cls();
   spr_enable();
@@ -333,6 +329,8 @@ void play() {
   py=START_Y;
   pexpl_timer = 0;
   pexpl_frame = 0;
+
+  updateHud();
 
   for(byte i=0;i<MAX_BULLETS;++i) {
     bullets[i].active = 0;
@@ -354,8 +352,7 @@ void play() {
     if (cooldown) --cooldown;
     updatekeys();
 
-    gotoxy(0,0); puts("SCORE:"); printnum(score);
-    gotoxy(20,0); puts("LIVES:"); printnum(lives);
+    
 
     // -----------------------------
     // Player movement
@@ -369,7 +366,7 @@ void play() {
     // Player shooting
     // -----------------------------
     if (cooldown == 0 && is_pressed(' ')) {
-      if (spawnBullet(px+1, py-4, -4)) {
+      if (spawnBullet(px+7, py+10, -4)) {
         cooldown = 8;
         ay_shoot();      
       }
@@ -388,8 +385,7 @@ void play() {
           spr_hide(SPR_BULLET+i);
         } else if (pbullet.dy > 0) {    
           // Hit player?
-          if (pbullet.y > py && pbullet.y < py+16 &&
-            pbullet.x > px-8 && pbullet.x < px+24) {
+          if (collision(pbullet.x, pbullet.y, 3, 6, px, py, 16, 16)) {
             pbullet.active = 0;
             pexpl_frame=0;
             pexpl_timer=20;
@@ -407,15 +403,18 @@ void play() {
     for (byte i=0;i<MAX_ALIENS;i=i+1) {
       if (pAlien.alive) {
         pAlien.y = pAlien.y + pAlien.dy;
-        if (pAlien.y > 256 + (rnd()%40)) {
+        if (pAlien.y > 256) {
           spawnAlien(i);
+          if (score > 0) 
+            score -= 1;
+          updateHud();
         }
 
         // -----------------------------
         // Alien shooting
         // -----------------------------
         if (pAlien.y > 40 && (rnd()%40)==0) {
-          spawnBullet(pAlien.x, pAlien.y + 6, pAlien.dy+1);
+          spawnBullet(pAlien.x + 7, pAlien.y + 16, pAlien.dy+1);
         }
 
         // -----------------------------
@@ -424,18 +423,32 @@ void play() {
         pbullet = bullets;
         for(byte j=0;j<MAX_BULLETS;++j) {
           if (pbullet.active && pbullet.dy<0) {
-            if (pbullet.x+6 > pAlien.x && pbullet.x+8 < pAlien.x+16 &&
-              pbullet.y+5 > pAlien.y && pbullet.y+10 < pAlien.y+16) {
+            //if (pbullet.x+6 > pAlien.x && pbullet.x+8 < pAlien.x+16 &&
+            //  pbullet.y+5 > pAlien.y && pbullet.y+10 < pAlien.y+16) {
+            if (collision(pbullet.x, pbullet.y, 3, 6, pAlien.x, pAlien.y, 16, 16)) {
               pAlien.alive = 0;
               pbullet.active=0;
               pAlien.expl_frame = 0;
               pAlien.expl_timer = 20;            
               score += 10;
+              updateHud();
               ay_explode();            
             }
           }
           ++pbullet;
         } 
+
+         // -----------------------------
+        // Alien collision with player
+        // -----------------------------        
+        if (collision(pAlien.x+1, pAlien.y+2, 14, 13, px+1, py+1, 14, 14)) {
+          pAlien.alive = 0;
+          pAlien.expl_frame = 0;
+          pAlien.expl_timer = 20;
+          pexpl_frame=0;
+          pexpl_timer=20;          
+          ay_explode();            
+        }        
       }
     
       // -----------------------------
@@ -464,13 +477,14 @@ void play() {
       if (pexpl_timer%5 == 0) ++pexpl_frame;
       if (pexpl_timer==0) {
         spr_hide(SPR_EXPLODE+20);
-        --lives;
+        --lives;        
         if (lives == 0) {
           game_state = STATE.GameOver;
         } else {
           px=START_X;
           py=START_Y;
         }
+        updateHud();
       }
     } else {
       spr_update(SPR_PLAYER,0,px,py,0);
@@ -516,7 +530,7 @@ while(game_state != STATE.Quit) {
   switch(game_state) {
     case STATE.Title: title(); break;
     case STATE.Playing: play(); break;
-    case STATE.GameOver: game_over();
+    case STATE.GameOver: game_over(); break;
   }
 }
 
