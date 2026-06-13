@@ -24,6 +24,9 @@ uint16_t start_lbl;         // label for the start of the code
 uint16_t stack_lbl;         // label for nex stack
 uint16_t stack_size = 256;  // stack size
 
+uint16_t top_local_lbl = 0; // label for the top of the local variable space (for calculating offsets)
+uint16_t current_org;       // current org address for output
+
 uint8_t hash_if_depth = 0; // depth of #if/#ifdef statements
 
 SYMBOL declglb(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t value);
@@ -94,7 +97,7 @@ void skip_statement_far(void) MYCC {
     skip_statement();
 }
 
-void parse(const char* sourcefile, const char* outfilename, uint8_t entrypoint) MYCC {
+void parse(const char* sourcefile, char* outfilename, uint8_t entrypoint) MYCC {
     if (!src_open(sourcefile)) {
         printf("can't open '%s'", sourcefile);
         exit(1);
@@ -111,7 +114,6 @@ void parse(const char* sourcefile, const char* outfilename, uint8_t entrypoint) 
             break;
     }
 
-    uint16_t top_local_lbl = 0;
     if (entrypoint) {        
         if (tokMakeType == tokNex) {
             start_lbl = newlbl();
@@ -130,7 +132,7 @@ void parse(const char* sourcefile, const char* outfilename, uint8_t entrypoint) 
         parse_statement(NO_LABEL, NO_LABEL);
     }
 
-    if (entrypoint) {
+    if (entrypoint && !bankseen) {
         emit_instrln("xor a"); // clear A register and carry flag
         emit_frame_epilogue(1, exit_lbl);
         emit_lblequ16(top_local_lbl, localbytes);
@@ -1166,7 +1168,7 @@ void parse_bank(void) MYCC {
     uint8_t bankid;
     uint16_t offset = 0;
     expect_LParen();
-
+    
     EXPR_RESULT bankid_result = parse_expr_delayconst(0, TYPE_ID_INT);
     if (!type_is_const(bankid_result.type_id)) error(errConstExpected);
     if (bankid_result.value > 255) error(errInvalid_s, "bank");
@@ -1185,11 +1187,17 @@ void parse_bank(void) MYCC {
     size_t bank_str_start = get_laststr();
     if (!bankseen) {
         bankseen = 1;
+
+        emit_instrln("xor a"); // clear A register and carry flag
+        emit_frame_epilogue(1, exit_lbl);
+        emit_lblequ16(top_local_lbl, localbytes);
+
         /* Emit global non-banked strings and variables */
         dump_globals_range(0, bank_gbl_start);
         dump_strings_range("str", 0, bank_str_start);
+        emit_instrln("include \"%s.rtl\"", outfilename);
         if (tokMakeType == tokDot) {
-            emit_instrln("ds $-$4000");
+            emit_instrln("ds $4000-$");
         }
     }
 
@@ -1210,6 +1218,7 @@ void parse_bank(void) MYCC {
     set_str_search_base(0);
     set_strref_ctx("str", 0);
     inbank = 0;
+    emit_instrln("ds $2000 - ($ - %u)", current_org);
 }
 
 void parse_conditional(uint8_t active, uint16_t brklbl, uint16_t contlbl) MYCC {
@@ -1298,31 +1307,37 @@ SYMBOL decl_in_scope(uint8_t type_id, SYM_CLASS klass, const char* name) {
     return sym;
 }
 
-void compile(const char *filename, const char *asmfilename) MYCC {
+void compile(const char *filename, char *outfilename) MYCC {
     /* Initialize type system */
     type_init();
-    
-    if (!asm_open(asmfilename)) {
+   
+    if (!asm_open(outfilename)) {
         src_close();
-        printf("can't create '%s'", asmfilename);
+        printf("can't create '%s'", outfilename);
         return;        
     }
    
     // quick and dirty remove extension
-    if (asmfilename != NULL) {
-        char* dot = strrchr(asmfilename, '.');
+    if (outfilename != NULL) {
+        char* dot = strrchr(outfilename, '.');
         if (dot) *dot = '\0';
     }
     
-    parse(filename, asmfilename, 1);
+    parse(filename, outfilename, 1);
     
-    dump_rtl();
-    dump_globals();
-    dump_strings();
+    if (!bankseen) {
+        dump_globals();
+        dump_strings();
+        emit_instrln("include \"%s.rtl\"", outfilename);
+    }
 
     if (tokMakeType == tokNex) emit_nex(outfilename, start_lbl, stack_lbl, stack_size);
-
     asm_close();
+
+    if (!bankseen) {
+        snprintf(outfilename, MAX_FILENAME_LEN, "%s.rtl", outfilename);
+        dump_rtl(outfilename);
+    }    
 }
 
 void parse_delegate_decl(void) MYCC {

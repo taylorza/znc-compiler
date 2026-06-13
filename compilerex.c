@@ -304,6 +304,7 @@ void far_parse_org(void) MYCC {
     EXPR_RESULT expr_result = parse_expr_delayconst(0, 0);
     if (!type_is_const(expr_result.type_id)) error(errConstExpected);
     emit_org(expr_result.value);
+    current_org = expr_result.value;
     expect_semi();
 }
 

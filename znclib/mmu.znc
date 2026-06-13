@@ -1,0 +1,37 @@
+
+byte mmualloc() __asm__ {
+_
+  ld de, $01bd
+  ld c, 7
+  exx
+  ld hl, 1
+  exx
+  rst 8
+  db $94
+  jr nc, .fail
+  ld l,e
+  ld h,0
+  ret
+.fail
+  ld hl,-1
+  ret
+}
+
+void mmufree(byte page) __asm__ {
+  pop hl
+  pop bc
+  push bc
+  push hl
+
+  ld a,c
+  ld de,$01bd 
+  ld c,7
+  exx
+  ld e,a
+  ld hl,3
+  exx
+  rst 0x08
+  db 0x94
+
+  ret      
+}

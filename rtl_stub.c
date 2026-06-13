@@ -3,8 +3,8 @@
 #include "rtl.h"
 #include "shared.h"
 
-uint8_t far_inc_rtl(const char* fn);
-void far_dump_rtl(void);
+uint8_t far_inc_rtl(const char* fn) MYCC;
+void far_dump_rtl(char *outfilename) MYCC;
 
 // Wrapper for RTL functions compiled in BANK 42
 uint8_t inc_rtl(const char* fn) MYCC {
@@ -22,8 +22,8 @@ uint8_t inc_rtl(const char* fn) MYCC {
     return r;
 }
 
-void dump_rtl(void) MYCC {
+void dump_rtl(char* outfilename) MYCC {
     PROLOG(42)
-    far_dump_rtl();
+    far_dump_rtl(outfilename);
     EPILOG
 }

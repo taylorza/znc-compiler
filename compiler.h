@@ -8,10 +8,11 @@ extern uint16_t exit_lbl;
 
 extern uint16_t bp_lastlocal;
 extern uint16_t localbytes;
+extern uint16_t current_org;
 
-void compile(const char *filename, const char *asmfilename) MYCC;
+void compile(const char *filename, char *asmfilename) MYCC;
 
-void parse(const char* sourcefile, const char* outfilename, uint8_t entrypoint) MYCC;
+void parse(const char* sourcefile, char* outfilename, uint8_t entrypoint) MYCC;
 void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC;
 uint8_t try_handle_variadic_intrinsic(const char* name) MYCC;
 

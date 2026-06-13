@@ -224,7 +224,7 @@ void emit_code(const char* code) {
     emit_nl();
 }
 
-uint8_t far_inc_rtl(const char* fn) {
+uint8_t far_inc_rtl(const char* fn) MYCC {
     char depname[16] = { 0 };
     for (uint8_t i = 0; i < sizeof(rtltbl) / sizeof(RTLREC); ++i) {
         RTLREC *const rtl = &rtltbl[i];
@@ -254,23 +254,47 @@ uint8_t far_inc_rtl(const char* fn) {
     return 0;
 }
 
-void far_dump_rtl(void) MYCC {
 #if __ZXNEXT
-    //printf("\nGen RTL - %d", sizeof(rtltbl) / sizeof(RTLREC));
+#  define F_OPEN(name) esx_f_open(name, ESX_MODE_OPEN_CREAT_TRUNC | ESX_MODE_W)
+#  define F_WRITE(f, buf, len) esx_f_write(f, buf, len)
+#  define F_CLOSE(f) esx_f_close(f)
+#else
+#  define F_OPEN(name) fopen(name, "wb")
+#  define F_WRITE(f, buf, len) fwrite(buf, 1, len, f)
+#  define F_CLOSE(f) do { if ((f) && (f) != stdout) fclose(f); } while(0)
+#endif
+
+void far_dump_rtl(char *outfilename) MYCC {
+    errno = 0;
+#if __ZXNEXT
+    uint8_t fh;
+    fh = F_OPEN(outfilename);
+    if (errno) {
+        printf("can't create '%s'", outfilename);
+        return;
+    }
+#else
+    FILE* fh;
+    fh = F_OPEN(outfilename);
+    if (errno) {
+        printf("can't create '%s'", outfilename);
+        return;
+    }
 #endif
     for (uint8_t i = 0; i < sizeof(rtltbl) / sizeof(RTLREC); ++i) {
         RTLREC *rtl = &rtltbl[i];    
         //printf("\n  %s (%s) (%d)", rtl->name, rtl->deps, rtl->flags);            
         if (rtl->flags & FLAG_RTL_INCLUDE) {
 #if __ZXNEXT
-            //printf("\n  %s", rtl->name);
-#endif
-            emit_nl();
-            emit_str(rtl->name); emit_nl();
-            emit_code(rtl->code);
-            emit_ret();
+            zx_border(i & 1);
+#endif            
+            F_WRITE(fh, rtl->name, strlen(rtl->name));
+            F_WRITE(fh, "\n", 1);
+            F_WRITE(fh, rtl->code, strlen(rtl->code));
+            F_WRITE(fh, " ret\n", 5);
         }     
     }
+    F_CLOSE(fh);
 }
 
 

@@ -22,20 +22,15 @@ int main(unsigned int argc, unsigned char **argv) {
 
     atexit(cleanup);
     const char *src_file = argv[1];
-    const char *out_file;
-
+    
     if (argc == 2) {
-#ifdef __ZXNEXT
         strcpy(outfilename, src_file);
-        set_file_ext(outfilename, "asm");
-        out_file = outfilename;
-#else
-        out_file = NULL;
-#endif
+        set_file_ext(outfilename, "asm");        
     } else {
-        out_file = argv[2];
+        strncpy(outfilename, argv[2], MAX_FILENAME_LEN);
+        outfilename[MAX_FILENAME_LEN - 1] = '\0';
     }
-    compile(src_file, out_file);
+    compile(src_file, outfilename);
 
     return 0;
 }
@@ -50,7 +45,7 @@ void cleanup(void) MYCC {
 }
 
 void show_banner(void) MYCC {
-    printf("ZNC Compiler v0.6 (c)2026\n%s %s\n",__DATE__, __TIME__);
+    printf("ZNC Compiler v0.6a (c)2026\n%s %s\n",__DATE__, __TIME__);
 }
 
 void show_help(const char *msg) MYCC {    

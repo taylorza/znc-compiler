@@ -6,6 +6,6 @@
 #define FLAG_RTL_INLINE  0x80
 
 uint8_t inc_rtl(const char* fn) MYCC;
-void dump_rtl(void) MYCC;
+void dump_rtl(char* outfilename) MYCC;
 
 #endif //RTL_H_
