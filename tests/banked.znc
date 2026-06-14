@@ -1,0 +1,27 @@
+make dot "banked.dot";
+include "fileio.znc"
+include "mmu.znc"
+
+void greet(char *msg);
+
+byte oldpage = readreg(0x56);
+byte page = mmualloc();
+nextreg(0x56,page);
+
+byte h=fgethandle();
+fread(h, 0xc000, 8192);
+fclose(h);
+
+greet("World!");
+
+nextreg(0x56,oldpage);
+
+bank(1) {
+  org(0xc000);
+  
+  include "printf.znc"
+  
+  void greet(char *msg) {
+    printf("Hello %s", msg);
+  }
+}

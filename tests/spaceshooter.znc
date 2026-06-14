@@ -47,6 +47,7 @@ struct Alien {
   int x;
   int y;
   char dy;
+  char dx;
 
   byte expl_frame;
   byte expl_timer;
@@ -78,6 +79,7 @@ void spawnAlien(byte n) {
   newAlien.x = rnd() % 304;
   newAlien.y = -16 - (rnd()%16);
   newAlien.dy = 1 + (rnd()%2);
+  if (score > 100) newAlien.dx = 1 - rnd() % 3;
   newAlien.expl_frame = 0;
   newAlien.expl_timer = 0;
 }
@@ -219,26 +221,28 @@ void printat(byte x, byte y, char *s) {
   print(s);
 }
 
+char[] buf = {0,0,0,0,0,0,0};
 void printnum(int n) {
-  if (n==0) { print("0"); return; }
+  if (n == 0) { print("0"); return; }
+  int pos = 0;
+  if (n < 0) {
+    buf[pos++] = '-';
+    n = -n;
+  }
 
-  if (n<0) {
-    print("-");
-    n=-n;
+  int div = 10000;
+  int started = 0;
+  while (div) {
+    int d = n / div;
+    if (d != 0 || started) {
+      buf[pos++] = d + '0';
+      started = 1;
+    }
+    n = n % div;
+    div = div / 10;
   }
-  
-  int div=10000;  
-  while((n/div)==0) {
-    div=div/10;
-  }
-  
-  char[] s = {0,0};
-  while(div) {
-    s[0] = n/div+'0';
-    print(s);
-    n=n%div;			
-    div=div/10;
-  }
+  buf[pos] = 0;
+  print(buf);
 }
 
 void init() {
@@ -257,7 +261,7 @@ void init() {
   nextreg(0x4c, 0x03);            // Tilemap Transparency index
 
   loadsprites("spaceshooter.spr", 8);
-  loadtiles("spaceshooter.til", 60);
+  loadtiles("spaceshooter.til", 64);
   loadpalette(PAL_TIL_1, "spaceshooter.pal");
 
   til_enable();
@@ -286,9 +290,9 @@ void game_over(){
   cls();
   spr_disable();
 
-  printat(17, 12, "GAME OVER");
-  printat(14, 15, "FINAL SCORE:"); printnum(score);
-  printat(12, 18, "PRESS 'S' TO RESTART");
+  printat(16, 12, "GAME OVER");
+  printat(13, 15, "FINAL SCORE:"); printnum(score);
+  printat(11, 18, "PRESS 'S' TO RESTART");
 
   while(!is_pressed('s')) {
       updatekeys();
@@ -323,6 +327,10 @@ void play() {
   pexpl_frame = 0;
 
   updateHud();
+
+  for(byte* p=0x4000; p < 0x4000+40*32; ++p) {
+    if (rnd() %40 == 0) *p = 59+(rnd()%5);
+  }
 
   for(byte i=0;i<MAX_BULLETS;++i) {
     bullets[i].active = 0;
@@ -394,7 +402,9 @@ void play() {
     pAlien = aliens;
     for (byte i=0;i<MAX_ALIENS;i=i+1) {
       if (pAlien.alive) {
-        pAlien.y = pAlien.y + pAlien.dy;
+        pAlien.y += pAlien.dy;
+        pAlien.x += pAlien.dx;
+        if (pAlien.x < 1 || pAlien.x > 303) pAlien.dx = -pAlien.dx;
         if (pAlien.y > 256) {
           spawnAlien(i);
           if (score > 0) 
@@ -528,3 +538,5 @@ while(game_state != STATE.Quit) {
 
 spr_disable();
 til_disable();
+memset(0x4000, 0, 6144);
+memset(0x5800, 0b00111000, 768);

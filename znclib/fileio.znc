@@ -11,6 +11,14 @@ const byte M_NOEXIST=4;
 const byte M_TRUNC=12;
 const byte M_HDR=64;
 
+byte fgethandle() __asm__ {
+  rst $08
+  db $8d
+  ld l,a
+  ld h,0
+  ret
+}
+
 byte fopen(char *filename, byte mode) __asm__ {
   push ix
   ld ix,0
