@@ -28,6 +28,12 @@ const int START_X = 152;
 const int START_Y = 180;
 
 // ------------------------------------------------------------
+// Tile cursor
+// ------------------------------------------------------------
+byte cx=0;
+byte cy=0;
+
+// ------------------------------------------------------------
 // GAME STATE
 // ------------------------------------------------------------
 enum STATE {Title, Playing, GameOver, Quit};
@@ -196,15 +202,12 @@ void til_enable() {
   nextreg(0x6f, OFFSET_TILES);
 }
 
-byte cx=0;
-byte cy=0;
-
 void print(char *s) {
   byte *p = START_MAP + (40*cy) + cx;
   char c;
-  while ((c = *s++)) {
-    if (c < 32 || c > 127) c = '?';
+  while ((c = *s++)) {    
     if (c >= 'a' && c <= 'z') c -= 32;
+    if (c < ' ' || c > 'Z') c = '?';
     c -= 32;
 
     *p++ = c;
@@ -221,7 +224,7 @@ void printat(byte x, byte y, char *s) {
   print(s);
 }
 
-char[] buf = {0,0,0,0,0,0,0};
+char[7] buf;
 void printnum(int n) {
   if (n == 0) { print("0"); return; }
   int pos = 0;
@@ -424,9 +427,7 @@ void play() {
         // -----------------------------
         pbullet = bullets;
         for(byte j=0;j<MAX_BULLETS;++j) {
-          if (pbullet.active && pbullet.dy<0) {
-            //if (pbullet.x+6 > pAlien.x && pbullet.x+8 < pAlien.x+16 &&
-            //  pbullet.y+5 > pAlien.y && pbullet.y+10 < pAlien.y+16) {
+          if (pbullet.active && pbullet.dy<0) {           
             if (collision(pbullet.x, pbullet.y, 3, 6, pAlien.x, pAlien.y, 16, 16)) {
               pAlien.alive = 0;
               pbullet.active=0;
