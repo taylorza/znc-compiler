@@ -1,7 +1,7 @@
-#ifndef PRINTF__
-const byte PRINTF__=0x01; 
+#ifndef SPRINTF__
+const byte SPRINTF__=0x01; 
 
-void printf(char *fmt, ...) {
+void sprintf(char* dst, char *fmt, ...) {
     va_list args;
     
     va_start(args, fmt);
@@ -10,14 +10,14 @@ void printf(char *fmt, ...) {
         char ch = fmt[i];
 
         if (ch != '%') {
-            putc(ch);
+            *dst++ = ch;
             ++i;
             continue;
         }
 
         char code = fmt[++i];
         if (code == '%') {
-            putc('%');
+            *dst++ = '%';
             ++i;
             continue;
         }
@@ -40,7 +40,7 @@ void printf(char *fmt, ...) {
                 x = va_arg(args, int);
 
                 if (x < 0) {
-                    putc('-');
+                    *dst++ = '-';
                     x = -x;
                     if (width) --width;
                 }
@@ -61,10 +61,10 @@ void printf(char *fmt, ...) {
                 }
 
                 while (width--) {
-                    putc(pad);
+                    *dst++ = pad;
                 }
                 while (p > 0) {                
-                    putc(buf[--p]);
+                    *dst++ = buf[--p];
                 }
                 break;
             }
@@ -89,10 +89,10 @@ void printf(char *fmt, ...) {
                 }
 
                 while (width--) {
-                    putc(pad);
+                    *dst++ = pad;
                 }
                 while (p > 0) {                
-                    putc(buf[--p]);
+                    *dst++ = buf[--p];
                 }
                 break;
             }
@@ -100,7 +100,7 @@ void printf(char *fmt, ...) {
                 x = va_arg(args, int);
 
                 if (x < 0) {
-                    putc('-');
+                    *dst++ = '-';
                     x = -x;
                     if (width) --width;
                 }
@@ -123,13 +123,13 @@ void printf(char *fmt, ...) {
                 }
 
                 while (width--) {
-                    putc(pad);
+                    *dst++ = pad;
                 }
                 while (p > 0) {
-                    putc(buf[--p]);
+                    *dst++ = buf[--p];
                 }
 
-                putc('.');
+                *dst++ = '.';
 
                 char[4] fbuf;
                 int fp = 0;
@@ -140,7 +140,7 @@ void printf(char *fmt, ...) {
                 int fstart = 0;
                 while (fstart < fp - 1 && fbuf[fstart] == '0') ++fstart;
                 while (fp > fstart) {
-                    putc(fbuf[--fp]);
+                    *dst++ = fbuf[--fp];
                 }
                 break;
             }
@@ -149,35 +149,37 @@ void printf(char *fmt, ...) {
                 int bit = x < 256 ? 7 : 15;
                 if (width > (bit+1)) width = width - (bit+1);
                 while (width--) {
-                    putc(pad);
+                    *dst++ = pad;
                 }    
                 for (; bit >= 0; --bit) {
-                    putc((x & (1 << bit)) ? '1' : '0');
+                    *dst++ = (x & (1 << bit)) ? '1' : '0';
                 }
                 break;
             case 'c':
                 x = va_arg(args, int);
-                putc(x);
+                *dst++ = x;
                 while (width--) {
-                    putc(pad);
+                    *dst++ = pad;
                 }
                 break;
             case 's':
                 x = va_arg(args, char*);
-                int len = puts(x);            
+                int len = 0;
+                while (*x) {*dst++ = *x++; ++len; }            
                 if (width > len) width = width - len;
                 else width = 0;
                 while (width--) {
-                    putc(pad);
+                    *dst++ = pad;
                 }
                 break;
             default:
-                putc('%');
-                putc(code>32 && code < 128 ? code : '?');
+                *dst++ = '%';
+                *dst++ = code>32 && code < 128 ? code : '?';
                 break;
         }
 
         ++i;
     }
+    *dst = 0;
 }
 #endif
