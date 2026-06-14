@@ -43,7 +43,7 @@ uint8_t far_is_scoped(void) MYCC;
 uint16_t far_get_lastgbl(void) MYCC;
 void far_reset_lastgbl(uint16_t to) MYCC;
 void far_dump_globals_range(uint16_t from, uint16_t to) MYCC;
-void far_dump_globals(void) MYCC;
+void far_check_undefined(void) MYCC;
 
 // Non-far wrappers (provided in stubs)
 SYMBOL findglb(const char* name) MYCC;
@@ -62,6 +62,7 @@ uint16_t get_lastgbl(void) MYCC;
 void reset_lastgbl(uint16_t to) MYCC;
 void dump_globals_range(uint16_t from, uint16_t to) MYCC;
 void dump_globals(void) MYCC;
+void check_undefined(void) MYCC;
 
 inline uint8_t is_func_or_proto(const SYMBOL* sym) MYCC { return sym->klass == FUNCTION || sym->klass == FUNCTION_PROTO; }
 inline uint8_t is_defined(const SYMBOL* sym) MYCC { return sym->klass != CLASS_UNDEFINED && sym->scope != SCOPE_UNDEFINED; }

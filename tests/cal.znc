@@ -44,7 +44,7 @@ void main()
     byte maxUp=0;
     byte cols = 1;
     
-    char* param = "           ";
+    char[80] param;
     int pos=nextParam(0, param);
     while(param[0]!=0) {
       if(param[0]=='-' && param[2]==0) {

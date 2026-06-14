@@ -64,13 +64,12 @@ static void emit_strings_range(size_t from, size_t to) MYCC {
 }
 
 void far_dump_strings_range(const char* label, size_t from, size_t to) MYCC {
+    if (from == 0 && to == 0) {
+        from = 0;
+        to = laststr;
+    }
     if (from >= to) return;
-    emit_str("%s", label); emit_nl();
+    
+    emit_str(label); emit_nl();
     emit_strings_range(from, to);
-}
-
-void far_dump_strings(void) MYCC {
-    if (!laststr) return;
-    emit_str("str"); emit_nl();
-    emit_strings_range(0, laststr);
 }

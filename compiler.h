@@ -1,6 +1,8 @@
 #ifndef COMPILER_H_
 #define COMPILER_H_
 
+extern EXPR_RESULT expr_result;   // global for non-recursive expression result
+
 extern uint8_t func_argcount;
 extern uint8_t func_is_variadic;
 extern uint16_t locals_lbl; 

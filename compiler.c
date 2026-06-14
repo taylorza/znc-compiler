@@ -29,6 +29,8 @@ uint16_t current_org;       // current org address for output
 
 uint8_t hash_if_depth = 0; // depth of #if/#ifdef statements
 
+EXPR_RESULT expr_result;   // global for non-recursive expression result
+
 SYMBOL declglb(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t value);
 SYMBOL declloc(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t offset);
 SYMBOL decl_in_scope(uint8_t type_id, SYM_CLASS klass, const char* name);
@@ -431,11 +433,11 @@ void parse_enum_def(void) MYCC {
 void parse_if(uint16_t brklbl, uint16_t contlbl) MYCC {
     get_token(); // skip 'if'
     expect_LParen();
-    EXPR_RESULT cond = parse_expr_delayconst(0, 0);
+    expr_result = parse_expr_delayconst(0, 0);
     expect_RParen();
 
-    if (type_is_const(cond.type_id)) {
-        if (cond.value) {
+    if (type_is_const(expr_result.type_id)) {
+        if (expr_result.value) {
             parse_statement(brklbl, contlbl);           // always-true: emit true branch
             if (tok == tokElse) { get_token(); skip_statement(); } // skip else
         } else {
@@ -477,8 +479,8 @@ void parse_switch(uint16_t contlbl) MYCC {
     uint8_t case_count = 0;
     uint8_t last_break = 0;
 
-    EXPR_RESULT sw_expr = parse_onearg(); // (expr)
-    if (type_is_fixed(sw_expr.type_id))
+    expr_result = parse_onearg(); // (expr)
+    if (type_is_fixed(expr_result.type_id))
         error(errTypeError);
     emit_jp(lblTbl);
 
@@ -487,7 +489,7 @@ void parse_switch(uint16_t contlbl) MYCC {
         last_break = 0;
         if (tok == tokCase) {
             get_token(); // skip 'case'
-            EXPR_RESULT expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
+            expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
             if (!type_is_const(expr_result.type_id)) {
                 error(errConstExpected);
             }
@@ -572,8 +574,8 @@ void parse_for(void) MYCC {
 	if (tok != tokSemi) {
 		lblCond = newlbl();
 		emit_lbl(lblCond);
-		EXPR_RESULT cond = parse_expr_delayconst(0, 0);
-		if (type_is_const(cond.type_id) && !cond.value) {
+        expr_result = parse_expr_delayconst(0, 0);
+		if (type_is_const(expr_result.type_id) && !expr_result.value) {
 			// for(; 0; ...) — skip post-expr and body, emit nothing
 			expect_semi();
 			// skip post-expression, respecting nested parens
@@ -594,7 +596,7 @@ void parse_for(void) MYCC {
 			pop_frame(blockframe);
 			return;
 		}
-		if (!type_is_const(cond.type_id))
+		if (!type_is_const(expr_result.type_id))
 			emit_jp_false(lblEndFor);
 	}
 	expect_semi();
@@ -727,14 +729,14 @@ void parse_type(uint8_t *type_id_out) MYCC {
                 /* Empty brackets [] means pointer */
                 base_type_id = type_make_pointer(base_type_id, 1);
             } else {
-                EXPR_RESULT dim = parse_expr_delayconst(0, TYPE_ID_INT);
-                if (!type_is_const(dim.type_id)) error(errConstExpected);
+                expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
+                if (!type_is_const(expr_result.type_id)) error(errConstExpected);
                 /* Convert const fixed dimension to int */
-                if (type_is_fixed(dim.type_id))
-                    dim.value = (uint16_t)((int16_t)dim.value >> 4);
-                if (dim.value > 0) {
+                if (type_is_fixed(expr_result.type_id))
+                    expr_result.value = (uint16_t)((int16_t)expr_result.value >> 4);
+                if (expr_result.value > 0) {
                     if (base_type_id == TYPE_ID_VOID) error(errTypeError);
-                    base_type_id = type_make_array(base_type_id, dim.value);
+                    base_type_id = type_make_array(base_type_id, expr_result.value);
                 } else {
                     base_type_id = type_make_pointer(base_type_id, 1); // zero means pointer
                 }
@@ -1169,17 +1171,17 @@ void parse_bank(void) MYCC {
     uint16_t offset = 0;
     expect_LParen();
     
-    EXPR_RESULT bankid_result = parse_expr_delayconst(0, TYPE_ID_INT);
-    if (!type_is_const(bankid_result.type_id)) error(errConstExpected);
-    if (bankid_result.value > 255) error(errInvalid_s, "bank");
-    bankid = (uint8_t)bankid_result.value;
+    expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
+    if (!type_is_const(expr_result.type_id)) error(errConstExpected);
+    if (expr_result.value > 255) error(errInvalid_s, "bank");
+    bankid = (uint8_t)expr_result.value;
  
     if (tok == tokComma) {
         get_token(); // skip ','
         
-        EXPR_RESULT offset_result = parse_expr_delayconst(0, TYPE_ID_INT);
-        if (!type_is_const(offset_result.type_id)) error(errConstExpected);
-        offset = offset_result.value;
+        expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
+        if (!type_is_const(expr_result.type_id)) error(errConstExpected);
+        offset = expr_result.value;
     }
     expect_RParen();
     
@@ -1245,13 +1247,14 @@ void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC {
     get_token(); // skip '#if' or '#ifdef' or '#ifndef'
 
     uint8_t active;
+    
     if (op == tokHashIfDef || op == tokHashIfNDef) {
         SYMBOL sym = lookupIdent(token);
         active = is_defined(&sym);
         if (op == tokHashIfNDef) active = !active;
         get_token(); // skip identifier
     } else {
-        EXPR_RESULT expr_result = parse_expr_delayconst(0, 0);
+        expr_result = parse_expr_delayconst(0, 0);
         if (!type_is_const(expr_result.type_id)) error(errConstExpected);
         active = expr_result.value != 0;
     }
@@ -1263,9 +1266,9 @@ void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC {
     // handle zero or more #elif branches
     while (tok == tokHashElif) {
         get_token(); // skip '#elif'
-        EXPR_RESULT elif_expr = parse_expr_delayconst(0, 0);
-        if (!type_is_const(elif_expr.type_id)) error(errConstExpected);
-        active = !branch_taken && (elif_expr.value != 0);
+        expr_result = parse_expr_delayconst(0, 0);
+        if (!type_is_const(expr_result.type_id)) error(errConstExpected);
+        active = !branch_taken && (expr_result.value != 0);
         if (active) branch_taken = 1;
         parse_conditional(active, brklbl, contlbl);
     }
@@ -1326,18 +1329,18 @@ void compile(const char *filename, char *outfilename) MYCC {
     parse(filename, outfilename, 1);
     
     if (!bankseen) {
-        dump_globals();
-        dump_strings();
+        dump_globals_range(0, 0);
+        dump_strings_range("str", 0, 0);
         emit_instrln("include \"%s.rtl\"", outfilename);
     }
+    check_undefined();
 
     if (tokMakeType == tokNex) emit_nex(outfilename, start_lbl, stack_lbl, stack_size);
     asm_close();
 
-    if (!bankseen) {
-        snprintf(outfilename, MAX_FILENAME_LEN, "%s.rtl", outfilename);
-        dump_rtl(outfilename);
-    }    
+    
+    snprintf(outfilename, MAX_FILENAME_LEN, "%s.rtl", outfilename);
+    dump_rtl(outfilename);    
 }
 
 void parse_delegate_decl(void) MYCC {

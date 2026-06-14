@@ -120,14 +120,13 @@ void far_reset_lastgbl(uint16_t to) MYCC {
 }
 
 void far_dump_globals_range(uint16_t from, uint16_t to) MYCC {
+    if (from == 0 && to == 0) {
+        from = 0;
+        to = lastgbl;
+    }
     for (uint16_t i = from; i < to; ++i) {
-        SYMBOL* sym = &symtab[i];
-        if (sym->klass == FUNCTION_PROTO) {
-            /* copy_ident_to_token lives in the main bank – always reachable */
-            copy_ident_to_token(sym->name_id);
-            error(errNotDefined_s, token);
-        }
-        if (sym->klass == FUNCTION || type_is_const(sym->type_id) || (sym->flags & SYM_FLAG_INITIALIZED)) continue;
+        SYMBOL* sym = &symtab[i];        
+        if (sym->klass == FUNCTION_PROTO || sym->klass == FUNCTION || type_is_const(sym->type_id) || (sym->flags & SYM_FLAG_INITIALIZED)) continue;
         emit_sname_id(sym->name_id);
         emit_ch(' ');
         uint16_t size = type_size(sym->type_id);
@@ -141,36 +140,14 @@ void far_dump_globals_range(uint16_t from, uint16_t to) MYCC {
     }
 }
 
-void far_dump_globals(void) MYCC {
+void far_check_undefined(void) MYCC {
     for (uint16_t i = 0; i < lastgbl; ++i) {
         SYMBOL* sym = &symtab[i];
         if (sym->klass == FUNCTION_PROTO) {
             /* copy_ident_to_token lives in the main bank – always reachable */
             copy_ident_to_token(sym->name_id);
             error(errNotDefined_s, token);
-        }
-        /* If symbol was emitted with an initializer earlier (marked via
-         * `SYM_FLAG_INITIALIZED`), skip auto allocation here. Also skip
-         * functions and consts as before.
-         */
-        if (sym->klass == FUNCTION || type_is_const(sym->type_id) || (sym->flags & SYM_FLAG_INITIALIZED)) continue; // skip functions, consts, inited
-        emit_sname_id(sym->name_id);
-        emit_ch(' ');
-        uint16_t size = type_size(sym->type_id);
-        switch(size) {
-            case 1:
-                emit_str("db 0");
-                break;
-            case 2:
-                emit_str("dw 0");
-                break;
-            default:
-                emit_str("ds ");
-                emit_n(size);
-                break;
-        }
-        emit_nl();   
-        sym->flags |= SYM_FLAG_INITIALIZED; // mark as initialized
+        }    
     }
 }
 

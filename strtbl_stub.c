@@ -4,7 +4,7 @@
 #include "shared.h"
 
 int16_t far_lookupstr(const char* s, uint8_t len) MYCC;
-void far_dump_strings(void) MYCC;
+
 size_t far_get_laststr(void) MYCC;
 void far_reset_laststr(size_t to) MYCC;
 void far_set_str_search_base(size_t base) MYCC;
@@ -51,8 +51,3 @@ void dump_strings_range(const char* label, size_t from, size_t to) MYCC {
     arena_free_to_marker(m);
 }
 
-void dump_strings(void) MYCC {
-    PROLOG(40)
-    far_dump_strings();
-    EPILOG
-}

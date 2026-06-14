@@ -171,15 +171,15 @@ void far_parse_while(void) MYCC {
     uint16_t lblEndWhile = newlbl();
     emit_lbl(lblCond);
 
-    EXPR_RESULT cond = parse_expr_delayconst(0, 0);
+    expr_result = parse_expr_delayconst(0, 0);
     expect_RParen();
 
-    if (type_is_const(cond.type_id) && !cond.value) {
+    if (type_is_const(expr_result.type_id) && !expr_result.value) {
         skip_statement_far(); // while(0) — skip body, emit nothing
         return;
     }
 
-    if (!type_is_const(cond.type_id))
+    if (!type_is_const(expr_result.type_id))
         emit_jp_false(lblEndWhile);
     parse_statement(lblEndWhile, lblCond);
     emit_jp(lblCond);
@@ -263,7 +263,7 @@ void far_parse_return(void) MYCC {
 }
 
 void far_parse_exit(void) MYCC {
-    EXPR_RESULT expr_result = parse_onearg();
+    expr_result = parse_onearg();
     do_exit(expr_result);
 }
 
@@ -301,7 +301,7 @@ void far_parse_vaend(void) MYCC {
 
 void far_parse_org(void) MYCC {
     get_token(); // skip 'org'
-    EXPR_RESULT expr_result = parse_expr_delayconst(0, 0);
+    expr_result = parse_expr_delayconst(0, 0);
     if (!type_is_const(expr_result.type_id)) error(errConstExpected);
     emit_org(expr_result.value);
     current_org = expr_result.value;
@@ -379,9 +379,9 @@ void far_parse_enum(void) MYCC {
 
         if (tok == tokAssign) {
             get_token(); // skip '='
-            EXPR_RESULT value = parse_expr_delayconst(0, TYPE_ID_INT);
-            if (!type_is_const(value.type_id)) error(errConstExpected);
-            current_value = value.value;
+            expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
+            if (!type_is_const(expr_result.type_id)) error(errConstExpected);
+            current_value = expr_result.value;
         }
 
         far_add_enum_member(eid, name, current_value);

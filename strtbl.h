@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 int16_t lookupstr(const char* s, uint8_t length) MYCC;
-void dump_strings(void) MYCC;
+
 size_t get_laststr(void) MYCC;
 void reset_laststr(size_t to) MYCC;
 void set_str_search_base(size_t base) MYCC;
