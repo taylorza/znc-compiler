@@ -1,9 +1,9 @@
-2026/06/xx - Version 0.6a
+2026/06/14 - Version 0.6a
 - Fixed kdb.znc - potential buffer overrun if more than 4 keys pressed concurrently (reported by Janko Stamenović)
 - Fixed issue #9: Boolean logic error (reported by Henk de Groot)
-- Initial support for DOT commands larger than 8K
 - Added mmu.znc to standard library - support for allocating/freeing Next 8K pages
 - Added sprintf.znc to standard library - printf into a buffer
+- Initial support for DOT commands larger than 8K
 - ZIDE - moved the "Completed" message to channel #2
 
 2026/06/01 - Version 0.6
