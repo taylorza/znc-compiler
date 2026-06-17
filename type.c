@@ -366,21 +366,21 @@ extern uint8_t signature_intern_variadic(uint8_t return_type_id, uint8_t arg_cou
 
 /* Read a signature entry from the banked signature table */
 FuncSignature signature_read_from_bank(uint8_t sig_id) MYCC {
-    PROLOG(43)
+    PROLOG(46)
     FuncSignature sig = signature_table[sig_id];
     EPILOG_RETURN(sig);
 }
 
 /* Wrapper to call signature_intern from other banks */
 uint8_t far_signature_intern(uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC {
-    PROLOG(43)
+    PROLOG(46)
     uint8_t result = signature_intern(return_type_id, arg_count, arg_types);
     EPILOG_RETURN(result);
 }
 
 /* Wrapper to call signature_intern_variadic from other banks */
 uint8_t far_signature_intern_variadic(uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC {
-    PROLOG(43)
+    PROLOG(46)
     uint8_t result = signature_intern_variadic(return_type_id, arg_count, arg_types);
     EPILOG_RETURN(result);
 }
