@@ -1,3 +1,9 @@
+2026/06/14 - Version 0.6b
+- Added cmdline.znc - parse the commandline into argc/argv
+- Added fseek to fileio.znc
+- Added hexvw.znc example
+- Enhancement - delegates are not limited to returning int types
+
 2026/06/14 - Version 0.6a
 - Fixed kdb.znc - potential buffer overrun if more than 4 keys pressed concurrently (reported by Janko Stamenović)
 - Fixed issue #9: Boolean logic error (reported by Henk de Groot)

@@ -1,0 +1,77 @@
+make dot "hexvw.dot";
+
+include "fileio.znc"
+include "io.znc"
+include "kbd.znc"
+
+const byte ROWS=20;
+const byte COLS=8;
+const byte READSIZE=ROWS*COLS;
+
+char[] hex="0123456789ABCDEF";
+void puthex(byte b) {
+  putc(hex[b >> 4]);
+  putc(hex[b & 0x0f]);
+  putc(' ');
+}
+
+void dump(byte* data, int bytes) {
+  char[COLS+1] ascii;
+  
+  byte* p = data;
+  byte row=0; 
+  while(bytes) {
+    gotoxy(0, row+1);
+    byte i = 0;
+    while(bytes && i < COLS) {
+      byte b=*p++;
+      puthex(b);
+      if (b < 32 || b > 126) ascii[i]='.';
+      else ascii[i]=b;
+      
+      ++i; --bytes;
+    }
+    while(i < COLS) {
+      puts("   ");
+      ascii[i] = ' ';
+      ++i;
+    }
+    ascii[COLS]=0;
+    puts(ascii);
+    ++row; 
+  }
+  while(row++ < ROWS) {
+    for(byte col=0;col < 32; ++col) putc(' ');
+  }    
+}
+
+if (*args == 0) return "Expected filename";
+
+errno=0;
+byte f=fopen(args,M_READ);
+if (errno != 0) return "Could not open file";
+
+byte[READSIZE] buf;
+int read;
+char k;
+
+gotoxy(0,0);
+paper(1); ink(6);
+puts("           Hex Viewer           ");
+
+gotoxy(0, 21);
+puts("Navigate with arrows, SPC - quit");
+paper(7); ink(0);
+
+for(;;) {
+  read = fread(f, &buf[0], READSIZE);
+  if (read) dump(buf, read);
+  
+  while((k=inkey()) == 0) {
+  }
+
+  if (k == 8 || k == 53 || k == 11 || k == 55) 
+    fseek(f, READSIZE<<1, M_SEEK_BWD);
+  else if (k==' ') break;
+}
+fclose(f);

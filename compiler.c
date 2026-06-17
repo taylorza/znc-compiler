@@ -882,15 +882,22 @@ void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
              * identifier (peeked earlier). This ensures we preserve array types
              * declared on the identifier even if parse_expr loads or decays them.
              */
-            /* Use the expression's resolved type. If the expression is a simple
-             * identifier, prefer the symbol's declared type (arg_result.has_sym).
-             * Do NOT use the peeked identifier's type blindly: for member
-             * accesses like `obj.member` the token stream starts with an
-             * identifier but the overall expression's type is the member's
-             * type, which is already reflected in arg_result.type_id.
-             */
             uint8_t actual_type = arg_result.type_id;
-            if (arg_result.has_sym) actual_type = arg_result.sym.type_id;
+            if (arg_result.has_sym) {
+                /* If the expression is a bare identifier that is a function (or proto),
+                 * treat it as a function-pointer (delegate) type when deciding compatibility.
+                 * Previously we used the symbol's `type_id` (which holds the function's
+                 * return type) and that made `void` fail to match pointer parameters.
+                 */
+                if (is_func_or_proto(&arg_result.sym)) {
+                    uint8_t fsig = arg_result.sym.fn.signature_id;
+                    uint8_t ftype = type_make_function(fsig);
+                    actual_type = type_make_pointer(ftype, 1);
+                }
+                else {
+                    actual_type = arg_result.sym.type_id;
+                }
+            }
 
             /* Use the central compatibility checker (from=actual, to=expected). */
             if (!type_check_compatible(actual_type, expected_type)) {
