@@ -7,7 +7,7 @@
 #define MAX_SYMBOLS         650     // max number of symbols
 #define MAX_READ_BUF        16      // max file read buffer size
 #define MAX_WRITE_BUF       16      // max file write buffer size
-#define MAX_STRTBL_SIZE     15360   // max string table size
+#define MAX_STRTBL_SIZE     15660   // max string table size
 #define MAX_CASE            128     // max case statements per switch
 
 #define NO_LABEL            0xFFFF  // no label defined

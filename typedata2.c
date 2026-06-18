@@ -6,7 +6,7 @@
  * These functions do not access type_table or signature_table directly.
  */
 
-#define MAX_NAMED_TYPES 64
+#define MAX_NAMED_TYPES 255
 static char type_name_table[MAX_NAMED_TYPES][MAX_IDENT_LEN+1];
 static int16_t type_name_id[MAX_NAMED_TYPES];
 static uint8_t type_name_count = 0;
