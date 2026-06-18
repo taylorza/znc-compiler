@@ -1,7 +1,9 @@
 #ifndef DOT__
 const byte DOT__ = 1;
 
-void seterrh(void *err) __asm__ {
+delegate void ErrorHandler();
+
+void seterrh(ErrorHandler fn) __asm__ {
     pop bc
     pop hl
     push hl
