@@ -27,7 +27,7 @@ int far_add_struct(const char* name) MYCC {
     return struct_count++;
 }
 
-void far_add_struct_field_with_offset(int id, const char* name, uint8_t type_id, uint16_t offset) MYCC {
+void add_struct_field_with_offset(int id, const char* name, uint8_t type_id, uint16_t offset) MYCC {
     if (id < 0 || id >= struct_count) return;
     if (field_next >= MAX_FIELDS) {
         error(errTooManySymbols);
@@ -45,6 +45,16 @@ void far_add_struct_field_with_offset(int id, const char* name, uint8_t type_id,
 
     if (s->first_field == 0xFFFF) s->first_field = idx;
     s->fieldcount++;
+}
+
+void far_add_struct_field(int id, const char* name, uint8_t type_id) MYCC {
+    /* Compute offset and new struct size */
+    uint16_t cur = far_get_struct_size(id);
+    uint16_t inc = type_size(type_id);
+    uint16_t newsize = cur + inc;
+
+    add_struct_field_with_offset(id, name, type_id, cur);
+    far_set_struct_size(id, newsize);    
 }
 
 int far_find_struct_field(int id, const char* name) MYCC {

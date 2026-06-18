@@ -3,39 +3,42 @@ make dot "feature_test.dot";
 // ============================================================
 // Test group switches - set to 0 to exclude a group
 // ============================================================
-const int TEST_G1 = 1;
-const int TEST_G2 = 0;
-const int TEST_G3 = 0;
+const byte TEST_G1 = 1;
+const byte TEST_G2 = 0;
+const byte TEST_G3 = 0;
 
-const int TEST_BASIC   = TEST_G1;   // typ_glb, const, arith, bitwise, compare, ternary, incdec
-const int TEST_FLOW    = TEST_G1;
-const int TEST_ARRAYS  = TEST_G1;   // arrays, ptrs
-const int TEST_STRUCTS = TEST_G1;   // structs, dlgs
-const int TEST_VARGS   = TEST_G1;   // vargs
-const int TEST_ASM     = TEST_G1;   // asm
-const int TEST_CCOMP   = TEST_G1;   // ccomp (conditional compilation)
-const int TEST_ENUM    = TEST_G1;   // enum declarations and type conversions
+const byte TEST_BASIC   = TEST_G1;   // typ_glb, const, arith, bitwise, compare, ternary, incdec
+const byte TEST_FLOW    = TEST_G1;
+const byte TEST_ARRAYS  = TEST_G1;   // arrays, ptrs
+const byte TEST_STRUCTS = TEST_G1;   // structs, dlgs
+const byte TEST_VARGS   = TEST_G1;   // vargs
+const byte TEST_ASM     = TEST_G1;   // asm
+const byte TEST_CCOMP   = TEST_G1;   // ccomp (conditional compilation)
+const byte TEST_ENUM    = TEST_G1;   // enum declarations and type conversions
 
-const int TEST_FIXED   = TEST_G2;
-const int TEST_PTRADV  = TEST_G2;   // rawref, tconv
-const int TEST_FORINIT = TEST_G2;   // for-initializer declarations
-const int TEST_ELIF    = TEST_G2;   // #elif
-const int TEST_COMPOUND = TEST_G2;  // compound assignment operators
-const int TEST_INITEX  = TEST_G2;   // initializer + brace-argument enhancements
+const byte TEST_FIXED   = TEST_G2;
+const byte TEST_PTRADV  = TEST_G2;   // rawref, tconv
+const byte TEST_FORINIT = TEST_G2;   // for-initializer declarations
+const byte TEST_ELIF    = TEST_G2;   // #elif
+const byte TEST_COMPOUND = TEST_G2;  // compound assignment operators
+const byte TEST_INITEX  = TEST_G2;   // initializer + brace-argument enhancements
 
 // Derived: do_add/do_sub are needed by STRUCTS and FORINIT
-const int TEST_RECURSE = TEST_G3;   // recursion
-const int TEST_TYPEMIX = TEST_G3;   // type coercion / byte-char mixing
-const int TEST_NCALL   = TEST_G3;   // nested / chained function calls
-const int TEST_PTRST   = TEST_G3;   // pointer to struct member / array element
+const byte TEST_RECURSE = TEST_G3;   // recursion
+const byte TEST_TYPEMIX = TEST_G3;   // type coercion / byte-char mixing
+const byte TEST_NCALL   = TEST_G3;   // nested / chained function calls
+const byte TEST_PTRST   = TEST_G3;   // pointer to struct member / array element
+const byte TEST_MUTREC = TEST_G3;   // mutual recursion
+const byte TEST_MEM_PTR = TEST_G3;  // pointer to nested struct member
+
 
 // Derived:
 #if TEST_STRUCTS
-const int TEST_DLGFNS = 1;
+const byte TEST_DLGFNS = 1;
 #elif TEST_FORINIT
-const int TEST_DLGFNS = 1;
+const byte TEST_DLGFNS = 1;
 #else
-const int TEST_DLGFNS = 0;
+const byte TEST_DLGFNS = 0;
 #endif
 
 // ============================================================
@@ -898,6 +901,40 @@ void test_recurse() {
 }
 #endif
 
+// Additional advanced tests controlled by TEST_G3
+#if TEST_MUTREC
+// Mutual recursion (two functions calling each other)
+int is_even(int n);
+int is_odd(int n);
+int is_even(int n) {
+    if (n == 0) return 1;
+    return is_odd(n - 1);
+}
+int is_odd(int n) {
+    if (n == 0) return 0;
+    return is_even(n - 1);
+}
+
+void test_mutrec() {
+    chk("mut_rec_even4", is_even(4) == 1);
+    chk("mut_rec_odd5",  is_odd(5)  == 1);
+}
+#endif
+
+#if TEST_MEM_PTR
+// Pointer to nested struct member address and modification via pointer
+void test_mem_ptr() {
+    Rect r;
+    r.tl.x = 1; r.tl.y = 2;
+    int *px = &r.tl.x;
+    *px = 99;
+    chk("mptr_wr", r.tl.x == 99);
+    // Ensure taking address of nested member and reading via pointer works
+    int val = *px;
+    chk("mptr_rd", val == 99);
+}
+#endif
+
 #if TEST_TYPEMIX
 void test_typemix() {
     // byte is unsigned
@@ -1180,20 +1217,21 @@ test_compound();
 #if TEST_INITEX
 test_initex();
 #endif
-#if TEST_RECURSE
-test_recurse();
-#endif
-#if TEST_TYPEMIX
-test_typemix();
-#endif
-#if TEST_NCALL
-test_ncall();
-#endif
-#if TEST_PTRST
-test_ptrst();
-#endif
 #if TEST_ENUM
 test_enum();
+#endif
+
+#if TEST_G3
+test_recurse();
+test_typemix();
+test_ncall();
+test_ptrst();
+#if TEST_MUTREC
+test_mutrec();
+#endif
+#if TEST_MEM_PTR
+test_mem_ptr();
+#endif
 #endif
 
 puts("================\r");

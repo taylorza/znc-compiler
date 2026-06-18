@@ -35,7 +35,7 @@ FIELDINFO get_struct_field(int id, int fid) MYCC; // returns type+offset by valu
 int far_find_struct(const char* name) MYCC;
 int far_add_struct(const char* name) MYCC;
 /* Far API implemented in BANK 44. Keep these functions minimal and avoid heavy runtime calls. */
-void far_add_struct_field_with_offset(int id, const char* name, uint8_t type_id, uint16_t offset) MYCC;
+void far_add_struct_field(int id, const char* name, uint8_t type_id) MYCC;
 int far_find_struct_field(int id, const char* name) MYCC;
 uint16_t far_get_struct_size(int id) MYCC;
 void far_set_struct_size(int id, uint16_t size) MYCC;

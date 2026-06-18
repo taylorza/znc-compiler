@@ -241,7 +241,7 @@ The main component of your application is the code, the instructions that the co
 The ZNC compiler supports the following data types
 
 char  - Signed 8-bit integer. Range: -128..127
-byte  - Alias for `char`; both are the same signed 8-bit type.
+byte  - Unsigned 8-bit integer. Range: 0..255
 int   - Signed 16-bit integer. Range: -32768..32767
 fixed - Signed 16-bit fixed-point in Q4 (12.4) format. Range: -2048.0 to +2047.9375, precision 0.0625 (1/16). Literals use a decimal point, e.g. `3.14`.
 
@@ -282,7 +282,7 @@ If you omit the size and provide **no** initializer, the declaration is treated 
 Array indexing uses `[]` as usual: `numbers[0] = 42;`.
 
 #### Const values
-`const` is only allowed on scalar types (`char`, `int`, `fixed`). It creates a compile-time constant with no storage allocated; the value is folded into code. `const` on pointers or arrays is rejected.
+`const` is only allowed on scalar types (`char`, `byte`, `int`, `fixed`). It creates a compile-time constant with no storage allocated; the value is folded into code. `const` on pointers or arrays is rejected.
 
 ### Declaring variables
 Variables can be declared at any point in the code
@@ -584,7 +584,7 @@ pp.x = 3;  // pointer-to-struct also uses '.'
    Lexical rules
    ---------------------------------------------------------------- *)
 
-(* Maximum identifier length is 13 characters; longer names are a compile error. *)
+(* Maximum identifier length is 14 characters; longer names are a compile error. *)
 <ident>           ::= <letter> { <letter> | <digit> | "_" }
 
 <number>          ::= <decimal_literal>
