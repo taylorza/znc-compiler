@@ -25,6 +25,7 @@ KEYWORD keywords[] = {
     {"continue", tokContinue},
     {"return", tokReturn},
     {"exit", tokExit},
+    {"abs", tokAbs},
     {"putc", tokPutc},
     {"puts", tokPuts},
     {"in", tokIn},

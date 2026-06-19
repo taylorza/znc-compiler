@@ -13,7 +13,7 @@ typedef enum TOKEN {
     tokReturn, tokBreak, tokContinue, tokExit,
     tokIn, tokOut, tokNextReg, tokReadReg,
     tokVaStart, tokVaArg, tokVaEnd,
-    tokPutc, tokPuts,
+    tokAbs, tokPutc, tokPuts,
     tokAsm, tokInclude,
     tokIdent, 
     tokMake, tokDot, tokNex, tokRaw, tokSetStack, tokOrg, tokBank,

@@ -18,5 +18,6 @@ void parse(const char* sourcefile, char* outfilename, uint8_t entrypoint) MYCC;
 void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC;
 uint8_t try_handle_variadic_intrinsic(const char* name) MYCC;
 
+EXPR_RESULT parse_onearg(void) MYCC;
 
 #endif //COMPILER_H_

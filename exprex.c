@@ -366,3 +366,23 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
         emit_store_sym(sym);
     }
 }
+
+void far_parse_abs(EXPR_RESULT* result) MYCC {
+    get_token(); // skip 'abs'
+    expect_LParen();
+    *result = parse_expr_delayconst(0, 0);
+    expect_RParen();
+
+    if (!type_is_integral(result->type_id) && !type_is_fixed(result->type_id)) {
+        error(errTypeError);
+    }
+
+    if (type_is_const(result->type_id)) {
+        if (result->value & 0x8000) result->value = -result->value;
+        return;
+    }
+    else if (result->has_sym) {
+        emit_ld_symval(&result->sym);
+    }
+    emit_rtl("ccabs");
+}

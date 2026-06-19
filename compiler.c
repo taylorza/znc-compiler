@@ -66,8 +66,6 @@ void parse_delegate_decl(void) MYCC;
 
 void parse_make(const char* outfilename) MYCC;
 
-EXPR_RESULT parse_onearg(void) MYCC;
-
 /* ------------------------------------------------------------------ *
  * Far declarations for compilerex.c (BANK_47) implementations        *
  * ------------------------------------------------------------------ */

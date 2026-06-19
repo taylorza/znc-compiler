@@ -34,3 +34,9 @@ void parse_compound_assign(TOKEN op, uint8_t dereference, SYMBOL *sym, uint8_t a
     far_parse_compound_assign(op, dereference, sym, addr_in_hl, type_id);
     EPILOG
 }
+
+void parse_abs(EXPR_RESULT* result) MYCC {
+    PROLOG(45)
+    far_parse_abs(result);
+    EPILOG
+}

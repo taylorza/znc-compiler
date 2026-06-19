@@ -1071,9 +1071,12 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             /* Normal parenthesized expression */
             factor_result = far_parse_expr_delayconst(0, 0);
             expect_RParen();
-            
             break;
-
+            
+        case tokAbs:
+            parse_abs(&factor_result);
+            break;
+            
         case tokPuts:
             parse_onearg(); // (expr)
             emit_rtl("puts");

@@ -1,0 +1,81 @@
+#ifndef ZXBGFX__
+const byte ZXBGFX__ = 1;
+
+void zxb_plot(int x, int y) __asm__ {
+  pop hl ; Return address
+  pop de ; Y
+  pop bc ; X
+  push bc
+  push de
+  push hl
+
+  ld b,e    ; B = y, C = x
+
+  if __DOT
+    rst 0x18
+    dw 0x22e5 ; PLOT
+    ret
+  else
+    jp 0x22e5 ; PLOT
+  endif
+}
+
+void zxb_point(int x, int y) __asm__ {
+  pop hl ; Return address
+  pop de ; y
+  pop bc ; x
+  push bc
+  push de
+  push hl
+
+  ld b,e    ; B = y, C = x
+
+  if __DOT
+    rst 0x18
+    dw 0x22ce ; POINT
+
+    rst 0x18
+    dw 0x2314 ; FP_TO_A
+  else
+    call 0x22ce ; POINT
+    call 0x2314 ; FP_TO_A
+  endif
+  
+  ld h,0
+  ld l,a
+  ret
+}
+
+void zxb_draw(int x, int y) __asm__ {
+_
+  pop hl ; Return address
+  pop de ; y
+  pop bc ; x
+  push bc
+  push de
+  push hl
+  
+  if __DOT
+    push de
+    rst 0x18
+    dw 0x2d2b ; STACK_BC (x)
+
+    pop bc
+    rst 0x18
+    dw 0x2d2b ; STACK_BC (y)
+
+    rst 0x18
+    dw 0x24B7 ; DRAW
+    ret
+  else
+    push de
+    call 0x2d2b ; STACK_BC (x)
+
+    pop bc
+    call 0x2d2b ; STACK_BC (y)
+
+    jp 0x24B7 ; DRAW
+  endif
+}
+
+#endif // ZXBGFX__

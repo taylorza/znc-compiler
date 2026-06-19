@@ -20,6 +20,13 @@ RTLREC rtltbl[] = {
     NULL,
     FLAG_RTL_NONE
     },
+    // Absolute value of HL (HL = abs(HL))
+    {"ccabs",
+#include "RTL/generated/ccabs.inc"
+    NULL,
+    FLAG_RTL_NONE
+    },
+    
     // Bitwise OR
     {"ccor",
 #include "RTL/generated/ccor.inc"

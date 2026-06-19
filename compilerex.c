@@ -28,7 +28,6 @@ extern TOKEN    tokMakeType;
 /* Main-bank helpers declared in compiler.c */
 void do_exit(EXPR_RESULT exit_expr);
 void skip_statement_far(void) MYCC;
-EXPR_RESULT parse_onearg(void) MYCC;
 
 /* Main-bank parse entry points (always safe to call) */
 void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC;
