@@ -249,6 +249,8 @@ void printnum(int n) {
 }
 
 void init() {
+  nextreg(7,3); // 28Mhz
+
   palette();
   rndseed();
 

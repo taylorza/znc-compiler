@@ -25,30 +25,13 @@ int rnd() __asm__ {
 
 void rndseed() __asm__ {
 _    
-    ld a, i         ; Get IF1 loaded into P/V flag
-    jp pe, .skip    ; If enabled we are fine, 
-    ld a, i         ; If disabled we need to load again just incase an 
-                    ; interrupt fired during the first load
-.skip
-    push af
-    ei
-
-    ld a, h
-    or l
-    jp z, .zeroseed
-    jp .setseed
-.zeroseed
     ld hl, (0x5c78) ; read frame counter
     ld a, h
     or l
-    jp z, .zeroseed
-.setseed
+    jr nz, .set
+    inc l
+.set
     ld (_rnd.seed), hl
-
-    pop af
-    jp  pe, .keepEnabled
-    di
-.keepEnabled
     ret
 }
 

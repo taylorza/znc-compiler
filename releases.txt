@@ -5,6 +5,8 @@
 - Added hexvw.znc example
 - Enhancement - delegates are not limited to returning int types
 - Enhancement - increased max named types from 64 to 255
+- Improved rndseed (suggested by Janko Stamenović)
+- Improved code generation for struct and array offset folding
 
 2026/06/14 - Version 0.6a
 - Fixed kdb.znc - potential buffer overrun if more than 4 keys pressed concurrently (reported by Janko Stamenović)
