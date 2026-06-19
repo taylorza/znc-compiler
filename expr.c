@@ -743,6 +743,25 @@ static void parse_factor_ampersand(EXPR_RESULT *result) MYCC {
     result->has_sym = 0;    
 }
 
+/* Walk consecutive ".field" tokens for plain struct fields, summing their
+ * compile-time offsets into *total_offset. Returns the final field type.
+ * Stops on pointer-to-struct (needs runtime load), non-struct, or non-member.
+ * Locals (FIELDINFO, sid, fid) are kept here to avoid inflating callers' frames. */
+static uint8_t fold_struct_members(uint8_t cur_type, uint16_t *total_offset) MYCC {
+    while (tok == tokMember && type_is_struct(cur_type) && !type_is_pointer(cur_type)) {
+        get_token(); /* consume '.' */
+        if (tok != tokIdent) { error(errExpected_s, "member name"); break; }
+        int sid = (int)type_get_struct_id(cur_type) - 1;
+        int fid = find_struct_field(sid, token);
+        if (fid < 0) { error(errNotDefined_s, token); break; }
+        FIELDINFO fi = get_struct_field(sid, fid);
+        *total_offset += fi.offset;
+        cur_type = fi.type_id;
+        get_token(); /* consume field identifier */
+    }
+    return cur_type;
+}
+
 /* Postfix subscript handler - extracted to minimise parse_factor_postfix frame.
  * SYMBOL base_sym (8 bytes) and EXPR_RESULT index_result (12 bytes) are
  * branch-exclusive and would inflate parse_factor_postfix's frame if inlined. */
@@ -783,12 +802,23 @@ static void postfix_subscript(EXPR_RESULT* result, uint8_t* dereference, uint8_t
             index_result.value = (uint16_t)((int16_t)index_result.value >> 4);
         uint16_t offset = index_result.value * scale;
         if (had_sym && type_is_array(base_sym->type_id)) {
-            if (offset) emit_ld_symaddr_offset(base_sym, offset);
+            uint16_t total_offset = offset;
+            uint8_t cur_type = fold_struct_members(elemtype_id, &total_offset);
+            if (total_offset) emit_ld_symaddr_offset(base_sym, total_offset);
             else emit_ld_symaddr(base_sym);
-        } else {
-            if (!had_sym) emit_pop_hl();
-            if (offset) { emit_ldde_immed_n(offset); emit_add16(); }
+            result->type_id = cur_type;
+            if (type_is_array(result->type_id)) {
+                uint8_t elem_id = type_get_element_type_id(result->type_id);
+                result->type_id = type_make_pointer(elem_id, 1);
+                *dereference = 0;
+            } else {
+                *dereference = 1;
+            }
+            *addr_in_hl = 1;
+            return;
         }
+        if (!had_sym) emit_pop_hl();
+        if (offset) { emit_ldde_immed_n(offset); emit_add16(); }
     } else {
         if (type_is_fixed(index_result.type_id)) emit_fixed_to_int();
         if (scale > 1) emit_scale_reg(scale, 1);
@@ -860,6 +890,22 @@ static void postfix_member(EXPR_RESULT* result, uint8_t* dereference, uint8_t* a
     FIELDINFO fi;
     uint16_t offset;
     if (!lookup_struct_member(check_type_id, &fi, &offset)) return;
+
+    if (!*addr_in_hl && had_sym && !type_is_pointer(result->type_id)) {
+        uint16_t total_offset = offset;
+        uint8_t cur_type = fold_struct_members(fi.type_id, &total_offset);
+        emit_sym_address_with_offset(&base_sym, total_offset);
+        *addr_in_hl = 1;
+        result->type_id = cur_type;
+        if (type_is_array(result->type_id)) {
+            uint8_t elem_id = type_get_element_type_id(result->type_id);
+            result->type_id = type_make_pointer(elem_id, 1);
+            *dereference = 0;
+        } else {
+            *dereference = 1;
+        }
+        return;
+    }
 
     if (!*addr_in_hl) {
         if (had_sym) {
