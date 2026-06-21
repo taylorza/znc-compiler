@@ -79,11 +79,21 @@ uint8_t type_get_element_type_id(uint8_t ptr_or_array_type_id) MYCC;
 
 /* Function signature API */
 #define MAX_FUNC_ARGS 8
-uint8_t signature_create(uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC;
+
+typedef struct FuncSignature {
+    uint8_t return_type_id;
+    uint8_t arg_count;           /* Fixed argument count (does not include variadic args) */
+    uint8_t is_variadic;         /* 1 if function is variadic, 0 otherwise */
+    uint8_t calling_convention;   /* 0 = default (caller cleanup), 1 = callee cleanup (__znccall(1)) */
+    uint8_t arg_types[MAX_FUNC_ARGS];
+} FuncSignature;
+
+uint8_t signature_create(uint8_t calling_convention, uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC;
 uint8_t signature_create_variadic(uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC;
 uint8_t signature_get_return_type(uint8_t sig_id) MYCC;
 uint8_t signature_get_arg_count(uint8_t sig_id) MYCC;
 uint8_t signature_get_arg_type(uint8_t sig_id, uint8_t arg_index) MYCC;
+uint8_t signature_get_calling_convention(uint8_t sig_id) MYCC;
 uint8_t signature_is_variadic(uint8_t sig_id) MYCC;
 uint8_t signature_check(uint8_t sig_id1, uint8_t sig_id2) MYCC;
 

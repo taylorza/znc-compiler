@@ -754,6 +754,7 @@ void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
     uint8_t expected_count = 0xFF;
     uint8_t sig_id = 0xFF;
     uint8_t is_variadic = 0;
+    uint8_t calling_convention = 0;
     
     if (is_func_or_proto(sym)) {
         expected_count = (uint8_t)sym->fn.arg_count;
@@ -768,6 +769,9 @@ void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
         }
     }
     
+    /* Get calling convention */
+    calling_convention = signature_get_calling_convention(sig_id);
+
     /* Check if function is variadic */
     if (sig_id != 0xFF) {
         is_variadic = signature_is_variadic(sig_id);
@@ -930,7 +934,8 @@ void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
     }
 
     emit_callsym(sym, ptr_loc);
-    if (sym->flags & SYM_FLAG_ZNCCALL1) {
+
+    if (calling_convention == 1) {
         /* Callee cleans arguments, so we don't emit cleanup code here. */
         return;
     }
@@ -995,6 +1000,28 @@ void parse_vaend(void) MYCC {
     EPILOG
 }
 
+uint8_t parse_znccall(uint8_t is_variadic) MYCC {
+    uint8_t calling_convention = 0; // default
+    if (tok == tokZncCall) {
+        get_token(); // skip '__znccall'
+        expect_LParen();
+        expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
+        if (!type_is_const(expr_result.type_id)) error(errConstExpected);
+        expect_RParen();
+        calling_convention = (uint8_t)expr_result.value;
+        switch (calling_convention) {
+            case 0: break; // default stdcall, caller cleans arguments
+            case 1:
+                if (is_variadic) error(errVariadicNoCalleeCleanup);
+                break;
+            default:
+                error(errInvalid_s, "__znccall argument");
+                break;
+        }
+    }    
+    return calling_convention;
+}
+
 void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
     /* ERROR: Struct return types must be declared as pointers explicitly */
     if (type_is_struct(rettype_id) && !type_is_pointer(rettype_id)) {
@@ -1008,6 +1035,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
 
     SYMBOL symfunc = lookupIdent(name);
     uint8_t defined = 0;
+    uint8_t calling_convention = 0; // 0 = default, 1 = stdcall with callee cleanup
 
     if (not_defined(&symfunc)) {
         symfunc = declglb(rettype_id, FUNCTION, name, 0);
@@ -1020,7 +1048,6 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
     uint16_t funcframe = push_frame();
     func_argcount = 0;
     uint8_t is_variadic = 0;
-    uint8_t stdcall_convention = 0; // 0 = default, 1 = stdcall with callee cleanup
     
     /* Parse arguments and collect their types */
     while (tok != tokRParen && tok != tokEllipsis) {
@@ -1059,25 +1086,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
     expect_RParen();
 
     /* Check for calling convention specifier */
-    if (tok == tokZncCall) {
-        get_token(); // skip '__znccall'
-        expect_LParen();
-        expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
-        if (!type_is_const(expr_result.type_id)) error(errConstExpected);
-        expect_RParen();
-        stdcall_convention = (uint8_t)expr_result.value;
-        switch (stdcall_convention) {
-            case 0: break; // default stdcall, caller cleans arguments
-            case 1: 
-                if (is_variadic) {
-                    error(errVariadicNoCalleeCleanup);
-                }                
-                symfunc.flags |= SYM_FLAG_ZNCCALL1; break; // callee cleans arguments
-            default:
-                error(errInvalid_s, "stdcall argument");
-                break;
-        }
-    }
+    calling_convention = parse_znccall(is_variadic);
    
     /* Check signature compatibility if already declared */
     if (defined || symfunc.klass == FUNCTION_PROTO) {
@@ -1086,7 +1095,9 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
         } else if (symfunc.fn.signature_id != 0xFF) {
             /* Verify argument types and variadic flag match */
             uint8_t match = 1;
-            if (signature_get_arg_count(symfunc.fn.signature_id) == func_argcount &&
+            if (signature_get_calling_convention(symfunc.fn.signature_id) != calling_convention) {
+                match = 0;            
+            } else if (signature_get_arg_count(symfunc.fn.signature_id) == func_argcount &&
                 signature_is_variadic(symfunc.fn.signature_id) == is_variadic) {
                 for (uint8_t i = 0; i < func_argcount; i++) {
                     if (signature_get_arg_type(symfunc.fn.signature_id, i) != arg_types[i]) {
@@ -1108,7 +1119,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
         if (is_variadic) {
             symfunc.fn.signature_id = signature_create_variadic(rettype_id, func_argcount, arg_types);
         } else {
-            symfunc.fn.signature_id = signature_create(rettype_id, func_argcount, arg_types);
+            symfunc.fn.signature_id = signature_create(calling_convention, rettype_id, func_argcount, arg_types);
         }
         if (symfunc.fn.signature_id == 0xFF) {
             error(errTooManyTypes);
@@ -1146,7 +1157,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
 
             parse_statement_block(NO_LABEL, NO_LABEL);
 
-            emit_frame_epilogue(0, retlbl, stdcall_convention, func_argcount);
+            emit_frame_epilogue(0, retlbl, calling_convention, func_argcount);
             
             emit_lblequ16(locals_lbl, localbytes);
             localbytes = oldlocalbytes;
@@ -1250,6 +1261,7 @@ void parse_delegate_decl(void) MYCC {
     /* parse: delegate <return-type> IDENT '(' param_list ')' ';' */
     get_token(); /* skip 'delegate' */
     uint8_t return_type;
+    uint8_t calling_convention = 0; // 0 = default, 1 = stdcall with callee cleanup
     parse_type(&return_type);
 
     /* ERROR: Struct return types must be declared as pointers explicitly */
@@ -1284,10 +1296,11 @@ void parse_delegate_decl(void) MYCC {
         }
     }
     expect_RParen();
+    calling_convention = parse_znccall(0);
     expect_semi();
 
     /* Create signature and function-pointer type */
-    uint8_t sig = signature_create(return_type, argcount, arg_types);
+    uint8_t sig = signature_create(calling_convention, return_type, argcount, arg_types);
     uint8_t ftype = type_make_function(sig);
     uint8_t deleg_type = type_make_pointer(ftype, 1); /* indirection=1 */
 

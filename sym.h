@@ -24,7 +24,6 @@ typedef struct SYMBOL {
 
 /* Symbol flags */
 #define SYM_FLAG_INITIALIZED 0x01
-#define SYM_FLAG_ZNCCALL1    0x02
 
 extern SYMBOL undefined_sym;
 
