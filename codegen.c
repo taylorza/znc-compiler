@@ -190,7 +190,7 @@ void emit_add_hl_small(int16_t n) MYCC {
     }
     
     const char *instr = (n > 0) ? "inc hl" : "dec hl";
-    int8_t count = (n > 0) ? n : -n;
+    int16_t count = (n > 0) ? n : -n;
     
     if (count <= 3) {
         while (count--) {
@@ -436,13 +436,6 @@ static int16_t compute_symbol_base_offset(SYMBOL *sym) MYCC {
     }
 }
 
-/* Helper: Compute local variable offsets for load/store operations */
-static void compute_local_offsets(SYMBOL *sym, int16_t *low_off, int16_t *high_off) MYCC {
-    int16_t base = compute_symbol_base_offset(sym);
-    *low_off = base;
-    *high_off = base + 1;
-}
-
 /* Helper: Emit code to compute address in HL when offsets out of range */
 static void emit_compute_ix_address(int16_t offset) MYCC {
     emit_instrln("ld hl,%d", offset);
@@ -512,10 +505,7 @@ void emit_ld_symval(SYMBOL* sym) MYCC {
         if (sym->klass == VARIABLE) {
             if (type_is_array(type_id) || type_is_struct(type_id)) {
                 /* Arrays and structs: load their address */
-                int16_t addr_offset = compute_symbol_base_offset(sym);
-                
-                emit_copy_ix_to_hl();
-                emit_add_hl_small(addr_offset);                                    
+                emit_ld_symaddr_offset(sym, 0);
                 return;
             }
             
@@ -537,8 +527,8 @@ void emit_ld_symval(SYMBOL* sym) MYCC {
             } 
         }
 
-        int16_t low_off, high_off;
-        compute_local_offsets(sym, &low_off, &high_off);
+        int16_t low_off = compute_symbol_base_offset(sym);
+        int16_t high_off = low_off + 1;
         
         if (offsets_in_ix_range(low_off, high_off)) {
             emit_instrln("ld l,(ix%+d)", low_off);
@@ -610,7 +600,7 @@ void emit_store_sym(SYMBOL* sym) MYCC {
         }
 
         if (sym->klass == VARIABLE && !type_is_pointer(type_id) && type_is_8bit(type_id)) {
-            int16_t low_off = -(sym->stk.offset + 1);
+            int16_t low_off = compute_symbol_base_offset(sym);
             
             if (low_off >= -128 && low_off <= 127) {
                 emit_instrln("ld (ix%+d),l", low_off);
@@ -623,8 +613,8 @@ void emit_store_sym(SYMBOL* sym) MYCC {
             }
         } else {
             /* Int scalar/pointer or argument: store 2-byte value */
-            int16_t low_off, high_off;
-            compute_local_offsets(sym, &low_off, &high_off);
+            int16_t low_off = compute_symbol_base_offset(sym);
+            int16_t high_off = low_off + 1;
             
             if (offsets_in_ix_range(low_off, high_off)) {
                 emit_instrln("ld (ix%+d),l", low_off);
@@ -696,7 +686,7 @@ void emit_frame_prologue(uint8_t toplevel, uint16_t exit_lbl) MYCC {
     }
 }
 
-void emit_frame_epilogue(uint8_t toplevel, uint16_t exit_lbl, uint8_t stdcall, uint8_t arg_count) MYCC {
+void emit_frame_epilogue(uint8_t toplevel, uint16_t exit_lbl, uint8_t calling_convention, uint8_t arg_count) MYCC {
     emit_lbl(exit_lbl);
     if (toplevel) {
         emit_instrln("ld sp,0");
@@ -704,7 +694,7 @@ void emit_frame_epilogue(uint8_t toplevel, uint16_t exit_lbl, uint8_t stdcall, u
     } else {
         emit_instrln("ld sp,ix");
         emit_instrln("pop ix");
-        switch (stdcall) {
+        switch (calling_convention) {
             case 0: /* cdecl - caller cleans stack, so just return */                
                 break;
             case 1: /* stdcall - callee cleans stack, so add to SP */
@@ -712,7 +702,7 @@ void emit_frame_epilogue(uint8_t toplevel, uint16_t exit_lbl, uint8_t stdcall, u
                 emit_clean_stack(arg_count * 2); // Clean up arguments
                 emit_instrln("push bc"); // Push return address back on stack"                
                 break;            
-        };
+        }
     }    
     emit_ret();
 }
@@ -843,6 +833,7 @@ void emit_nex(const char* filename, uint16_t start, uint16_t stack, uint16_t sta
     emit_instr("savenex \"%s\",", filename);
     emit_lblref(start); emit_ch(',');
     emit_lblref(stack);
+    emit_nl();
 }
 
 void emit_zopt(void) {
