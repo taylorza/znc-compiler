@@ -6,7 +6,7 @@ Hello world (using `puts`) in DOT command:
 make dot "/dot/hello";
 
 void main() {
-  puts("Hello from ZNC\r\n");
+  puts("Hello from ZNC\r");
   return 0;
 }
 ```
@@ -21,11 +21,11 @@ nextreg(6, (readreg(6) & 0b11111100) | 0b00000001);
 Array initializer example:
 
 ```c
-byte s[] = "Hi";           // inferred as byte[3] == {'H','i',0}
-int nums[] = {1000, 2000};  // inferred as int[2] == {1000,2000}
+byte[] s = "Hi";           // inferred as byte[3] == {'H','i',0}
+int[] nums = {1000, 2000};  // inferred as int[2] == {1000,2000}
 
 // Note: arrays with an explicit size do NOT support initializers. The following is not supported:
-// byte[6] fixed = "Hi"; // not allowed — use `byte s[] = "Hi";` to let the compiler infer the length
+// byte[6] fixed = "Hi"; // not allowed — use `byte[] s = "Hi";` to let the compiler infer the length
 
 // If size is omitted and no initializer is present, the declaration is treated as a pointer:
 int[] p; // equivalent to: int *p;
@@ -37,7 +37,7 @@ Sprite example:
 include "sprite.znc"
 
 // 16×16 pattern (taken from tests/spriteballs.znc)
-byte sprite_data[] = {
+byte[] sprite_data = {
     0xe3,0xe3,0xe3,0xe3,0xe3,0x60,0x60,0x60,0x60,0x60,0x60,0xe3,0xe3,0xe3,0xe3,0xe3,
     0xe3,0xe3,0xe3,0x60,0x60,0x80,0x60,0x80,0x80,0x80,0x80,0x60,0x60,0xe3,0xe3,0xe3,
     0xe3,0xe3,0x60,0x80,0xa0,0x60,0xa0,0xa0,0xa0,0xa0,0xa0,0x60,0x80,0x60,0xe3,0xe3,
@@ -72,7 +72,7 @@ void main() {
 Pointer arithmetic example:
 
 ```c
-int arr[4];
+int[4] arr;
 int *p = arr;
 p = p + 2; // advances by 2 * sizeof(int) == 4 bytes
 ```

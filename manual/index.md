@@ -18,7 +18,7 @@ Chapters
 - [I/O & Hardware Registers](io_and_registers.md)
 - [Inline Assembly & __asm__](inline_asm.md)
 - [Directives & Conditional Compilation](directives.md)
-- [RTL & Libraries](rtl_and_libraries.md)
+- [RTL & Libraries](znclib.md)
 - [Examples](examples.md)
 - [Limitations & Notes](limitations.md)
 

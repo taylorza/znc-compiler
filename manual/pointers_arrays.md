@@ -29,7 +29,7 @@ byte[] s = "Hi";          // s has length 3 == {'H','i',0}
 int[] p;   // treated as `int *p` (a pointer) when no initializer is given
 ```
 
-- Arrays with an explicit size do **not** support an initializer. Attempting to write `byte[6] x = {..};` or `byte[6] s = "Hi";` is not supported by the compiler (use `byte s[] = "Hi";` to infer the size instead). If you need a fixed-size zero-filled buffer, declare it without an initializer and fill it at runtime.
+- Arrays with an explicit size do **not** support an initializer. Attempting to write `byte[6] x = {..};` or `byte[6] s = "Hi";` is not supported by the compiler (use `byte[] s = "Hi";` to infer the size instead). If you need a fixed-size zero-filled buffer, declare it without an initializer and fill it at runtime.
 
 ```c
 byte[5] b; // declare fixed-size array; no initializer allowed in source
