@@ -1,6 +1,8 @@
 #ifndef TYPE_H__
 #define TYPE_H__
 
+#define SIGNATURE_INVALID MAX_SIGNATURES
+
 /* TypeKind enumeration (3 bits, values 0-7) */
 typedef enum TypeKind {
     TK_CHAR = 0,
@@ -20,9 +22,6 @@ typedef struct TypeEntry {
     uint8_t aux0;            /* STRUCT→struct_id, FUNCTION→signature_id, ARRAY→element_type_id */
     uint16_t aux1;           /* ARRAY→length (0=unspecified), others→unused */
 } TypeEntry;
-
-/* Type table - max 255 entries (uint8_t limit) */
-#define MAX_TYPES 255
 
 /* Initialize type system */
 void type_init(void) MYCC;
@@ -76,9 +75,6 @@ uint16_t type_size(uint8_t type_id) MYCC;
 
 /* Pointer/array element type derivation */
 uint8_t type_get_element_type_id(uint8_t ptr_or_array_type_id) MYCC;
-
-/* Function signature API */
-#define MAX_FUNC_ARGS 8
 
 typedef struct FuncSignature {
     uint8_t return_type_id;

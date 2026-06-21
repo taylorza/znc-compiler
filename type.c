@@ -347,11 +347,7 @@ uint8_t far_type_intern(TypeEntry entry) MYCC {
     EPILOG_RETURN(result);
 }
 
-/* Function signature storage - MAX_FUNC_ARGS and MAX_SIGNATURES defined in typedata.c */
-#define MAX_FUNC_ARGS 8
-
 extern FuncSignature signature_table[];
-extern uint8_t signature_count;
 
 /* Stub functions to access signature table in BANK_43 */
 extern uint8_t signature_intern(uint8_t calling_convention, uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types, uint8_t is_variadic) MYCC;
@@ -372,19 +368,15 @@ uint8_t far_signature_intern(uint8_t calling_convention, uint8_t return_type_id,
 
 /* Function signature API */
 uint8_t signature_create(uint8_t calling_convention, uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC {
-    if (arg_count > MAX_FUNC_ARGS) {
-        error(errTooManyArgs);
-        arg_count = MAX_FUNC_ARGS;
-    }
-    return far_signature_intern(calling_convention, return_type_id, arg_count, arg_types, 0);
+    PROLOG(46)
+    uint8_t result = signature_intern(calling_convention, return_type_id, arg_count, arg_types, 0);
+    EPILOG_RETURN(result);    
 }
 
 uint8_t signature_create_variadic(uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC {
-    if (arg_count > MAX_FUNC_ARGS) {
-        error(errTooManyArgs);
-        arg_count = MAX_FUNC_ARGS;
-    }
-    return far_signature_intern(0, return_type_id, arg_count, arg_types, 1);
+    PROLOG(46)
+    uint8_t result = signature_intern(0, return_type_id, arg_count, arg_types, 1);
+    EPILOG_RETURN(result);    
 }
 
 uint8_t signature_get_return_type(uint8_t sig_id) MYCC {
@@ -422,11 +414,15 @@ uint8_t signature_check(uint8_t sig_id1, uint8_t sig_id2) MYCC {
     if (sig_id1 >= signature_count || sig_id2 >= signature_count) return 0;
     FuncSignature sig1 = signature_read_from_bank(sig_id1);
     FuncSignature sig2 = signature_read_from_bank(sig_id2);
-    
-    if (sig1.arg_count != sig2.arg_count) return 0;
 
     /* Check that calling conventions match */
     if (sig1.calling_convention != sig2.calling_convention) return 0;
+    
+    /* Variadic vs non-variadic mismatch */
+    if (sig1.is_variadic != sig2.is_variadic) return 0;
+
+    /* Check argument count */
+    if (sig1.arg_count != sig2.arg_count) return 0;
 
     /* Check if sig2 (from) is compatible with sig1 (to) */
     if (!type_check_compatible(sig2.return_type_id, sig1.return_type_id)) return 0;

@@ -10,6 +10,10 @@
 #define MAX_STRTBL_SIZE     15660   // max string table size
 #define MAX_CASE            128     // max case statements per switch
 
+#define MAX_TYPES 255               // Type table - max 255 entries (uint8_t limit)
+#define MAX_FUNC_ARGS 8             // max function arguments (excluding varargs)
+#define MAX_SIGNATURES 255          // max number of unique function signatures (uint8_t limit)
+
 #define NO_LABEL            0xFFFF  // no label defined
 
 #ifdef __ZXNEXT

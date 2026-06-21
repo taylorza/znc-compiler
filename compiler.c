@@ -1115,13 +1115,13 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
     }
 
     /* Store function signature if not already stored */
-    if (symfunc.fn.signature_id == 0xFF) {
+    if (symfunc.fn.signature_id == SIGNATURE_INVALID) {
         if (is_variadic) {
             symfunc.fn.signature_id = signature_create_variadic(rettype_id, func_argcount, arg_types);
         } else {
             symfunc.fn.signature_id = signature_create(calling_convention, rettype_id, func_argcount, arg_types);
         }
-        if (symfunc.fn.signature_id == 0xFF) {
+        if (symfunc.fn.signature_id == SIGNATURE_INVALID) {
             error(errTooManyTypes);
         }
     }
@@ -1301,6 +1301,10 @@ void parse_delegate_decl(void) MYCC {
 
     /* Create signature and function-pointer type */
     uint8_t sig = signature_create(calling_convention, return_type, argcount, arg_types);
+    if (sig == SIGNATURE_INVALID) {
+        error(errTooManyTypes);
+        return;
+    }
     uint8_t ftype = type_make_function(sig);
     uint8_t deleg_type = type_make_pointer(ftype, 1); /* indirection=1 */
 

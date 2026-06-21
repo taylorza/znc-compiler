@@ -3,10 +3,6 @@
 #include "error.h"
 
 /* BANK_46: Function signature storage and signature_intern implementation */
-/* Maximum arguments per function and maximum signatures */
-#define MAX_FUNC_ARGS 8
-#define MAX_SIGNATURES 255
-
 
 extern uint8_t signature_count;
 FuncSignature signature_table[MAX_SIGNATURES];
@@ -15,6 +11,8 @@ FuncSignature signature_table[MAX_SIGNATURES];
 /* This function must be in BANK_46 as it directly accesses signature_table */
 uint8_t signature_intern(uint8_t calling_convention, uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types, uint8_t is_variadic) MYCC {
     uint8_t i, j;
+
+    if (arg_count > MAX_FUNC_ARGS) error(errTooManyArgs);
     
     /* Search for existing identical signature */
     for (i = 0; i < signature_count; i++) {
@@ -35,12 +33,13 @@ uint8_t signature_intern(uint8_t calling_convention, uint8_t return_type_id, uin
     }
     
     /* Not found - add new entry */
-    if (signature_count >= MAX_SIGNATURES) {
+    if (signature_count+1 == MAX_SIGNATURES) {
         error(errTooManyTypes);
-        return 0;  /* Return empty signature as fallback */
+        return SIGNATURE_INVALID;
     }
     
     /* Store the new signature */
+    memset(&signature_table[signature_count], 0, sizeof(FuncSignature));
     signature_table[signature_count].calling_convention = calling_convention;
     signature_table[signature_count].return_type_id = return_type_id;
     signature_table[signature_count].arg_count = arg_count;
@@ -50,9 +49,4 @@ uint8_t signature_intern(uint8_t calling_convention, uint8_t return_type_id, uin
     }
     
     return signature_count++;
-}
-
-/* Variadic signature creation */
-uint8_t signature_intern_variadic(uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC {
-    return signature_intern(0, return_type_id, arg_count, arg_types, 1);
 }
