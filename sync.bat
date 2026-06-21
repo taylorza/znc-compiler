@@ -7,6 +7,7 @@
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/spriteballs.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/udg.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/ulagfx.znc /zdev/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/zxbgfx.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/feature_test.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/cal.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/calMonth.znc /zdev/
@@ -32,6 +33,7 @@
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/mmu.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/cmdline.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/dot.znc /zdev/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/zxbgfx.znc /zdev/
 
 rem Libraries used with permission from Iáń Júkéś
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/datetime.znc /zdev/

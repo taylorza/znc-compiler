@@ -12,7 +12,7 @@ Node[MAX_STACK] stack;
 int sp=0;
 int mp=0;
 
-void floodfill(int x, int y) {
+void floodfill(int x, int y) __znccall(1) {
   stack[sp].x = x;
   stack[sp].y = y;
   ++sp;

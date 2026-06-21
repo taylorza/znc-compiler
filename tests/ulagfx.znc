@@ -98,3 +98,6 @@ for(;;) {
   out(0xfe,7);
   if ((in(0x7ffe) & 0x01) == 0) break;
 }
+ __asm__{
+    ei
+ }

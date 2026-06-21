@@ -295,6 +295,7 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
 
     if (sym->klass == CLASS_UNDEFINED) {
         // HL contains address to write to
+        // TODO: Optimize for loading constants directly into memory without going through registers
         emit_push();
         parse_expr(0, type_id);
         emit_store(type_id);

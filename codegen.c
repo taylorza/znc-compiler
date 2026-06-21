@@ -197,8 +197,8 @@ void emit_add_hl_small(int16_t n) MYCC {
             emit_instrln(instr);
         }
     } else {
-        emit_ldde_immed_n((uint16_t)n);
-        emit_add16();
+        emit_ldbc_immed_n((uint16_t)n);
+        emit_instrln("add hl,bc");
     }
 }
 
@@ -514,14 +514,8 @@ void emit_ld_symval(SYMBOL* sym) MYCC {
                 /* Arrays and structs: load their address */
                 int16_t addr_offset = compute_symbol_base_offset(sym);
                 
-                if (addr_offset >= -128 && addr_offset <= 127) {
-                    emit_copy_ix_to_hl();
-                    if (addr_offset != 0) {
-                        emit_add_hl_small(addr_offset);
-                    }
-                } else {
-                    emit_compute_ix_address(addr_offset);
-                }
+                emit_copy_ix_to_hl();
+                emit_add_hl_small(addr_offset);                                    
                 return;
             }
             
@@ -586,29 +580,8 @@ void emit_ld_symaddr_offset(SYMBOL* sym, uint16_t offset) MYCC {
         /* Fold in any additional offset BEFORE range checking */
         bp_offset += (int16_t)offset;
         
-        /* OPTIMIZATION: If final offset is in IX+d range, compute optimally */
-        /* IMPORTANT: Do NOT use DE register - callers may need it preserved! */
-        if (bp_offset >= -128 && bp_offset <= 127) {
-            if (bp_offset == 0) {
-                /* Special case: offset 0 - just copy IX */
-                emit_copy_ix_to_hl();
-            } else if (bp_offset >= -3 && bp_offset <= 3) {
-                /* Small offset: copy IX and use inc/dec */
-                emit_copy_ix_to_hl();
-                emit_add_hl_small(bp_offset);
-            } else {
-                /* Medium offset: use BC to avoid clobbering DE */
-                emit_copy_ix_to_hl();
-                emit_instrln("ld bc,%d", (uint16_t)bp_offset);
-                emit_instrln("add hl,bc");
-            }
-        } else {
-            /* Out of range: use BC to avoid clobbering DE */
-            emit_instrln("ld hl,%d", bp_offset);
-            emit_instrln("ld c,ixl");
-            emit_instrln("ld b,ixh");            
-            emit_instrln("add hl,bc");
-        }
+        emit_copy_ix_to_hl();
+        emit_add_hl_small(bp_offset);
     }
 }
 
