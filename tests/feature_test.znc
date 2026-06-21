@@ -3,9 +3,9 @@ make dot "feature_test.dot";
 // ============================================================
 // Test group switches - set to 0 to exclude a group
 // ============================================================
-const byte TEST_G1 = 1;
+const byte TEST_G1 = 0;
 const byte TEST_G2 = 0;
-const byte TEST_G3 = 0;
+const byte TEST_G3 = 1;
 
 const byte TEST_BASIC   = TEST_G1;   // typ_glb, const, arith, bitwise, compare, ternary, incdec
 const byte TEST_FLOW    = TEST_G1;
@@ -28,9 +28,9 @@ const byte TEST_RECURSE = TEST_G3;   // recursion
 const byte TEST_TYPEMIX = TEST_G3;   // type coercion / byte-char mixing
 const byte TEST_NCALL   = TEST_G3;   // nested / chained function calls
 const byte TEST_PTRST   = TEST_G3;   // pointer to struct member / array element
-const byte TEST_MUTREC = TEST_G3;   // mutual recursion
-const byte TEST_MEM_PTR = TEST_G3;  // pointer to nested struct member
-
+const byte TEST_MUTREC = TEST_G3;    // mutual recursion
+const byte TEST_MEM_PTR = TEST_G3;   // pointer to nested struct member
+const byte TEST_CALLCON = TEST_G3;   // test calling conventions
 
 // Derived:
 #if TEST_STRUCTS
@@ -1159,6 +1159,42 @@ void test_enum() {
 }
 #endif
 
+
+#if TEST_CALLCON
+delegate int CC0_FN(int a, int b);
+delegate int CC1_FN(int a, int b) __znccall(1);
+
+int cc0_add(int a, int b) {
+    return a+b;
+}
+int cc1_add(int a, int b) __znccall(1) {
+    return a+b;
+}
+int cc1_asm(int a, int b) __znccall(1) __asm__ {
+    pop bc
+    pop hl
+    pop de
+    push bc
+
+    add hl,de
+    ret
+}
+
+void test_callconv() {
+    // Function calls using calling convention 0 and 1
+    chk("cc0_add", cc0_add(3, 5) == 8);
+    chk("cc1_add", cc1_add(3, 5) == 8);
+    chk("cc1_asm", cc1_asm(3, 5) == 8);
+
+    // Delegate calls using calling convention 0 and 1
+    CC0_FN fn0 = cc0_add;
+    CC1_FN fn1 = cc1_asm;
+    chk("cc0_dlg", fn0(3, 5) == 8);
+    chk("cc1_dlg", fn1(3, 5) == 8);
+}
+#endif
+
+
 pass_count = 0;
 fail_count = 0;
 
@@ -1226,12 +1262,9 @@ test_recurse();
 test_typemix();
 test_ncall();
 test_ptrst();
-#if TEST_MUTREC
 test_mutrec();
-#endif
-#if TEST_MEM_PTR
 test_mem_ptr();
-#endif
+test_callconv();
 #endif
 
 puts("================\r");
