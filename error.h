@@ -31,6 +31,7 @@ typedef enum ERROR {
     errContinueOutsideLoop,
     errNotAStruct,
     errIllegalOp,
+    errVariadicNoCalleeCleanup,
 } ERROR;
 
 void error(ERROR err, ...);

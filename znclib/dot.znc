@@ -3,10 +3,9 @@ const byte DOT__ = 1;
 
 delegate void ErrorHandler();
 
-void seterrh(ErrorHandler fn) __asm__ {
+void seterrh(ErrorHandler fn) __znccall(1) __asm__ {
     pop bc
     pop hl
-    push hl
     push bc
 
     rst $08

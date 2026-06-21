@@ -1,12 +1,10 @@
 #ifndef ZXBGFX__
 const byte ZXBGFX__ = 1;
 
-void zxb_plot(int x, int y) __asm__ {
+void zxb_plot(int x, int y) __znccall(1) __asm__ {
   pop hl ; Return address
   pop de ; Y
   pop bc ; X
-  push bc
-  push de
   push hl
 
   ld b,e    ; B = y, C = x
@@ -20,12 +18,10 @@ void zxb_plot(int x, int y) __asm__ {
   endif
 }
 
-void zxb_point(int x, int y) __asm__ {
+void zxb_point(int x, int y) __znccall(1) __asm__ {
   pop hl ; Return address
   pop de ; y
   pop bc ; x
-  push bc
-  push de
   push hl
 
   ld b,e    ; B = y, C = x
@@ -46,35 +42,51 @@ void zxb_point(int x, int y) __asm__ {
   ret
 }
 
-void zxb_draw(int x, int y) __asm__ {
-_
+void zxb_draw(int x, int y) __znccall(1) __asm__ {
   pop hl ; Return address
   pop de ; y
   pop bc ; x
-  push bc
-  push de
   push hl
-  
+
+  ld h,b          ; save x high byte
+
+; ---- Y in DE ----
+  ld a,d
+  rla             ; move sign bit into carry
+  sbc a,a         ; A = 0 or FFh (sign mask)
+  ld d,a          ; D = sign(y)  (0 or -1)
+
+  ld a,e
+  xor d           ; low byte ^= sign
+  sub d           ; low byte -= sign
+  ld b,a          ; B = abs(y)
+
+  ld a,d
+  or 1            ; 00 -> 01, FF -> FF
+  ld d,a          ; D = sign(y) (1 or -1)
+
+; ---- X in BC ----
+  ld a,h          ; x high byte
+  rla
+  sbc a,a         ; A = 0 or FFh
+  ld e,a          ; E = sign(x)
+
+  ld a,c
+  xor e
+  sub e
+  ld c,a          ; C = abs(x)
+
+  ld a,e
+  or 1            ; 00 -> 01, FF -> FF
+  ld e,a          ; E = sign(x) (1 or -1)
+
+; ---- Call DRAW ----
   if __DOT
-    push de
     rst 0x18
-    dw 0x2d2b ; STACK_BC (x)
-
-    pop bc
-    rst 0x18
-    dw 0x2d2b ; STACK_BC (y)
-
-    rst 0x18
-    dw 0x24B7 ; DRAW
+    dw 0x24BA
     ret
   else
-    push de
-    call 0x2d2b ; STACK_BC (x)
-
-    pop bc
-    call 0x2d2b ; STACK_BC (y)
-
-    jp 0x24B7 ; DRAW
+    jp 0x24BA
   endif
 }
 

@@ -31,4 +31,4 @@ Both `//` (C-style) and `;` (standard Z80 assembler style) are valid line commen
 
 Notes
 - Use inline assembly for platform-specific or highly-optimized sequences.
-- Take care with calling conventions and stack/frame setup when mixing asm and C-style functions.
+- Take care with calling conventions and stack/frame setup when mixing asm and C-style functions. If you implement an assembler function that uses the callee‑cleanup calling convention, mark the function with `__znccall(1)` and ensure the asm body adjusts/pops argument words before returning so the stack is left consistent for the caller.

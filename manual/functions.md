@@ -56,8 +56,17 @@ cb = some_function;    // assignment requires matching signature
 
 Calling conventions
 
-- Arguments are passed on the stack (16‑bit words). Return values are in `HL`.
+- By default, arguments are passed on the stack (16‑bit words) and the caller is responsible for cleaning the stack after the call (caller‑cleanup). Return values are in `HL`.
 - For variadic functions, the compiler also pushes the count of variadic arguments.
+- Calling convention control: annotate a function with `__znccall(1)` immediately after the parameter list to request a callee‑cleanup calling convention. With `__znccall(1)` the callee is responsible for popping/adjusting its argument words before returning. Example:
+
+```c
+int add(int a, int b) __znccall(1) {
+  return a + b;
+}
+```
+
+- When using `__znccall(1)` ensure that callers and any function‑pointer or `delegate` types agree on the convention. A mismatch between caller‑cleanup and callee‑cleanup will corrupt the stack and cause crashes; the compiler validates signatures (and will check conventions where it can) for direct calls and delegate assignments.
 - Function calls via direct symbol or via a function pointer (delegate) are supported; pointer calls are validated against the pointer’s stored signature.
 
 Inline assembly functions

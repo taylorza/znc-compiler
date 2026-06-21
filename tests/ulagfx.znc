@@ -3,19 +3,18 @@ make dot "ulagfx.dot";
 
 include "memory.znc"
 
-void setpixel(int x, int y) __asm__ {
-  push ix
-  ld ix,0
-  add ix,sp
+void setpixel(int x, int y) __znccall(1) __asm__ {
+  pop hl
+  pop bc
+  pop de
+  push hl
 
-  ld e,(ix+6) ; X
-  ld d,(ix+4) ; Y
+  ld d,c     ; D = y
   pixelad
   setae
   or (hl)
   ld (hl),a
 
-  pop ix
   ret
 }
 

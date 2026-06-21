@@ -37,6 +37,8 @@ KEYWORD keywords[] = {
     {"va_end", tokVaEnd},
     {"__asm__", tokAsm},
     {"include", tokInclude},
+    {"extern", tokExtern},
+    {"__znccall", tokZncCall},
     {"struct", tokStruct},
     {"enum", tokEnum},
     {"delegate", tokDelegate},

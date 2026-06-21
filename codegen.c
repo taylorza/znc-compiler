@@ -723,15 +723,48 @@ void emit_frame_prologue(uint8_t toplevel, uint16_t exit_lbl) MYCC {
     }
 }
 
-void emit_frame_epilogue(uint8_t toplevel, uint16_t exit_lbl) MYCC {
+void emit_frame_epilogue(uint8_t toplevel, uint16_t exit_lbl, uint8_t stdcall, uint8_t arg_count) MYCC {
     emit_lbl(exit_lbl);
     if (toplevel) {
         emit_instrln("ld sp,0");
+        emit_instrln("pop ix");
     } else {
         emit_instrln("ld sp,ix");
+        emit_instrln("pop ix");
+        switch (stdcall) {
+            case 0: /* cdecl - caller cleans stack, so just return */                
+                break;
+            case 1: /* stdcall - callee cleans stack, so add to SP */
+                emit_instrln("pop bc"); // Pop return address into BC
+                emit_clean_stack(arg_count * 2); // Clean up arguments
+                emit_instrln("push bc"); // Push return address back on stack"                
+                break;            
+        };
     }    
-    emit_instrln("pop ix");
     emit_ret();
+}
+
+void emit_clean_stack(int16_t bytes) MYCC {
+    if (!bytes) return;
+
+    if (bytes < 8) {
+        while ((bytes - 2) >= 0) {
+            emit_instrln("pop af");
+            bytes -= 2;
+        }
+        while (bytes) {
+            emit_instrln("dec sp");
+            bytes--;
+        }
+        return;
+    }
+    else {
+        emit_swap();
+        emit_ld_immed_n(bytes);
+        emit_instrln("add hl,sp");
+        emit_instrln("ld sp,hl");
+        emit_swap();
+    }
 }
 
 void emit_neg(void) MYCC {

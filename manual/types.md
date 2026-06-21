@@ -19,6 +19,9 @@ Named function-pointer types (delegates)
 - `delegate <ret> Name(<args...> [,...]) ;` defines a named function‑pointer type.
 - Example: `delegate int Callback(int, int);` then `Callback cb;` declares a variable holding a pointer to a function of that signature.
 
+Notes on calling conventions and delegates
+- Assignments and calls involving delegates/function pointers require a matching signature and a matching calling convention (caller‑cleanup vs callee‑cleanup). Functions annotated with `__znccall(1)` use a callee‑cleanup convention; ensure the delegate and any callers expect that convention. Mismatched conventions will corrupt the stack and lead to crashes.
+
 Const qualifier
 - `const` can be applied only to scalar types (`char`, `int`, `fixed`) to produce compile-time constants. `const` is not permitted on `void`, pointers, or arrays. Const values are folded into code with no storage allocated.
 - Enum members themselves are compile-time constants and can be used where constant expressions are required.

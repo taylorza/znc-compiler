@@ -25,6 +25,10 @@ Available libraries (brief descriptions):
 - `strtoint.znc` — ASCII to integer conversion helper (`strtoint`).
 - `version.znc` — helpers to read esxDOS/core version numbers and the Next core version (`exdosVersion`, `coreVersion`).
 
+- `cmdline.znc` — command‑line parsing helpers for parsing argument lists and simple option/switch handling common in tools and demos.
+- `zxbgfx.znc` — ZX/Next graphics helpers providing higher‑level drawing and background/tile utilities for common rendering tasks.
+- `dot.znc` — simple pixel/dot drawing and small-shape helpers for low‑level plotted graphics.
+
 Notes
 - Some libraries expose `__asm__` functions for efficiency and may depend on Next-specific services (e.g., esxDOS, Next registers). They are intended as convenience code; feel free to adapt or extend them for your needs.
 - The RTL (runtime) used by the compiler is internal — this page documents only the `znclib/` helper libraries.

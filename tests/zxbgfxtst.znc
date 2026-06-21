@@ -1,0 +1,96 @@
+make dot "zxbgfxtst.dot";
+include "zxbgfx.znc"
+include "io.znc"
+
+const int SIZE=170;
+
+const int MAX_STACK = 1024;
+struct Node {
+  int x, y;
+}
+Node[MAX_STACK] stack;
+int sp=0;
+int mp=0;
+
+void floodfill(int x, int y) {
+  stack[sp].x = x;
+  stack[sp].y = y;
+  ++sp;
+  
+  while(sp) {
+    if (sp > mp) mp = sp;
+    
+    --sp;
+    x = stack[sp].x;
+    y = stack[sp].y;
+
+    // scan left
+    int left=x;
+    while(left >= 0 && !zxb_point(left, y)) {
+      --left;
+    }
+    ++left;
+  
+    // scan right
+    int right=x+1;
+    while(right<=255 && !zxb_point(right, y)) {
+      ++right;
+    }
+    --right;
+    
+    zxb_plot(left, y);
+    zxb_draw(right-left, 0);
+    
+    int inspan;
+    int yy = y-1;
+    if (yy >= 0) {
+      inspan=0;
+      for(int i = left; i <= right; ++i) {
+        if (!zxb_point(i, yy)) {
+          if (!inspan) {
+            stack[sp].x = i;
+            stack[sp].y = yy;
+            ++sp;
+            inspan = 1;
+          }
+        } else {
+          inspan = 0;
+        }
+      } 
+    }
+    
+    yy = y+1;
+    if (yy <= 175) {
+      inspan=0;
+      for(int i = left; i <= right; ++i) {
+        if (!zxb_point(i, yy)) {
+          if (!inspan) {
+            stack[sp].x = i;
+            stack[sp].y = yy;
+            ++sp;
+            inspan = 1;
+          }
+        } else {
+          inspan = 0;
+        }
+      } 
+    }
+  }   
+}
+
+nextreg(7,3);
+
+include "rnd.znc"
+
+for(int i=0; i<32*22; ++i) putc(32+rnd()%96);
+/*
+zxb_plot(128-SIZE/2, 88-SIZE/2);
+zxb_draw(SIZE,0);
+zxb_draw(0,SIZE);
+zxb_draw(-SIZE,0);
+zxb_draw(0,-SIZE);
+*/
+floodfill(128,96);
+
+gotoxy(0,0);
+printnum(mp);

@@ -32,6 +32,7 @@ static const char* errmsg[] = {
     "continue outside loop",
     "Not a struct",
     "Illegal operation",
+    "Variadics no callee cleanup",
 };
 
 /* Banked function to copy error message to buffer */

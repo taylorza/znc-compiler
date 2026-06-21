@@ -87,7 +87,8 @@ void emit_nreg_immed(uint8_t reg, uint8_t val) MYCC;
 void emit_nreg_A(uint8_t reg) MYCC;
 
 void emit_frame_prologue(uint8_t toplevel, uint16_t exit_lbl) MYCC;
-void emit_frame_epilogue(uint8_t toplevel, uint16_t exit_lbl) MYCC;
+void emit_frame_epilogue(uint8_t toplevel, uint16_t exit_lbl, uint8_t stdcall, uint8_t arg_count) MYCC;
+void emit_clean_stack(int16_t bytes) MYCC;
 
 void emit_neg(void) MYCC;
 void emit_mul2(void) MYCC;

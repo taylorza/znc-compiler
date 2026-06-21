@@ -1,5 +1,7 @@
 2026/06/14 - Version 0.6b
+- Added calling convention __znccall(1) which forces callee stack cleanup
 - Added cmdline.znc - parse the commandline into argc/argv
+- Added zxbgfx.znc - ZX BASIC Graphics functions
 - Added fseek to fileio.znc
 - Added dot.znc to standard library 
 - Added hexvw.znc example

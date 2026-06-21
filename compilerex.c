@@ -307,6 +307,67 @@ void far_parse_org(void) MYCC {
     expect_semi();
 }
 
+void far_parse_bank(void) MYCC {
+    if (inbank) error(errTopLevelOnly);
+
+    inbank = 1;
+    get_token(); // skip bank
+    uint8_t bankid;
+    uint16_t offset = 0;
+    expect_LParen();
+    
+    expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
+    if (!type_is_const(expr_result.type_id)) error(errConstExpected);
+    if (expr_result.value > 255) error(errInvalid_s, "bank");
+    bankid = (uint8_t)expr_result.value;
+ 
+    if (tok == tokComma) {
+        get_token(); // skip ','
+        
+        expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
+        if (!type_is_const(expr_result.type_id)) error(errConstExpected);
+        offset = expr_result.value;
+    }
+    expect_RParen();
+    
+    uint16_t bank_gbl_start = get_lastgbl();
+    size_t bank_str_start = get_laststr();
+    if (!bankseen) {
+        bankseen = 1;
+
+        emit_instrln("xor a"); // clear A register and carry flag
+        emit_frame_epilogue(1, exit_lbl, 0, 0);
+        emit_lblequ16(top_local_lbl, localbytes);
+
+        /* Emit global non-banked strings and variables */
+        dump_globals_range(0, bank_gbl_start);
+        dump_strings_range("str", 0, bank_str_start);
+        emit_instrln("include \"%s.rtl\"", outfilename);
+        if (tokMakeType == tokDot) {
+            emit_instrln("ds $4000-$");
+        }
+    }
+
+    emit_bank(bankid, offset);
+    char bank_str_lbl[16];
+    snprintf(bank_str_lbl, sizeof(bank_str_lbl), "str_b%d", bankid);
+    set_strref_ctx(bank_str_lbl, (uint16_t)bank_str_start);
+    set_str_search_base(bank_str_start);
+    
+    parse_statement_block(NO_LABEL, NO_LABEL);
+    
+    uint16_t bank_gbl_end = get_lastgbl();
+    size_t bank_str_end = get_laststr();
+    dump_globals_range(bank_gbl_start, bank_gbl_end);
+    dump_strings_range(bank_str_lbl, bank_str_start, bank_str_end);
+    reset_lastgbl(bank_gbl_start);
+    reset_laststr(bank_str_start);
+    set_str_search_base(0);
+    set_strref_ctx("str", 0);
+    inbank = 0;
+    emit_instrln("ds $2000 - ($ - %u)", current_org);
+}
+
 void far_parse_enum_member(EXPR_RESULT *result, const char* enum_name) MYCC {
     result->type_id = TYPE_ID_VOID;
     result->value = 0;
@@ -399,5 +460,65 @@ void far_parse_enum(void) MYCC {
 
     char* enum_copy = arena_strdup(enum_name, strnlen(enum_name, MAX_IDENT_LEN));
     type_register_name(enum_copy, type_make_enum((uint8_t)eid, 0));
+}
+
+void parse_conditional(uint8_t active, uint16_t brklbl, uint16_t contlbl) MYCC {
+    uint8_t current_if_depth = hash_if_depth;
+    if (active) {
+        while (tok != tokHashElif && tok != tokHashElse && tok != tokHashEndif && tok != tokEOS) {
+            parse_statement(brklbl, contlbl);
+        }
+    } else {
+        while ((current_if_depth != hash_if_depth || (tok != tokHashElif && tok != tokHashElse && tok != tokHashEndif)) && tok != tokEOS) {
+            if (tok == tokHashIf || tok == tokHashIfDef || tok == tokHashIfNDef) {
+                ++hash_if_depth;
+            } else if (tok == tokHashEndif) {
+                if (--hash_if_depth == 0) error(errUnexpectedEndif);
+            }
+            get_token();
+        }
+    }
+}
+
+void far_parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC {
+    TOKEN op = tok;
+
+    get_token(); // skip '#if' or '#ifdef' or '#ifndef'
+
+    uint8_t active;
+    
+    if (op == tokHashIfDef || op == tokHashIfNDef) {
+        SYMBOL sym = lookupIdent(token);
+        active = is_defined(&sym);
+        if (op == tokHashIfNDef) active = !active;
+        get_token(); // skip identifier
+    } else {
+        expr_result = parse_expr_delayconst(0, 0);
+        if (!type_is_const(expr_result.type_id)) error(errConstExpected);
+        active = expr_result.value != 0;
+    }
+
+    uint8_t branch_taken = active;
+    ++hash_if_depth;
+    parse_conditional(active, brklbl, contlbl);
+
+    // handle zero or more #elif branches
+    while (tok == tokHashElif) {
+        get_token(); // skip '#elif'
+        expr_result = parse_expr_delayconst(0, 0);
+        if (!type_is_const(expr_result.type_id)) error(errConstExpected);
+        active = !branch_taken && (expr_result.value != 0);
+        if (active) branch_taken = 1;
+        parse_conditional(active, brklbl, contlbl);
+    }
+
+    if (tok == tokHashElse) {
+        get_token(); // skip '#else'
+        parse_conditional(!branch_taken, brklbl, contlbl);
+    }
+
+    if (tok != tokHashEndif) error(errExpected_s, "#endif");
+    --hash_if_depth;
+    get_token(); // skip '#endif'
 }
 

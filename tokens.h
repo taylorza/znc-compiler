@@ -15,7 +15,7 @@ typedef enum TOKEN {
     tokVaStart, tokVaArg, tokVaEnd,
     tokAbs, tokPutc, tokPuts,
     tokAsm, tokInclude,
-    tokIdent, 
+    tokIdent, tokExtern, tokZncCall,
     tokMake, tokDot, tokNex, tokRaw, tokSetStack, tokOrg, tokBank,
     
     tokNumber,      // number

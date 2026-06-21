@@ -81,9 +81,11 @@ void far_parse_exit(void) MYCC;
 void far_parse_vastart(void) MYCC;
 void far_parse_vaend(void) MYCC;
 void far_parse_org(void) MYCC;
+void far_parse_bank(void) MYCC;
 void far_parse_enum(void) MYCC;
 void far_parse_struct_def(void) MYCC;
 void far_parse_enum_member(EXPR_RESULT *result, const char* enum_name) MYCC;
+void far_parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC;
 
 /* Called from the far_parse_include stub (BANK_47) — opens and parses an
  * included source file.  Must live in the main bank so it can call the
@@ -134,7 +136,7 @@ void parse(const char* sourcefile, char* outfilename, uint8_t entrypoint) MYCC {
 
     if (entrypoint && !bankseen) {
         emit_instrln("xor a"); // clear A register and carry flag
-        emit_frame_epilogue(1, exit_lbl);
+        emit_frame_epilogue(1, exit_lbl, 0, 0);
         emit_lblequ16(top_local_lbl, localbytes);
     }
     src_close();
@@ -240,7 +242,7 @@ void skip_statement(void) MYCC {
     }
 }
 
-static void parse_statement_block(uint16_t brklbl, uint16_t contlbl) MYCC {
+void parse_statement_block(uint16_t brklbl, uint16_t contlbl) MYCC {
     get_token(); // skip '{'
     uint16_t blockframe = push_frame();
     uint8_t old_localcount = localcount;
@@ -746,28 +748,6 @@ void parse_type(uint8_t *type_id_out) MYCC {
     *type_id_out = base_type_id;
 }
 
-static void clean_stack(int16_t bytes) MYCC {
-    if (!bytes) return;
-    
-    if (bytes < 8) {
-        while ((bytes-2) >= 0) {
-            emit_instrln("pop af");
-            bytes -= 2;
-        }
-        while (bytes) {
-            emit_instrln("dec sp");
-            bytes--;
-        }
-        return;
-    } else  {
-        emit_swap();
-        emit_ld_immed_n(bytes);        
-        emit_instrln("add hl,sp");
-        emit_instrln("ld sp,hl");        
-        emit_swap();
-    }
-}
-
 void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
     get_token(); // skip '('
     uint8_t argcount = 0;
@@ -950,12 +930,17 @@ void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
     }
 
     emit_callsym(sym, ptr_loc);
+    if (sym->flags & SYM_FLAG_ZNCCALL1) {
+        /* Callee cleans arguments, so we don't emit cleanup code here. */
+        return;
+    }
+
     /* Cleanup stack: for variadic functions, also account for pushed count */
     int cleanup_count = (expected_count != 0xFF) ? expected_count : argcount;
     if (is_variadic) {
         cleanup_count = argcount + 1;  /* +1 for the count itself */
     }
-    clean_stack(cleanup_count * 2);
+    emit_clean_stack(cleanup_count * 2);
 }
 
 void do_exit(EXPR_RESULT exit_expr) {
@@ -1035,6 +1020,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
     uint16_t funcframe = push_frame();
     func_argcount = 0;
     uint8_t is_variadic = 0;
+    uint8_t stdcall_convention = 0; // 0 = default, 1 = stdcall with callee cleanup
     
     /* Parse arguments and collect their types */
     while (tok != tokRParen && tok != tokEllipsis) {
@@ -1071,6 +1057,27 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
     }
     
     expect_RParen();
+
+    /* Check for calling convention specifier */
+    if (tok == tokZncCall) {
+        get_token(); // skip '__znccall'
+        expect_LParen();
+        expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
+        if (!type_is_const(expr_result.type_id)) error(errConstExpected);
+        expect_RParen();
+        stdcall_convention = (uint8_t)expr_result.value;
+        switch (stdcall_convention) {
+            case 0: break; // default stdcall, caller cleans arguments
+            case 1: 
+                if (is_variadic) {
+                    error(errVariadicNoCalleeCleanup);
+                }                
+                symfunc.flags |= SYM_FLAG_ZNCCALL1; break; // callee cleans arguments
+            default:
+                error(errInvalid_s, "stdcall argument");
+                break;
+        }
+    }
    
     /* Check signature compatibility if already declared */
     if (defined || symfunc.klass == FUNCTION_PROTO) {
@@ -1128,7 +1135,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
             parse_asm();
         }
         else {
-            if (tok != tokLBrace) error(errExpected_c, "}");
+            if (tok != tokLBrace) error(errExpected_c, '{');
 
             uint16_t oldlocalbytes = localbytes;
             maxlocalcount = 0;
@@ -1139,7 +1146,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
 
             parse_statement_block(NO_LABEL, NO_LABEL);
 
-            emit_frame_epilogue(0, retlbl);
+            emit_frame_epilogue(0, retlbl, stdcall_convention, func_argcount);
             
             emit_lblequ16(locals_lbl, localbytes);
             localbytes = oldlocalbytes;
@@ -1168,124 +1175,15 @@ void parse_org(void) MYCC {
 }
 
 void parse_bank(void) MYCC {
-    if (inbank) error(errTopLevelOnly);
-
-    inbank = 1;
-    get_token(); // skip bank
-    uint8_t bankid;
-    uint16_t offset = 0;
-    expect_LParen();
-    
-    expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
-    if (!type_is_const(expr_result.type_id)) error(errConstExpected);
-    if (expr_result.value > 255) error(errInvalid_s, "bank");
-    bankid = (uint8_t)expr_result.value;
- 
-    if (tok == tokComma) {
-        get_token(); // skip ','
-        
-        expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
-        if (!type_is_const(expr_result.type_id)) error(errConstExpected);
-        offset = expr_result.value;
-    }
-    expect_RParen();
-    
-    uint16_t bank_gbl_start = get_lastgbl();
-    size_t bank_str_start = get_laststr();
-    if (!bankseen) {
-        bankseen = 1;
-
-        emit_instrln("xor a"); // clear A register and carry flag
-        emit_frame_epilogue(1, exit_lbl);
-        emit_lblequ16(top_local_lbl, localbytes);
-
-        /* Emit global non-banked strings and variables */
-        dump_globals_range(0, bank_gbl_start);
-        dump_strings_range("str", 0, bank_str_start);
-        emit_instrln("include \"%s.rtl\"", outfilename);
-        if (tokMakeType == tokDot) {
-            emit_instrln("ds $4000-$");
-        }
-    }
-
-    emit_bank(bankid, offset);
-    char bank_str_lbl[16];
-    snprintf(bank_str_lbl, sizeof(bank_str_lbl), "str_b%d", bankid);
-    set_strref_ctx(bank_str_lbl, (uint16_t)bank_str_start);
-    set_str_search_base(bank_str_start);
-    
-    parse_statement_block(NO_LABEL, NO_LABEL);
-    
-    uint16_t bank_gbl_end = get_lastgbl();
-    size_t bank_str_end = get_laststr();
-    dump_globals_range(bank_gbl_start, bank_gbl_end);
-    dump_strings_range(bank_str_lbl, bank_str_start, bank_str_end);
-    reset_lastgbl(bank_gbl_start);
-    reset_laststr(bank_str_start);
-    set_str_search_base(0);
-    set_strref_ctx("str", 0);
-    inbank = 0;
-    emit_instrln("ds $2000 - ($ - %u)", current_org);
-}
-
-void parse_conditional(uint8_t active, uint16_t brklbl, uint16_t contlbl) MYCC {
-    uint8_t current_if_depth = hash_if_depth;
-    if (active) {
-        while (tok != tokHashElif && tok != tokHashElse && tok != tokHashEndif && tok != tokEOS) {
-            parse_statement(brklbl, contlbl);
-        }
-    } else {
-        while ((current_if_depth != hash_if_depth || (tok != tokHashElif && tok != tokHashElse && tok != tokHashEndif)) && tok != tokEOS) {
-            if (tok == tokHashIf || tok == tokHashIfDef || tok == tokHashIfNDef) {
-                ++hash_if_depth;
-            } else if (tok == tokHashEndif) {
-                if (--hash_if_depth == 0) error(errUnexpectedEndif);
-            }
-            get_token();
-        }
-    }
+    PROLOG(47)
+    far_parse_bank();
+    EPILOG
 }
 
 void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC {
-    TOKEN op = tok;
-
-    get_token(); // skip '#if' or '#ifdef' or '#ifndef'
-
-    uint8_t active;
-    
-    if (op == tokHashIfDef || op == tokHashIfNDef) {
-        SYMBOL sym = lookupIdent(token);
-        active = is_defined(&sym);
-        if (op == tokHashIfNDef) active = !active;
-        get_token(); // skip identifier
-    } else {
-        expr_result = parse_expr_delayconst(0, 0);
-        if (!type_is_const(expr_result.type_id)) error(errConstExpected);
-        active = expr_result.value != 0;
-    }
-
-    uint8_t branch_taken = active;
-    ++hash_if_depth;
-    parse_conditional(active, brklbl, contlbl);
-
-    // handle zero or more #elif branches
-    while (tok == tokHashElif) {
-        get_token(); // skip '#elif'
-        expr_result = parse_expr_delayconst(0, 0);
-        if (!type_is_const(expr_result.type_id)) error(errConstExpected);
-        active = !branch_taken && (expr_result.value != 0);
-        if (active) branch_taken = 1;
-        parse_conditional(active, brklbl, contlbl);
-    }
-
-    if (tok == tokHashElse) {
-        get_token(); // skip '#else'
-        parse_conditional(!branch_taken, brklbl, contlbl);
-    }
-
-    if (tok != tokHashEndif) error(errExpected_s, "#endif");
-    --hash_if_depth;
-    get_token(); // skip '#endif'
+    PROLOG(47)
+    far_parse_hashif(brklbl, contlbl);
+    EPILOG
 }
 
 SYMBOL declglb(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t value) {
