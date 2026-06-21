@@ -11,8 +11,6 @@ uint8_t func_rettype = 0;   // return type of current function (0 = void)
 uint8_t bankseen = 0;       // set to 1 the first time a bank directive is encountered
 uint8_t inbank = 0;         // 1 if in explicit bank
 
-uint8_t func_argcount;      // number of arguments for function being parsed
-uint8_t func_is_variadic = 0; // 1 if current function is variadic
 uint16_t locals_lbl;        // label of the EQU with the arg count
 uint8_t localcount;         // number of live local variables
 uint8_t maxlocalcount;      // highwater mark for local variables
@@ -30,6 +28,12 @@ uint16_t current_org;       // current org address for output
 uint8_t hash_if_depth = 0; // depth of #if/#ifdef statements
 
 EXPR_RESULT expr_result;   // global for non-recursive expression result
+
+uint8_t func_arg_count;                 // number of arguments for function being parsed
+uint8_t func_arg_types[MAX_FUNC_ARGS];  // Collect argument types (function/delegate declarations)
+uint8_t func_is_variadic;               // 1 if current function is variadic
+
+char decl_name[MAX_IDENT_LEN + 1];       // Current declaration name
 
 SYMBOL declglb(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t value);
 SYMBOL declloc(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t offset);
@@ -386,15 +390,13 @@ void parse_decl(void) MYCC {
     }
 
     if (tok != tokIdent) error(errExpected_s, "identifier");
-
-    char name[MAX_IDENT_LEN + 1];
-    snprintf(name, sizeof(name), "%s", token);
+    snprintf(decl_name, sizeof(decl_name), "%s", token);
 
     get_token(); // skip name
 
     if (tok == tokLParen) {
         if (infunc || constdecl) error(errTopLevelOnly);
-        parse_funcdecl(type_id, name);
+        parse_funcdecl(type_id, decl_name);
     }
     else {
         SYMBOL sym;
@@ -402,7 +404,7 @@ void parse_decl(void) MYCC {
         if (type_is_void(type_id) && !type_is_pointer(type_id)) error(errTypeError);
 
         for (;;) {
-            sym = decl_in_scope(type_id, VARIABLE, name);
+            sym = decl_in_scope(type_id, VARIABLE, decl_name);
                
             if (tok == tokAssign) {
                 parse_assign(0, &sym, 0, type_id);
@@ -411,7 +413,7 @@ void parse_decl(void) MYCC {
 
             if (tok != tokComma) break;
             get_token(); // skip ','
-            snprintf(name, sizeof(name), "%s", token);
+            snprintf(decl_name, sizeof(decl_name), "%s", token);
             get_token(); // skip name
         }
         expect_semi();
@@ -748,7 +750,7 @@ void parse_type(uint8_t *type_id_out) MYCC {
     *type_id_out = base_type_id;
 }
 
-void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
+void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc, uint8_t callee_type_id) MYCC {
     get_token(); // skip '('
     uint8_t argcount = 0;
     uint8_t expected_count = 0xFF;
@@ -759,9 +761,9 @@ void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
     if (is_func_or_proto(sym)) {
         expected_count = (uint8_t)sym->fn.arg_count;
         if (sym->fn.signature_id != 0xFF) sig_id = sym->fn.signature_id;
-    } else if (sym->klass == VARIABLE) {
+    } else if (sym->klass == VARIABLE || sym->klass == ARGUMENT || ptr_loc) {
         /* If variable holds a function pointer (delegate), extract signature from its type */
-        uint8_t t = sym->type_id;
+        uint8_t t = ptr_loc ? callee_type_id : sym->type_id;
         if (type_is_function(type_get_element_type_id(t)) && type_get_indirection(t) == 1) {
             uint8_t ftype = type_get_element_type_id(t);
             sig_id = type_get_function_sig(ftype);
@@ -1000,6 +1002,58 @@ void parse_vaend(void) MYCC {
     EPILOG
 }
 
+/* Helper: parse a parameter signature list.
+* Tracks argument types in func_arg_types[] and count in func_arg_count
+* Sets func_is_variadic if an ellipsis is present.
+* Declares argument locals if declare_locals is set.
+* Called from parse_funcdecl() and parse_delegate_decl()
+*/
+static void parse_signature(uint8_t declare_locals) MYCC {
+    uint8_t arg_type;
+
+    func_arg_count = 0;
+    func_is_variadic = 0;
+   
+    expect_LParen();
+    while (tok != tokRParen && tok != tokEllipsis) {
+        parse_type(&arg_type);
+        
+        /* For local argument storage, arrays decay to pointers; preserve
+         * array types in the signature itself. */
+        uint8_t decl_type = arg_type;
+        if (type_is_array(arg_type)) {
+            uint8_t elem = type_get_element_type(arg_type);
+            decl_type = type_make_pointer(elem, 1);
+        }
+
+        if (type_is_struct(decl_type) && !type_is_pointer(decl_type)) {
+            error(errTypeError);
+        }
+
+        if (func_arg_count < MAX_FUNC_ARGS) {
+            func_arg_types[func_arg_count] = arg_type;
+        } else {
+            if (!declare_locals) error(errTooManyTypes);
+        }
+
+        if (declare_locals) {
+            /* Declare argument local using the (possibly-decayed) decl_type.
+             * `token` contains the argument name at this point. */
+            declloc(decl_type, ARGUMENT, token, func_arg_count);
+            get_token(); /* skip arg name */
+        } else {
+            if (tok == tokIdent) get_token(); /* optional arg name */
+        }
+        ++func_arg_count;
+
+        if (tok == tokComma) get_token(); /* skip ',' */
+        
+    }
+
+    if (tok == tokEllipsis) { func_is_variadic = 1; get_token(); }
+    expect_RParen();
+}
+
 uint8_t parse_znccall(uint8_t is_variadic) MYCC {
     uint8_t calling_convention = 0; // default
     if (tok == tokZncCall) {
@@ -1012,10 +1066,10 @@ uint8_t parse_znccall(uint8_t is_variadic) MYCC {
         switch (calling_convention) {
             case 0: break; // default stdcall, caller cleans arguments
             case 1:
-                if (is_variadic) error(errVariadicNoCalleeCleanup);
+                if (is_variadic) error(errInvalidCallingConvention);
                 break;
             default:
-                error(errInvalid_s, "__znccall argument");
+                error(errInvalidCallingConvention);
                 break;
         }
     }    
@@ -1027,11 +1081,6 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
     if (type_is_struct(rettype_id) && !type_is_pointer(rettype_id)) {
         error(errTypeError);
     }
-
-    get_token(); // skip '('
-
-    uint8_t argtype_id;
-    static uint8_t arg_types[MAX_FUNC_ARGS];  // Collect argument types
 
     SYMBOL symfunc = lookupIdent(name);
     uint8_t defined = 0;
@@ -1046,61 +1095,26 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
     uint16_t oldretlbl = retlbl;
     retlbl = newlbl(); 
     uint16_t funcframe = push_frame();
-    func_argcount = 0;
-    uint8_t is_variadic = 0;
     
-    /* Parse arguments and collect their types */
-    while (tok != tokRParen && tok != tokEllipsis) {
-        parse_type(&argtype_id);
-        /* Preserve parsed type for the function signature; convert arrays to pointers
-         * only for the local argument variable storage.
-         */
-        uint8_t sig_arg_type = argtype_id;
-        if (type_is_array(argtype_id)) {
-            /* Convert array to pointer for the declared/local argument */
-            uint8_t elem_type = type_get_element_type(argtype_id);
-            argtype_id = type_make_pointer(elem_type, 1);
-        }
-
-        /* ERROR: Struct parameters must be declared as pointers explicitly */
-        if (type_is_struct(argtype_id) && !type_is_pointer(argtype_id)) {
-            error(errTypeError);
-        }
-
-        /* Store argument type for signature (preserve arrays as arrays) */
-        if (func_argcount < MAX_FUNC_ARGS) {
-            arg_types[func_argcount] = sig_arg_type;
-        }
-        
-        declloc(argtype_id, ARGUMENT, token, func_argcount++);
-        get_token(); // skip arg name
-        if (tok == tokComma) get_token(); // skip ','
-    }
+    /* Use helper to parse and declare locals */
+    parse_signature(1);
     
-    /* Check for variadic function (...)  */
-    if (tok == tokEllipsis) {
-        is_variadic = 1;
-        get_token(); // skip '...'
-    }
-    
-    expect_RParen();
-
     /* Check for calling convention specifier */
-    calling_convention = parse_znccall(is_variadic);
+    calling_convention = parse_znccall(func_is_variadic);
    
     /* Check signature compatibility if already declared */
     if (defined || symfunc.klass == FUNCTION_PROTO) {
-        if (func_argcount != symfunc.fn.arg_count) {
+        if (func_arg_count != symfunc.fn.arg_count) {
             error(errDeclMismatch);
         } else if (symfunc.fn.signature_id != 0xFF) {
             /* Verify argument types and variadic flag match */
             uint8_t match = 1;
             if (signature_get_calling_convention(symfunc.fn.signature_id) != calling_convention) {
                 match = 0;            
-            } else if (signature_get_arg_count(symfunc.fn.signature_id) == func_argcount &&
-                signature_is_variadic(symfunc.fn.signature_id) == is_variadic) {
-                for (uint8_t i = 0; i < func_argcount; i++) {
-                    if (signature_get_arg_type(symfunc.fn.signature_id, i) != arg_types[i]) {
+            } else if (signature_get_arg_count(symfunc.fn.signature_id) == func_arg_count &&
+                signature_is_variadic(symfunc.fn.signature_id) == func_is_variadic) {
+                for (uint8_t i = 0; i < func_arg_count; i++) {
+                    if (signature_get_arg_type(symfunc.fn.signature_id, i) != func_arg_types[i]) {
                         match = 0;
                         break;
                     }
@@ -1116,17 +1130,13 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
 
     /* Store function signature if not already stored */
     if (symfunc.fn.signature_id == SIGNATURE_INVALID) {
-        if (is_variadic) {
-            symfunc.fn.signature_id = signature_create_variadic(rettype_id, func_argcount, arg_types);
-        } else {
-            symfunc.fn.signature_id = signature_create(calling_convention, rettype_id, func_argcount, arg_types);
-        }
+        symfunc.fn.signature_id = signature_create(calling_convention, rettype_id, func_arg_count, func_arg_types, func_is_variadic);
         if (symfunc.fn.signature_id == SIGNATURE_INVALID) {
             error(errTooManyTypes);
         }
     }
 
-    symfunc.fn.arg_count = func_argcount;
+    symfunc.fn.arg_count = func_arg_count;
     if (tok == tokSemi) {        
         if (!defined) symfunc.klass = FUNCTION_PROTO;
     } else {
@@ -1136,7 +1146,6 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
         updatesym(&symfunc); // update before parsing body so recursive calls see correct arg_count
         infunc = 1;
         func_rettype = rettype_id;
-        func_is_variadic = is_variadic;
         uint16_t skiplbl = newlbl();
         emit_jp(skiplbl);
 
@@ -1157,7 +1166,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
 
             parse_statement_block(NO_LABEL, NO_LABEL);
 
-            emit_frame_epilogue(0, retlbl, calling_convention, func_argcount);
+            emit_frame_epilogue(0, retlbl, calling_convention, func_arg_count);
             
             emit_lblequ16(locals_lbl, localbytes);
             localbytes = oldlocalbytes;
@@ -1167,6 +1176,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
         infunc = 0;
         func_rettype = TYPE_ID_VOID;
         func_is_variadic = 0;
+        func_arg_count = 0;
         retlbl = oldretlbl;
     }
     pop_frame(funcframe);
@@ -1273,34 +1283,18 @@ void parse_delegate_decl(void) MYCC {
         error(errExpected_s, "identifier");
         return;
     }
-    static char name[MAX_IDENT_LEN+1];
-    strncpy(name, token, MAX_IDENT_LEN);
-    get_token(); /* skip typename */
+    
+    strncpy(decl_name, token, MAX_IDENT_LEN);
+    get_token(); /* skip delegate ename */
 
-    expect_LParen();
-    static uint8_t arg_types[MAX_FUNC_ARGS];
-    uint8_t argcount = 0;
-    if (tok != tokRParen) {
-        for (;;) {
-            uint8_t atype;
-            parse_type(&atype);
-            if (argcount < MAX_FUNC_ARGS) arg_types[argcount++] = atype;
-            else error(errTooManyTypes);
-
-            if (tok == tokIdent) {
-                /* Optional argument name - skip it */
-                get_token();
-            }
-            if (tok != tokComma) break;
-            get_token(); /* skip ',' */
-        }
-    }
-    expect_RParen();
-    calling_convention = parse_znccall(0);
+    /* Parse signature without declaring locals */
+    parse_signature(0);
+    
+    calling_convention = parse_znccall(func_is_variadic);
     expect_semi();
 
     /* Create signature and function-pointer type */
-    uint8_t sig = signature_create(calling_convention, return_type, argcount, arg_types);
+    uint8_t sig = signature_create(calling_convention, return_type, func_arg_count, func_arg_types, func_is_variadic);
     if (sig == SIGNATURE_INVALID) {
         error(errTooManyTypes);
         return;
@@ -1309,9 +1303,9 @@ void parse_delegate_decl(void) MYCC {
     uint8_t deleg_type = type_make_pointer(ftype, 1); /* indirection=1 */
 
     /* Register the type name */
-    if (type_find_by_name(name) != -1) {
-        error(errAlreadyDefined_s, name);
+    if (type_find_by_name(decl_name) != -1) {
+        error(errAlreadyDefined_s, decl_name);
         return;
     }
-    type_register_name(name, deleg_type);
+    type_register_name(decl_name, deleg_type);
 }

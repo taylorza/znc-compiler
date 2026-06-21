@@ -852,7 +852,7 @@ static void postfix_call(EXPR_RESULT* result, uint8_t* dereference, uint8_t* add
     }
 
     PTR_LOCATION ptr_loc = had_sym ? PTR_IN_SYMBOL : PTR_IN_HL;
-    parse_funccall(&call_sym, ptr_loc);
+    parse_funccall(&call_sym, ptr_loc, callee_type_id);
 
     result->type_id = TYPE_ID_VOID;
     if (had_sym && is_func_or_proto(&call_sym) && call_sym.fn.signature_id != 0xFF) {

@@ -359,23 +359,10 @@ FuncSignature signature_read_from_bank(uint8_t sig_id) MYCC {
     EPILOG_RETURN(sig);
 }
 
-/* Wrapper to call signature_intern from other banks */
-uint8_t far_signature_intern(uint8_t calling_convention, uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types, uint8_t is_variadic) MYCC {
+/* Function signature API */
+uint8_t signature_create(uint8_t calling_convention, uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types, uint8_t is_variadic) MYCC {
     PROLOG(46)
     uint8_t result = signature_intern(calling_convention, return_type_id, arg_count, arg_types, is_variadic);
-    EPILOG_RETURN(result);
-}
-
-/* Function signature API */
-uint8_t signature_create(uint8_t calling_convention, uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC {
-    PROLOG(46)
-    uint8_t result = signature_intern(calling_convention, return_type_id, arg_count, arg_types, 0);
-    EPILOG_RETURN(result);    
-}
-
-uint8_t signature_create_variadic(uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC {
-    PROLOG(46)
-    uint8_t result = signature_intern(0, return_type_id, arg_count, arg_types, 1);
     EPILOG_RETURN(result);    
 }
 

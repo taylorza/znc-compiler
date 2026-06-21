@@ -84,8 +84,7 @@ typedef struct FuncSignature {
     uint8_t arg_types[MAX_FUNC_ARGS];
 } FuncSignature;
 
-uint8_t signature_create(uint8_t calling_convention, uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC;
-uint8_t signature_create_variadic(uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types) MYCC;
+uint8_t signature_create(uint8_t calling_convention, uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types, uint8_t is_variadic) MYCC;
 uint8_t signature_get_return_type(uint8_t sig_id) MYCC;
 uint8_t signature_get_arg_count(uint8_t sig_id) MYCC;
 uint8_t signature_get_arg_type(uint8_t sig_id, uint8_t arg_index) MYCC;

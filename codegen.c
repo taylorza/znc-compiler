@@ -432,7 +432,7 @@ static int16_t compute_symbol_base_offset(SYMBOL *sym) MYCC {
         uint16_t var_size = type_size(sym->type_id);
         return -(int16_t)(bp_offset + var_size);
     } else { /* ARGUMENT */
-        return 2 + (func_argcount - sym->stk.offset) * 2;
+        return 2 + (func_arg_count - sym->stk.offset) * 2;
     }
 }
 
@@ -454,7 +454,7 @@ static void emit_compute_ix_address(int16_t offset) MYCC {
 
 /* Helper: Emit code to load a variadic function argument value */
 static void emit_load_variadic_arg(SYMBOL *sym) MYCC {
-    uint8_t offset_factor = func_argcount - sym->stk.offset;
+    uint8_t offset_factor = func_arg_count - sym->stk.offset;
     uint16_t constant_offset = 4 + 2 * offset_factor;
     emit_ldde_immed_n(constant_offset);
     emit_rtl("ccvafixed");
@@ -462,7 +462,7 @@ static void emit_load_variadic_arg(SYMBOL *sym) MYCC {
 
 /* Helper: Emit code to load address of a variadic function argument */
 static void emit_load_variadic_arg_addr(SYMBOL *sym) MYCC {
-    uint8_t offset_factor = func_argcount - sym->stk.offset;
+    uint8_t offset_factor = func_arg_count - sym->stk.offset;
     uint16_t constant_offset = 4 + 2 * offset_factor;
     emit_ldde_immed_n(constant_offset);
     emit_rtl("ccvafixedaddr");
