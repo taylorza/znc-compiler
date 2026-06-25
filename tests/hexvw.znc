@@ -1,51 +1,181 @@
 make dot "hexvw.dot";
 
 include "fileio.znc"
-include "io.znc"
+include "memory.znc"
 include "kbd.znc"
+include "font.inc"
 
-const byte ROWS=20;
-const byte COLS=8;
+const byte ROWS=28;
+const byte COLS=16;
 const byte READSIZE=ROWS*COLS;
+
+const int TILE_MAP = 0x4000;
+const int TILE_DEF = 0x5400;
+const byte OFFSET_MAP = 0;
+const byte OFFSET_DEF = (TILE_DEF - TILE_MAP) >> 8;
+
+const int SCREEN_WIDTH = 80;
+const int SCREEN_HEIGHT = 32;
+
+struct u32 {
+  byte b0;
+  byte b1;
+  byte b2;
+  byte b3;
+}
+
+void u32_add(u32 *a, int b) {
+  u32 r;
+  
+  int sum;
+  int carry = 0;
+  
+  int b_b0 = b & 0xff;
+  int b_b1 = (b >> 8) & 0xff;
+  int b_ext = (b < 0) ? 0xff : 0;
+
+  sum = a.b0 + b_b0;
+  r.b0 = sum & 0xff;
+  carry = (sum & 0x100) ? 1 : 0;
+
+  sum = a.b1 + b_b1 + carry;
+  r.b1 = sum & 0xff;
+  carry = (sum & 0x100) ? 1 : 0;
+
+  sum = a.b2 + b_ext + carry;
+  r.b2 = sum & 0xff; 
+  carry = (sum & 0x100) ? 1 : 0;
+
+  sum = a.b3 + b_ext + carry;
+  r.b3 = sum & 0xff;
+
+  *a = r;
+}
+
+byte* attr = 0x5c48;
+
+byte old_reg_43 = readreg(0x43);
+byte old_reg_6b = readreg(0x6b);
+byte old_border = ((*attr) & 0b00111000) >> 3;
+
+void init() {
+  // Tilemap Palette
+  nextreg(0x43, 0b00110000);
+  nextreg(0x40, 0);
+  nextreg(0x41, 0b00000010); // 0-Blue
+  nextreg(0x41, 0b11111100); // 1-Yellow
+
+  nextreg(0x6b, 0b11001001); // 80x32 text mode with attributes
+  nextreg(0x6e, OFFSET_MAP);
+  nextreg(0x6f, OFFSET_DEF);
+
+  memcpy(TILE_DEF, font, 888);
+  out(0xfe,1);
+}
+
+byte cx = 0;
+byte cy = 0;
+
+void gotoxy(byte x, byte y){
+  cx = x;
+  cy = y;
+};
+
+void putch(char ch) {
+  char *p = TILE_MAP + (((cy * SCREEN_WIDTH) + cx) << 1);
+  *p++ = ch - 32;
+  *p = 0;
+  ++cx;
+  if (cx == SCREEN_WIDTH) {
+    cx = 0;
+    ++cy;
+  }
+}
+
+void putstr(char *s) {
+  char *p = TILE_MAP + (((cy * SCREEN_WIDTH) + cx) << 1);
+  while (*s) {
+    *p++ = *s++ - 32;
+    *p++ = 0;
+    ++cx;
+    if (cx == SCREEN_WIDTH) {
+      cx = 0;
+      ++cy;
+    }
+  }
+}
 
 char[] hex="0123456789ABCDEF";
 void puthex(byte b) {
-  putc(hex[b >> 4]);
-  putc(hex[b & 0x0f]);
-  putc(' ');
+  putch(hex[(b >> 4) & 0x0f]);
+  putch(hex[b & 0x0f]);
 }
+
+void print_u32(u32 *v) {
+  puthex(v.b3); puthex(v.b2);
+  putch(':');
+  puthex(v.b1); puthex(v.b0);
+}
+
+void clreol() {
+  char *p = TILE_MAP + (((cy * SCREEN_WIDTH) + cx) << 1);
+  while(cx++ < SCREEN_WIDTH) {
+    *p++ = 0;
+    *p++ = 0;
+  }
+}
+
+char inkey() __asm__ {
+  ld hl,0
+  bit 5,(iy+1)
+  ret z
+  res 5,(iy+1)
+  ld a,($5c08)
+  ld l,a
+  ret 
+}
+
+u32 addr = {0,0,0,0};
 
 void dump(byte* data, int bytes) {
   char[COLS+1] ascii;
   
   byte* p = data;
-  byte row=0; 
+  byte row=0;
+
   while(bytes) {
-    gotoxy(0, row+1);
+    gotoxy(4, row+2);
     byte i = 0;
+    print_u32(&addr); putstr("  ");
     while(bytes && i < COLS) {
       byte b=*p++;
-      puthex(b);
+      puthex(b); putch(' ');
       if (b < 32 || b > 126) ascii[i]='.';
       else ascii[i]=b;
       
       ++i; --bytes;
     }
     while(i < COLS) {
-      puts("   ");
+      putstr("   ");
       ascii[i] = ' ';
       ++i;
     }
     ascii[COLS]=0;
-    puts(ascii);
+    putstr(ascii);
+    u32_add(&addr, COLS);
     ++row; 
   }
-  while(row++ < ROWS) {
-    for(byte col=0;col < 32; ++col) putc(' ');
+  ++row;
+  while(row <= ROWS) {
+    gotoxy(0, row++);
+    clreol();
   }    
 }
 
+
 if (*args == 0) return "Expected filename";
+
+init();
 
 errno=0;
 byte f=fopen(args,M_READ);
@@ -55,23 +185,37 @@ byte[READSIZE] buf;
 int read;
 char k;
 
-gotoxy(0,0);
-paper(1); ink(6);
-puts("           Hex Viewer           ");
+gotoxy(35,0);
+putstr("Hex Viewer");
 
-gotoxy(0, 21);
-puts("Navigate with arrows, SPC - quit");
-paper(7); ink(0);
+gotoxy(23, 31);
+putstr("Navigate with arrows, SPACE - quit");
 
+byte update = 1;
 for(;;) {
-  read = fread(f, &buf[0], READSIZE);
-  if (read) dump(buf, read);
+  if (update) {
+    read = fread(f, &buf[0], READSIZE);
+    if (read) dump(buf, read);
+    update = 0;
+  }
   
   while((k=inkey()) == 0) {
   }
+  if (k == ' ') break;
 
-  if (k == 8 || k == 53 || k == 11 || k == 55) 
-    fseek(f, READSIZE<<1, M_SEEK_BWD);
-  else if (k==' ') break;
+  if (k == 8 || k == 53 || k == 11 || k == 55) {
+    if (addr.b1 > ((READSIZE >> 8) & 0xff) || (addr.b1 == ((READSIZE >> 8) & 0xff) && addr.b0 > (READSIZE & 0xff))) {  
+      u32_add(&addr, -(READSIZE<<1)); 
+      fseek(f, READSIZE<<1, M_SEEK_BWD);
+      update = 1;
+    }
+  } else  {
+    if (read) update = 1;
+  }
 }
 fclose(f);
+
+memset(0x4000, 0, 6144);
+nextreg(0x6b, old_reg_6b);
+nextreg(0x43, old_reg_43);
+out(0xfe, old_border);

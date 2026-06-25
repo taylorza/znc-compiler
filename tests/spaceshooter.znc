@@ -12,7 +12,9 @@ include "fileio.znc"
 // GAME CONSTANTS
 // ------------------------------------------------------------
 const byte MAX_BULLETS = 10;
-const byte MAX_ALIENS = 5;
+const byte MAX_ALIENS = 8;
+const byte BASE_WAVE = 3;
+const byte BASE_TARGET = 10;
 
 const byte PAT_ALIEN = 0;
 const byte PAT_EXPLODE = 1;
@@ -70,6 +72,8 @@ byte pexpl_timer;
 
 int score;
 byte lives;
+byte wavesize;
+int wavetarget;
 STATE game_state;
 
 // ------------------------------------------------------------
@@ -84,10 +88,22 @@ void spawnAlien(byte n) {
   newAlien.alive = 1;
   newAlien.x = rnd() % 304;
   newAlien.y = -16 - (rnd()%16);
-  newAlien.dy = 1 + (rnd()%2);
-  if (score > 100) newAlien.dx = 1 - rnd() % 3;
+  newAlien.dy = 1 + (rnd()%2); 
+  if (score > 100) 
+    newAlien.dx = 1 - rnd() % 3;
+  else
+    newAlien.dx = 0;
   newAlien.expl_frame = 0;
   newAlien.expl_timer = 0;
+}
+
+void nextWave() {
+  if (wavesize + 1 > MAX_ALIENS) {
+    wavetarget = -1;
+    return;
+  }
+  wavetarget = BASE_TARGET + (score / 100) * 5;
+  spawnAlien(wavesize++);
 }
 
 // ------------------------------------------------------------
@@ -324,6 +340,8 @@ void play() {
   spr_enable();
   til_enable();
 
+  wavesize = BASE_WAVE;
+  wavetarget = BASE_TARGET;
   score=0;
   lives=3;
   px=START_X;
@@ -342,6 +360,11 @@ void play() {
   }
 
   for(byte i=0;i<MAX_ALIENS;++i) {
+    aliens[i].alive = 0;
+    spr_hide(SPR_ALIEN+i);
+  }
+
+  for(byte i=0;i<wavesize;++i) {
     spawnAlien(i);
   }
   // -----------------------------
@@ -356,8 +379,6 @@ void play() {
     }
     if (cooldown) --cooldown;
     updatekeys();
-
-    
 
     // -----------------------------
     // Player movement
@@ -405,7 +426,7 @@ void play() {
     // Aliens
     // -----------------------------
     pAlien = aliens;
-    for (byte i=0;i<MAX_ALIENS;i=i+1) {
+    for (byte i=0;i<wavesize;i=i+1) {
       if (pAlien.alive) {
         pAlien.y += pAlien.dy;
         pAlien.x += pAlien.dx;
@@ -434,8 +455,11 @@ void play() {
               pAlien.alive = 0;
               pbullet.active=0;
               pAlien.expl_frame = 0;
-              pAlien.expl_timer = 20;            
+              pAlien.expl_timer = 20;
               score += 10;
+              if (--wavetarget == 0) {                
+                nextWave();
+              }
               updateHud();
               ay_explode();            
             }
@@ -496,7 +520,7 @@ void play() {
     }
 
     pAlien = aliens;
-    for (byte i=0;i<MAX_ALIENS;i=i+1) {
+    for (byte i=0; i<wavesize; ++i) {
       if (pAlien.alive) {
         spr_update(SPR_ALIEN+i,PAT_ALIEN,pAlien.x,pAlien.y,0);
       } else if (pAlien.expl_timer > 0) {
@@ -515,7 +539,7 @@ void play() {
     } 
 
     pbullet = bullets;
-    for (byte i=0;i<MAX_BULLETS;++i) {
+    for (byte i=0; i<MAX_BULLETS; ++i) {
       if (pbullet.active) {
         spr_update(SPR_BULLET+i,PAT_BULLET,pbullet.x,pbullet.y,0);
       } else {
