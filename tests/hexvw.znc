@@ -141,10 +141,10 @@ void dump(byte* data, int bytes) {
   char[COLS+1] ascii;
   
   byte* p = data;
-  byte row=0;
+  byte row=2;
 
   while(bytes) {
-    gotoxy(4, row+2);
+    gotoxy(4, row++);
     byte i = 0;
     print_u32(&addr); putstr("  ");
     while(bytes && i < COLS) {
@@ -155,18 +155,17 @@ void dump(byte* data, int bytes) {
       
       ++i; --bytes;
     }
+    u32_add(&addr, i);
     while(i < COLS) {
       putstr("   ");
       ascii[i] = ' ';
       ++i;
     }
     ascii[COLS]=0;
-    putstr(ascii);
-    u32_add(&addr, COLS);
-    ++row; 
+    putstr(ascii);    
   }
-  ++row;
-  while(row <= ROWS) {
+
+  while(row <= ROWS+1) {
     gotoxy(0, row++);
     clreol();
   }    
@@ -192,10 +191,14 @@ gotoxy(23, 31);
 putstr("Navigate with arrows, SPACE - quit");
 
 byte update = 1;
+int lastread = 0;
 for(;;) {
   if (update) {
     read = fread(f, &buf[0], READSIZE);
-    if (read) dump(buf, read);
+    if (read) {
+      lastread = read;
+      dump(buf, read);
+    }
     update = 0;
   }
   
@@ -205,8 +208,8 @@ for(;;) {
 
   if (k == 8 || k == 53 || k == 11 || k == 55) {
     if (addr.b1 > ((READSIZE >> 8) & 0xff) || (addr.b1 == ((READSIZE >> 8) & 0xff) && addr.b0 > (READSIZE & 0xff))) {  
-      u32_add(&addr, -(READSIZE<<1)); 
-      fseek(f, READSIZE<<1, M_SEEK_BWD);
+      u32_add(&addr, -(READSIZE + lastread)); 
+      fseek(f, READSIZE + lastread, M_SEEK_BWD);
       update = 1;
     }
   } else  {

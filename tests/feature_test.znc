@@ -935,6 +935,31 @@ void test_mem_ptr() {
 }
 #endif
 
+#if TEST_G3
+// Parenthesized dereference coverage for symbol, const address, prefix-inc and expression forms
+void test_par_dref() {
+    byte[3] arr;
+    arr[0] = 11; arr[1] = 22; arr[2] = 33;
+
+    int addr = arr;
+    chk("pd_sym", (*addr) == 11);
+    
+    byte *p = arr;
+    ++(*p);
+    chk("pd_preinc", arr[0] == 12);
+
+    chk("pd_expr", (*(p + 1)) == 22);
+}
+
+void test_par_unop() {
+    const int C = 5;
+    int v = 3;
+    int r = -(C - v);
+    chk("par_unop_neg", r == -2);
+    chk("par_unop_cmpl", ~(C - v) == -3);
+}
+#endif
+
 #if TEST_TYPEMIX
 void test_typemix() {
     // byte is unsigned
@@ -1264,6 +1289,8 @@ test_ncall();
 test_ptrst();
 test_mutrec();
 test_mem_ptr();
+test_par_dref();
+test_par_unop();
 test_callconv();
 #endif
 
