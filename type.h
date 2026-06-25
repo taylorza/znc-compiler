@@ -12,27 +12,26 @@
 #define TYPE_GET_INDIR(entry)      ((entry).kind_and_flags & TYPE_INDIR_MASK)
 #define TYPE_IS_CONST(entry)       ((entry).kind_and_flags & TYPE_CONST_BIT)
 
-#define TYPE_SET_KIND(kaf, kind)   ((kaf) = ((kaf) & 0x0F) | (((uint8_t)(kind) & 0x0F) << TYPE_KIND_SHIFT))
-#define TYPE_SET_CONST(kaf)        ((kaf) |= TYPE_CONST_BIT)
-#define TYPE_SET_INDIR(kaf, ind)   ((kaf) = ((kaf) & ~TYPE_INDIR_MASK) | ((uint8_t)(ind) & TYPE_INDIR_MASK))
-
+#define TYPE_SET_KIND(entry, kind)   ((entry).kind_and_flags = ((entry).kind_and_flags & 0x0F) | (((uint8_t)(kind) & 0x0F) << TYPE_KIND_SHIFT))
+#define TYPE_SET_CONST(entry)        ((entry).kind_and_flags |= TYPE_CONST_BIT)
+#define TYPE_SET_INDIR(entry, ind)   ((entry).kind_and_flags = ((entry).kind_and_flags & ~TYPE_INDIR_MASK) | ((uint8_t)(ind) & TYPE_INDIR_MASK))
 
 /* TypeKind enumeration (4 bits, values 0-8) */
 typedef enum TypeKind {
-    TK_CHAR = 0,
-    TK_INT = 1,
-    TK_STRUCT = 2,
-    TK_FUNCTION = 3,
-    TK_ARRAY = 4,
-    TK_VOID = 5,
-    TK_FIXED = 6,  /* 16-bit fixed point 12.4 format */
-    TK_BYTE = 7,   /* unsigned 8-bit */
-    TK_ENUM = 8    /* named enumeration */
+    TK_VOID = 0,    /* void */
+    TK_CHAR = 1,    /* signed 8-bit */
+    TK_BYTE = 2,    /* unsigned 8-bit */
+    TK_INT = 3,     /* signed 16-bit */
+    TK_FIXED = 4,   /* 16-bit fixed point Q12.4 format */
+    TK_FUNCTION = 6,/* function pointer */
+    TK_STRUCT = 5,  /* structure */
+    TK_ARRAY = 7,   /* array */
+    TK_ENUM = 8     /* named enumeration */
 } TypeKind;
 
 /* Compact type descriptor (now 4 bytes with uint16_t aux1 for larger arrays) */
 typedef struct TypeEntry {
-    uint8_t kind_and_flags;  /* bits 7..5: TypeKind, bit 4: const, bits 3..0: indirection */
+    uint8_t kind_and_flags;  /* bits 7..4: TypeKind (4 bits), bit 3: const, bits 2..0: indirection (0..7) */
     uint8_t aux0;            /* STRUCT→struct_id, FUNCTION→signature_id, ARRAY→element_type_id */
     uint16_t aux1;           /* ARRAY→length (0=unspecified), others→unused */
 } TypeEntry;
