@@ -1060,29 +1060,45 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             if (tok == tokStar) {
                 get_token(); // skip '*'
 
+                uint8_t base_type;
+
                 /* Parse the pointer expression */
                 factor_result = parse_factor(0, 0);
+
+                /* For constant pointer expressions, immediately load the pointed-to
+                 * value so subsequent code operates on a value rather than an
+                 * address. For non-constants, preserve the address-in-HL semantics
+                 * and defer the load until needed.
+                 */
                 if (type_is_const(factor_result.type_id)) {
                     emit_ld_const(factor_result.value);
+                    base_type = expected_type_id ? expected_type_id : TYPE_ID_INT;
+                    emit_load(base_type);
+                    factor_result.type_id = base_type;
+                    factor_result.has_sym = 0;
+
+                    if (tok == tokRParen) {
+                        get_token(); // skip ')'
+                    } else {
+                        parse_op_right(&factor_result, 0, expected_type_id);
+                        expect_RParen();
+                    }
+                    break;
                 }
 
-                /* Get element type */
-                uint8_t elem_type_id = type_get_element_type_id(factor_result.type_id);
-                if (type_is_void(elem_type_id) && expected_type_id != 0) {
-                    elem_type_id = expected_type_id;
-                }                
-                factor_result.type_id = elem_type_id;
-
+                /* Non-constant pointer: preserve address-in-HL semantics. */
+                base_type = type_get_element_type_id(factor_result.type_id);
+                if (type_is_void(base_type) && expected_type_id != 0) base_type = expected_type_id;
+                factor_result.type_id = base_type;
+                
                 if (tok == tokRParen) {
                     get_token(); // skip ')'
-
                     addr_in_hl = 1;
-                    dereference = 1;                    
-                }
-                else {
+                    dereference = 1;
+                } else {
                     emit_load(factor_result.type_id);
                     parse_op_right(&factor_result, 0, expected_type_id);
-                    expect_RParen();                    
+                    expect_RParen();
                 }
                 break;
             }
@@ -1092,7 +1108,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             
             expect_RParen();
             if (flags & (PF_NEG | PF_NOT | PF_CMPL)) {
-                if (type_is_const(factor_result.sym.type_id)) {
+                if (type_is_const(factor_result.type_id)) {
                     if (flags & PF_NEG) factor_result.value = -factor_result.value;                        
                     if (flags & PF_NOT) factor_result.value = !factor_result.value;
                     if (flags & PF_CMPL) factor_result.value = ~factor_result.value;
