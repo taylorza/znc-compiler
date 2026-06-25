@@ -1,6 +1,8 @@
 #ifndef COMPILER_H_
 #define COMPILER_H_
 
+extern char* rtlfilename;  // filename for RTL include
+
 extern EXPR_RESULT expr_result;   // global for non-recursive expression result
 
 extern uint8_t func_arg_count;

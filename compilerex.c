@@ -342,7 +342,7 @@ void far_parse_bank(void) MYCC {
         /* Emit global non-banked strings and variables */
         dump_globals_range(0, bank_gbl_start);
         dump_strings_range("str", 0, bank_str_start);
-        emit_instrln("include \"%s.rtl\"", outfilename);
+        emit_instrln("include \"%s\"", rtlfilename);
         if (tokMakeType == tokDot) {
             emit_instrln("ds $4000-$");
         }

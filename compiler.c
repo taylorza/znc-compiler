@@ -2,6 +2,7 @@
 #include "struct.h"
 #include "shared.h"
 
+char* rtlfilename;          // filename for RTL include
 uint16_t retlbl = 0;        // function exit label
 
 TOKEN tokMakeType = tokRaw; // type of make command
@@ -1249,22 +1250,32 @@ void compile(const char *filename, char *outfilename) MYCC {
         char* dot = strrchr(outfilename, '.');
         if (dot) *dot = '\0';
     }
+
+    // reserve space for RTL include filename including ".rtl" extension
+    // this might be a little larger than needed, but it's safe and avoids buffer overflows
+    // if the base filename does not include an extension, we still have space for ".rtl" and null terminator
+    rtlfilename = arena_alloc(strlen(filename) + 4 + 1); 
+    const char* src = filename;
+    char* dst = rtlfilename;
+    while (*src && *src != '.') {
+        *dst++ = *src++;
+    }
+    *dst = '\0';
+    snprintf(rtlfilename, MAX_FILENAME_LEN, "%s.rtl", rtlfilename);
     
     parse(filename, outfilename, 1);
-    
+ 
     if (!bankseen) {
         dump_globals_range(0, 0);
         dump_strings_range("str", 0, 0);
-        emit_instrln("include \"%s.rtl\"", outfilename);
+        emit_instrln("include \"%s\"", rtlfilename);
     }
     check_undefined();
 
     if (tokMakeType == tokNex) emit_nex(outfilename, start_lbl, stack_lbl, stack_size);
     asm_close();
-
     
-    snprintf(outfilename, MAX_FILENAME_LEN, "%s.rtl", outfilename);
-    dump_rtl(outfilename);    
+    dump_rtl(rtlfilename);    
 }
 
 void parse_delegate_decl(void) MYCC {
