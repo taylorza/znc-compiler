@@ -1,71 +1,157 @@
 /* Banked scanner data (BANK_42) to save shared memory */
 #include "znc.h"
 
-typedef struct KEYWORD {
-    char *name;
+// Bucketed keyword table for fast lookup
+
+typedef struct {
+    const char* name;
     TOKEN tok;
 } KEYWORD;
 
-KEYWORD keywords[] = {
-    {"const", tokConst},
-    {"void", tokVoid},
-    {"char", tokChar},
-    {"byte", tokByte},
-    {"int", tokInt},
-    {"fixed", tokFixed},
-    {"va_list", tokInt},
-    {"if", tokIf},
-    {"else", tokElse},
-    {"switch", tokSwitch},
-    {"case", tokCase},
-    {"default", tokDefault},
-    {"while", tokWhile},
-    {"for", tokFor},
-    {"break", tokBreak},
-    {"continue", tokContinue},
-    {"return", tokReturn},
-    {"exit", tokExit},
+typedef struct {
+    const KEYWORD* list;
+    uint8_t count;
+} KEYWORD_BUCKET;
+
+// --- Buckets ---
+
+static const KEYWORD kw_a[] = {
     {"abs", tokAbs},
+};
+
+static const KEYWORD kw_b[] = {
+    {"bank", tokBank},
+    {"break", tokBreak},
+    {"byte", tokByte},
+};
+
+static const KEYWORD kw_c[] = {
+    {"case", tokCase},
+    {"char", tokChar},
+    {"const", tokConst},
+    {"continue", tokContinue},
+};
+
+static const KEYWORD kw_d[] = {
+    {"default", tokDefault},
+    {"delegate", tokDelegate},
+    {"dot", tokDot},
+};
+
+static const KEYWORD kw_e[] = {
+    {"else", tokElse},
+    {"enum", tokEnum},
+    {"exit", tokExit},
+    {"extern", tokExtern},
+};
+
+static const KEYWORD kw_f[] = {
+    {"fixed", tokFixed},
+    {"for", tokFor},
+};
+
+static const KEYWORD kw_i[] = {
+    {"if", tokIf},
+    {"in", tokIn},
+    {"include", tokInclude},
+    {"int", tokInt},
+};
+
+static const KEYWORD kw_m[] = {
+    {"make", tokMake},
+};
+
+static const KEYWORD kw_n[] = {
+    {"nex", tokNex},
+    {"nextreg", tokNextReg},
+};
+
+static const KEYWORD kw_o[] = {
+    {"org", tokOrg},
+    {"out", tokOut},
+};
+
+static const KEYWORD kw_p[] = {
     {"putc", tokPutc},
     {"puts", tokPuts},
-    {"in", tokIn},
-    {"out", tokOut},
-    {"nextreg", tokNextReg},
+};
+
+static const KEYWORD kw_r[] = {
+    {"raw", tokRaw},
     {"readreg", tokReadReg},
-    {"va_start", tokVaStart},
+    {"return", tokReturn},
+};
+
+static const KEYWORD kw_s[] = {
+    {"setsp", tokSetStack},
+    {"struct", tokStruct},
+    {"switch", tokSwitch},
+};
+
+static const KEYWORD kw_v[] = {
     {"va_arg", tokVaArg},
     {"va_end", tokVaEnd},
-    {"__asm__", tokAsm},
-    {"include", tokInclude},
-    {"extern", tokExtern},
-    {"__znccall", tokZncCall},
-    {"struct", tokStruct},
-    {"enum", tokEnum},
-    {"delegate", tokDelegate},
-    {"make", tokMake},
-    {"raw", tokRaw},
-    {"dot", tokDot},
-    {"nex", tokNex},
-    {"setsp", tokSetStack},
-    {"org", tokOrg},
-    {"bank", tokBank},
+    {"va_list", tokInt},
+    {"va_start", tokVaStart},
+    {"void", tokVoid},
+};
+
+static const KEYWORD kw_w[] = {
+    {"while", tokWhile},
+};
+
+static const KEYWORD kw_hash[] = {
+    {"#elif", tokHashElif},
+    {"#else", tokHashElse},
+    {"#endif", tokHashEndif},
     {"#if", tokHashIf},
     {"#ifdef", tokHashIfDef},
     {"#ifndef", tokHashIfNDef},
-    {"#elif", tokHashElif},
-    {"#else", tokHashElse},
-    {"#endif", tokHashEndif},   
 };
+
+static const KEYWORD kw_underscore[] = {
+    {"__asm__", tokAsm},
+    {"__znccall", tokZncCall},
+};
+
+// --- Master bucket table indexed by first character ---
+
+static const KEYWORD_BUCKET keyword_buckets[128] = {
+    ['#'] = { kw_hash, sizeof(kw_hash) / sizeof(KEYWORD) },
+    ['_'] = { kw_underscore, sizeof(kw_underscore) / sizeof(KEYWORD) },
+    ['a'] = { kw_a, sizeof(kw_a) / sizeof(KEYWORD) },
+    ['b'] = { kw_b, sizeof(kw_b) / sizeof(KEYWORD) },
+    ['c'] = { kw_c, sizeof(kw_c) / sizeof(KEYWORD) },
+    ['d'] = { kw_d, sizeof(kw_d) / sizeof(KEYWORD) },
+    ['e'] = { kw_e, sizeof(kw_e) / sizeof(KEYWORD) },
+    ['f'] = { kw_f, sizeof(kw_f) / sizeof(KEYWORD) },
+    ['i'] = { kw_i, sizeof(kw_i) / sizeof(KEYWORD) },
+    ['m'] = { kw_m, sizeof(kw_m) / sizeof(KEYWORD) },
+    ['n'] = { kw_n, sizeof(kw_n) / sizeof(KEYWORD) },
+    ['o'] = { kw_o, sizeof(kw_o) / sizeof(KEYWORD) },
+    ['p'] = { kw_p, sizeof(kw_p) / sizeof(KEYWORD) },
+    ['r'] = { kw_r, sizeof(kw_r) / sizeof(KEYWORD) },
+    ['s'] = { kw_s, sizeof(kw_s) / sizeof(KEYWORD) },
+    ['v'] = { kw_v, sizeof(kw_v) / sizeof(KEYWORD) },
+    ['w'] = { kw_w, sizeof(kw_w) / sizeof(KEYWORD) },
+};
+
 
 /* Banked implementation of keyword lookup. Called from shared memory via
  * a small wrapper in scanner.c that switches to BANK_42.
  */
 TOKEN far_lookup_keyword(const char* ident) MYCC {
-    for (int i = 0; i < (int)(sizeof(keywords) / sizeof(KEYWORD)); ++i) {
-        if (strncmp(ident, keywords[i].name, MAX_IDENT_LEN) == 0) return keywords[i].tok;
+    unsigned char c = ident[0];
+    const KEYWORD_BUCKET* b = &keyword_buckets[c];
+
+    for (uint8_t i = 0; i < b->count; ++i) {
+        if (strncmp(ident, b->list[i].name, MAX_IDENT_LEN) == 0)
+            return b->list[i].tok;
     }
+
     return tokNone;
 }
+
 
 /* Banked helpers and the banked get_token implementation. These access
  * shared globals (declared extern) so the banked code can update the
