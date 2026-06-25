@@ -3,7 +3,21 @@
 
 #define SIGNATURE_INVALID MAX_SIGNATURES
 
-/* TypeKind enumeration (3 bits, values 0-7) */
+/* Macros for packing/unpacking kind_and_flags byte */
+#define TYPE_KIND_SHIFT      4
+#define TYPE_CONST_BIT       0x08
+#define TYPE_INDIR_MASK      0x07
+
+#define TYPE_GET_KIND(entry)       ((TypeKind)(((entry).kind_and_flags >> TYPE_KIND_SHIFT) & 0x0F))
+#define TYPE_GET_INDIR(entry)      ((entry).kind_and_flags & TYPE_INDIR_MASK)
+#define TYPE_IS_CONST(entry)       ((entry).kind_and_flags & TYPE_CONST_BIT)
+
+#define TYPE_SET_KIND(kaf, kind)   ((kaf) = ((kaf) & 0x0F) | (((uint8_t)(kind) & 0x0F) << TYPE_KIND_SHIFT))
+#define TYPE_SET_CONST(kaf)        ((kaf) |= TYPE_CONST_BIT)
+#define TYPE_SET_INDIR(kaf, ind)   ((kaf) = ((kaf) & ~TYPE_INDIR_MASK) | ((uint8_t)(ind) & TYPE_INDIR_MASK))
+
+
+/* TypeKind enumeration (4 bits, values 0-8) */
 typedef enum TypeKind {
     TK_CHAR = 0,
     TK_INT = 1,

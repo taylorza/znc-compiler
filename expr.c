@@ -345,6 +345,7 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
         error(errTypeError);
     }
 
+    uint8_t left_is_unsigned = type_is_byte(left->type_id) || type_is_pointer(left->type_id);
     if (type_is_const(left->type_id) && type_is_const(r_result.type_id)) {
         uint8_t lf = type_is_fixed(left->type_id);
         uint8_t rf = type_is_fixed(r_result.type_id);
@@ -354,6 +355,7 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
             if (lf && !rf) { r_result.value = r_result.value << 4; rf = 1; }
             else if (rf && !lf) { left->value = left->value << 4; lf = 1; }
         }
+
         uint8_t fold_unsigned = pointer ||
             (type_is_byte(left->type_id) && type_is_byte(r_result.type_id));
         switch (op) {
@@ -394,8 +396,20 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
                 else left->value = left->value / r_result.value;
                 break;
             case tokMod: left->value = left->value % r_result.value; break;
-            case tokShl: left->value = left->value << (rf ? (uint16_t)((int16_t)r_result.value >> 4) : r_result.value); break;
-            case tokShr: left->value = left->value >> (rf ? (uint16_t)((int16_t)r_result.value >> 4) : r_result.value); break;
+            case tokShl: 
+                if (left_is_unsigned)
+                    left->value = (uint16_t)left->value << (rf ? (r_result.value >> 4) : r_result.value); 
+                else
+                    left->value = left->value << (rf ? (uint16_t)((int16_t)r_result.value >> 4) : r_result.value); 
+                    
+                break;
+            case tokShr: 
+                if (left_is_unsigned)
+                    left->value = (uint16_t)left->value >> (rf ? (r_result.value >> 4) : r_result.value); 
+                else
+                    left->value = left->value >> (rf ? (uint16_t)((int16_t)r_result.value >> 4) : r_result.value); 
+                
+                break;
             case tokBitOr: left->value = left->value | r_result.value; break;
             case tokBitAnd: left->value = left->value & r_result.value; break;
             case tokBitXor: left->value = left->value ^ r_result.value; break;
@@ -530,7 +544,7 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
         case tokShr:
             if (right_is_fixed) emit_fixed_to_int();
             emit_instrln("ld b,l");
-            emit_instrln("bsra de,b");
+            if (left_is_unsigned) emit_instrln("bsrl de,b"); else emit_instrln("bsra de,b");
             emit_swap();
             break;
         case tokBitOr:
@@ -1048,15 +1062,20 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
 
                 /* Parse the pointer expression */
                 factor_result = parse_factor(0, 0);
+                if (type_is_const(factor_result.type_id)) {
+                    emit_ld_const(factor_result.value);
+                }
+
+                /* Get element type */
+                uint8_t elem_type_id = type_get_element_type_id(factor_result.type_id);
+                if (type_is_void(elem_type_id) && expected_type_id != 0) {
+                    elem_type_id = expected_type_id;
+                }                
+                factor_result.type_id = elem_type_id;
+
                 if (tok == tokRParen) {
                     get_token(); // skip ')'
 
-                    /* Get element type */
-                    uint8_t elem_type_id = type_get_element_type_id(factor_result.type_id);
-                    factor_result.type_id = elem_type_id;
-
-                    /* Don't load the value yet - leave address in HL for potential postfix operator */
-                    /* The postfix loop will handle ++ or --, or the normal path will load if needed */
                     addr_in_hl = 1;
                     dereference = 1;                    
                 }
@@ -1070,7 +1089,16 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             
             /* Normal parenthesized expression */
             factor_result = far_parse_expr_delayconst(0, 0);
+            
             expect_RParen();
+            if (flags & (PF_NEG | PF_NOT | PF_CMPL)) {
+                if (type_is_const(factor_result.sym.type_id)) {
+                    if (flags & PF_NEG) factor_result.value = -factor_result.value;                        
+                    if (flags & PF_NOT) factor_result.value = !factor_result.value;
+                    if (flags & PF_CMPL) factor_result.value = ~factor_result.value;
+                    flags &= ~(PF_NEG | PF_NOT | PF_CMPL);
+                }                
+            }           
             break;
             
         case tokAbs:
@@ -1178,23 +1206,16 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             break;
 
         case tokNumber:
-            if (flags & PF_NEG) {
-                intval = -intval;
-                flags &= ~PF_NEG;
-            }
-            if (flags & PF_NOT) {
-                intval = !intval;
-                flags &= ~PF_NOT;
-            }
-            if (flags & PF_CMPL) {
-                intval = ~intval;
-                flags &= ~PF_CMPL;
-            }
+            if (flags & PF_NEG) intval = -intval;
+            if (flags & PF_NOT) intval = !intval;
+            if (flags & PF_CMPL) intval = ~intval;
+            flags &= ~(PF_NEG | PF_NOT | PF_CMPL);
+
             get_token();
             if (dereference) {
                 emit_ld_const(intval);
                 emit_load(TYPE_ID_INT);
-                factor_result.type_id = TYPE_ID_INT;
+                factor_result.type_id = expected_type_id;
             } else {
                 factor_result.type_id = type_make_int(1);
                 factor_result.value = intval;

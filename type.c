@@ -22,19 +22,6 @@ uint8_t TYPE_ID_CHAR_PTR = 0;
 uint8_t type_count = 0;
 uint8_t signature_count = 0;
 
-/* Macros for packing/unpacking kind_and_flags byte */
-#define TYPE_KIND_SHIFT      5
-#define TYPE_CONST_BIT       0x10
-#define TYPE_INDIR_MASK      0x0F
-
-#define TYPE_GET_KIND(entry)       ((TypeKind)(((entry)->kind_and_flags >> TYPE_KIND_SHIFT) & 0x07))
-#define TYPE_GET_INDIR(entry)      ((entry)->kind_and_flags & TYPE_INDIR_MASK)
-#define TYPE_IS_CONST(entry)       ((entry)->kind_and_flags & TYPE_CONST_BIT)
-
-#define TYPE_SET_KIND(kaf, kind)   ((kaf) = ((kaf) & ~(0x07 << TYPE_KIND_SHIFT)) | (((uint8_t)(kind) & 0x07) << TYPE_KIND_SHIFT))
-#define TYPE_SET_CONST(kaf)        ((kaf) |= TYPE_CONST_BIT)
-#define TYPE_SET_INDIR(kaf, ind)   ((kaf) = ((kaf) & ~TYPE_INDIR_MASK) | ((uint8_t)(ind) & TYPE_INDIR_MASK))
-
 uint8_t far_type_intern(TypeEntry entry) MYCC;
 
 /* Initialize type system - allocate table in shared memory */
@@ -60,7 +47,7 @@ void type_init(void) MYCC {
 
 uint8_t type_as_const(uint8_t type_id) MYCC {
     TypeEntry entry = type_get(type_id);
-    if (!TYPE_IS_CONST(&entry)) {
+    if (!TYPE_IS_CONST(entry)) {
         TYPE_SET_CONST(entry.kind_and_flags);
         return far_type_intern(entry);
     }
@@ -109,10 +96,10 @@ uint8_t type_make_pointer(uint8_t base_type_id, uint8_t extra_indir) MYCC {
     TypeEntry entry = base;
     
     /* Increment indirection level */
-    uint8_t new_indir = TYPE_GET_INDIR(&entry) + extra_indir;
-    if (new_indir > 15) {
+    uint8_t new_indir = TYPE_GET_INDIR(entry) + extra_indir;
+    if (new_indir > 7) {
         error(errTooManyPointerLevels);
-        new_indir = 15;
+        new_indir = 7;
     }
     TYPE_SET_INDIR(entry.kind_and_flags, new_indir);
     
@@ -165,12 +152,12 @@ const TypeEntry type_get(uint8_t type_id) MYCC {
 
 TypeKind type_get_kind(uint8_t type_id) MYCC {
     TypeEntry entry = type_get(type_id);
-    return TYPE_GET_KIND(&entry);
+    return TYPE_GET_KIND(entry);
 }
 
 uint8_t type_get_indirection(uint8_t type_id) MYCC {
     TypeEntry entry = type_get(type_id);
-    return TYPE_GET_INDIR(&entry);
+    return TYPE_GET_INDIR(entry);
 }
 
 uint8_t type_is_pointer(uint8_t type_id) MYCC {
@@ -183,7 +170,7 @@ uint8_t type_is_array(uint8_t type_id) MYCC {
 
 uint8_t type_is_const(uint8_t type_id) MYCC {
     TypeEntry entry = type_get(type_id);
-    return TYPE_IS_CONST(&entry) ? 1 : 0;
+    return TYPE_IS_CONST(entry) ? 1 : 0;
 }
 
 uint8_t type_is_void(uint8_t type_id) MYCC {
@@ -220,7 +207,7 @@ uint8_t type_is_struct(uint8_t type_id) MYCC {
 
 uint8_t type_is_enum(uint8_t type_id) MYCC {
     TypeEntry entry = type_get(type_id);
-    return TYPE_GET_KIND(&entry) == TK_INT && TYPE_GET_INDIR(&entry) == 0 && entry.aux0 != 0;
+    return TYPE_GET_KIND(entry) == TK_INT && TYPE_GET_INDIR(entry) == 0 && entry.aux0 != 0;
 }
 
 uint8_t type_is_function(uint8_t type_id) MYCC {
@@ -234,39 +221,39 @@ uint8_t type_is_delegate(uint8_t type_id) MYCC {
 /* Accessors */
 uint8_t type_get_element_type(uint8_t array_type_id) MYCC {
     TypeEntry entry = type_get(array_type_id);
-    if (TYPE_GET_KIND(&entry) != TK_ARRAY) return TYPE_ID_VOID;
+    if (TYPE_GET_KIND(entry) != TK_ARRAY) return TYPE_ID_VOID;
     return entry.aux0;
 }
 
 uint16_t type_get_array_length(uint8_t array_type_id) MYCC {
     TypeEntry entry = type_get(array_type_id);
-    if (TYPE_GET_KIND(&entry) != TK_ARRAY) return 0;
+    if (TYPE_GET_KIND(entry) != TK_ARRAY) return 0;
     return entry.aux1;
 }
 
 uint8_t type_get_struct_id(uint8_t struct_type_id) MYCC {
     TypeEntry entry = type_get(struct_type_id);
-    if (TYPE_GET_KIND(&entry) != TK_STRUCT) return 0;
+    if (TYPE_GET_KIND(entry) != TK_STRUCT) return 0;
     return entry.aux0;
 }
 
 uint8_t type_get_enum_id(uint8_t enum_type_id) MYCC {
     TypeEntry entry = type_get(enum_type_id);
-    if (TYPE_GET_KIND(&entry) != TK_INT || TYPE_GET_INDIR(&entry) != 0 || entry.aux0 == 0) return 0;
+    if (TYPE_GET_KIND(entry) != TK_INT || TYPE_GET_INDIR(entry) != 0 || entry.aux0 == 0) return 0;
     return (uint8_t)(entry.aux0 - 1);
 }
 
 uint8_t type_get_function_sig(uint8_t func_type_id) MYCC {
     TypeEntry entry = type_get(func_type_id);
-    if (TYPE_GET_KIND(&entry) != TK_FUNCTION) return 0;
+    if (TYPE_GET_KIND(entry) != TK_FUNCTION) return 0;
     return entry.aux0;
 }
 
 /* Size calculation */
 uint16_t type_size(uint8_t type_id) MYCC {
     TypeEntry entry = type_get(type_id);
-    TypeKind kind = TYPE_GET_KIND(&entry);
-    uint8_t indir = TYPE_GET_INDIR(&entry);
+    TypeKind kind = TYPE_GET_KIND(entry);
+    uint8_t indir = TYPE_GET_INDIR(entry);
     
     /* All pointers are 2 bytes */
     if (indir > 0) return 2;
@@ -301,8 +288,8 @@ uint16_t type_size(uint8_t type_id) MYCC {
 /* Derive element type for pointers/arrays */
 uint8_t type_get_element_type_id(uint8_t ptr_or_array_type_id) MYCC {
     TypeEntry entry = type_get(ptr_or_array_type_id);
-    TypeKind kind = TYPE_GET_KIND(&entry);
-    uint8_t indir = TYPE_GET_INDIR(&entry);
+    TypeKind kind = TYPE_GET_KIND(entry);
+    uint8_t indir = TYPE_GET_INDIR(entry);
     
     /* For arrays, return the stored element type */
     if (kind == TK_ARRAY && indir == 0) {

@@ -62,10 +62,10 @@ uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC
     t2 = type_table[from_type_id];
 
     /* Extract indirection level and kind */
-    indir_to = t1.kind_and_flags & 0x0F;
-    indir_from = t2.kind_and_flags & 0x0F;
-    kind_to = (t1.kind_and_flags >> 5) & 0x07;
-    kind_from = (t2.kind_and_flags >> 5) & 0x07;
+    indir_to = TYPE_GET_INDIR(t1);
+    indir_from = TYPE_GET_INDIR(t2);
+    kind_to = TYPE_GET_KIND(t1);
+    kind_from = TYPE_GET_KIND(t2);
 
     /* void* (exactly one level of indirection) is the universal pointer type, matching
      * standard C: compatible with any other single-level pointer and any array (via decay).
@@ -130,8 +130,8 @@ uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC
         uint8_t elem_from = type_get_element_type_id(from_type_id);
         if (elem_to == elem_from) return 1;
         /* Allow char*<->byte[] and byte*<->char[]: both are 8-bit element types */
-        uint8_t ek_to   = (type_table[elem_to  ].kind_and_flags >> 5) & 0x07;
-        uint8_t ek_from = (type_table[elem_from].kind_and_flags >> 5) & 0x07;
+        uint8_t ek_to   = TYPE_GET_KIND(type_table[elem_to]);
+        uint8_t ek_from = TYPE_GET_KIND(type_table[elem_from]);
         if ((ek_to == TK_CHAR || ek_to == TK_BYTE) && (ek_from == TK_CHAR || ek_from == TK_BYTE)) return 1;
     }
     if (is_array_from && indir_to > 0) {
@@ -141,8 +141,8 @@ uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC
         uint8_t elem_to   = type_get_element_type_id(to_type_id);
         if (elem_to == elem_from) return 1;
         /* Allow char[]<->byte* and byte[]<->char*: both are 8-bit element types */
-        uint8_t ek_from = (type_table[elem_from].kind_and_flags >> 5) & 0x07;
-        uint8_t ek_to   = (type_table[elem_to  ].kind_and_flags >> 5) & 0x07;
+        uint8_t ek_from = TYPE_GET_KIND(type_table[elem_from]);
+        uint8_t ek_to   = TYPE_GET_KIND(type_table[elem_to]);
         if ((ek_from == TK_CHAR || ek_from == TK_BYTE) && (ek_to == TK_CHAR || ek_to == TK_BYTE)) return 1;
     }
 
@@ -159,8 +159,8 @@ uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC
 
         TypeEntry bt = type_table[base_to];
         TypeEntry bf = type_table[base_from];
-        uint8_t bt_kind = (bt.kind_and_flags >> 5) & 0x07;
-        uint8_t bf_kind = (bf.kind_and_flags >> 5) & 0x07;
+        uint8_t bt_kind = TYPE_GET_KIND(bt);
+        uint8_t bf_kind = TYPE_GET_KIND(bf);
         /* Allow char*<->byte* interchangeably: both are 8-bit element pointers */
         uint8_t bt_8bit = (bt_kind == TK_CHAR || bt_kind == TK_BYTE);
         uint8_t bf_8bit = (bf_kind == TK_CHAR || bf_kind == TK_BYTE);
