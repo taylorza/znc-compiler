@@ -53,7 +53,8 @@ void u32_add(u32 *a, int b) {
 }
 
 
-// Save the tile registers
+// Save next registers
+byte old_reg_07 = readreg(0x07);
 byte old_reg_43 = readreg(0x43);
 byte old_reg_6b = readreg(0x6b);
 
@@ -61,6 +62,8 @@ byte old_reg_6b = readreg(0x6b);
 byte old_border = (*0x5c48 & 0b00111000) >> 3;
 
 void init() {
+  nextreg(0x07, 3);           // ===== Go fast!!!
+
   // Tilemap Palette
   nextreg(0x43, 0b00110000);
   nextreg(0x40, 0);
@@ -227,9 +230,11 @@ fclose(f);
 // Clear the garbage from the ULA screen
 memset(0x4000, 0, 6144);
 
-// Restore the basic registers
+// Restore the border color
+out(0xfe, old_border);
+
+// Restore the next registers
 nextreg(0x6b, old_reg_6b);
 nextreg(0x43, old_reg_43);
 
-// Restore the border color
-out(0xfe, old_border);
+nextreg(0x07, old_reg_07);

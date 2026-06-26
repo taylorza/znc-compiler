@@ -384,8 +384,8 @@ void play() {
     // Player movement
     // -----------------------------
     if (pexpl_timer==0) {
-      if (is_pressed('o') && px > 10) px -= 2;
-      if (is_pressed('p') && px < 300) px += 2;
+      if (is_pressed('o') && px > 2) px -= 2;
+      if (is_pressed('p') && px < 302) px += 2;
     }
     
     // -----------------------------
