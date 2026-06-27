@@ -5,6 +5,13 @@ void memcpy(void *dst, void *src, int len) __asm__ {
   push ix
   ld ix,0
   add ix,sp
+
+  ld b,(ix+5)
+  ld c,(ix+4)
+
+  ld a,b
+  or a
+  jp z,.done
       
   ld d,(ix+9)
   ld e,(ix+8)
@@ -12,11 +19,52 @@ void memcpy(void *dst, void *src, int len) __asm__ {
   ld h,(ix+7)
   ld l,(ix+6)
   
-  ld b,(ix+5)
-  ld c,(ix+4)
-      
+.cpy
   ldir
+.done
   pop ix       
+  ret
+}
+
+void memmove(void *dst, void *src, int len) __asm__ {
+  push ix
+  ld ix,0
+  add ix,sp
+
+  ld b,(ix+5)
+  ld c,(ix+4)  
+
+  ld a,b
+  or c
+  jp z,.done
+
+  ld d,(ix+9)
+  ld e,(ix+8)
+  
+  ld h,(ix+7)
+  ld l,(ix+6)
+
+  ld a,d
+  cp h
+  jp c,_memcpy.cpy
+
+  ld a,e
+  cp l
+  jp c,_memcpy.cpy
+
+  jp z,.done
+
+  dec bc
+  add hl,bc
+  ex de,hl
+  add hl,bc
+  ex de,hl
+
+  inc bc
+  lddr
+
+.done
+  pop ix
   ret
 }
 
@@ -27,6 +75,10 @@ void memset(void *dst, char b, int len) __asm__ {
       
   ld b,(ix+5)
   ld c,(ix+4)
+
+  ld a,b
+  or c
+  jp z,.done
 
   ld h,(ix+9)
   ld l,(ix+8)
@@ -41,6 +93,7 @@ void memset(void *dst, char b, int len) __asm__ {
   ld (hl), a
       
   ldir
+.done
   pop ix       
   ret
 }
