@@ -6,5 +6,6 @@ rem %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/spacesho
 rem %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/zxbgfx.znc /zdev/
 rem %1/../../emulator/hdfmonkey get %1/../../sdcard/tbblue-dev.sd /zdev/zxbgfxtst.znc tests/zxbgfxtst.znc
 
-%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/hexvw.znc /zdev/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/hexedit.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/font.inc /zdev/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/zide.bas /zdev/

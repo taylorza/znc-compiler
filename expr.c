@@ -1212,7 +1212,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
                     }
                 }
                 /* For structs, we want the address, not the dereferenced value */
-                if (!type_is_struct(factor_result.type_id)) {
+                if (!type_is_struct(load_type_id)) {
                     emit_load(load_type_id);
                 }
                 /* After dereferencing, result is the load type, no longer the original symbol */

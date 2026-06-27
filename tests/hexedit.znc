@@ -1,0 +1,478 @@
+make dot "hexedit.dot";
+
+include "mmu.znc"
+include "fileio.znc"
+include "memory.znc"
+include "kbd.znc"
+include "font.inc"
+
+const byte ROWS=28;
+const byte COLS=16;
+
+const int TILE_MAP = 0x4000;
+const int TILE_DEF = 0x5400;
+const byte OFFSET_MAP = 0;
+const byte OFFSET_DEF = (TILE_DEF - TILE_MAP) >> 8;
+
+const int SCREEN_WIDTH = 80;
+const int SCREEN_HEIGHT = 32;
+
+struct u32 {
+  byte b0;
+  byte b1;
+  byte b2;
+  byte b3;
+}
+
+void u32_addi(u32 *a, int b) {
+  u32 r;
+  
+  int sum;
+  int carry = 0;
+  
+  int b_b0 = b & 0xff;
+  int b_b1 = (b >> 8) & 0xff;
+  int b_ext = (b < 0) ? 0xff : 0;
+
+  sum = a.b0 + b_b0;
+  r.b0 = sum & 0xff;
+  carry = (sum >> 8) & 1;
+
+  sum = a.b1 + b_b1 + carry;
+  r.b1 = sum & 0xff;
+  carry = (sum >> 8) & 1;
+
+  sum = a.b2 + b_ext + carry;
+  r.b2 = sum & 0xff; 
+  carry = (sum >> 8) & 1;
+
+  sum = a.b3 + b_ext + carry;
+  r.b3 = sum & 0xff;
+
+  *a = r;
+}
+
+void u32_sub(u32 *a, u32 *b) {
+  int t;
+  byte borrow;
+
+  t = a.b0 - b.b0;
+  a.b0 = t;
+  borrow = (t < 0);
+
+  t = a.b1 - b.b1 - borrow;
+  a.b1 = t;
+  borrow = (t < 0);
+
+  t = a.b2 - b.b2 - borrow;
+  a.b2 = t;
+  borrow = (t < 0);
+
+  t = a.b3 - b.b3 - borrow;
+  a.b3 = t;
+}
+
+int u32_scmp(u32 *a, u32 *b) {
+  char sa3 = a.b3; int ab3 = sa3;
+  char sb3 = b.b3; int bb3 = sb3;
+
+  int d = ab3 - bb3;
+  if (d) return d;
+
+  if (a.b2 != b.b2) return (a.b2 < b.b2) ? -1 : 1;
+  if (a.b1 != b.b1) return (a.b1 < b.b1) ? -1 : 1;
+  if (a.b0 != b.b0) return (a.b0 < b.b0) ? -1 : 1;
+
+  return 0;
+}
+
+int u32_cmpi(u32 *a, int b) {
+  if (a.b3 | a.b2) return 1;
+  int lo = (a.b1 << 8) | a.b0;
+  if (lo < b) return -1;
+  if (lo > b) return 1;
+  return 0;
+}
+
+// CRT cursor location
+byte cx = 0;
+byte cy = 0;
+
+void gotoxy(byte x, byte y){
+  cx = x;
+  cy = y;
+};
+
+void putch(char ch) {
+  char *p = TILE_MAP + (((cy * SCREEN_WIDTH) + cx) << 1);
+  *p++ = ch - 32;
+  *p = 0;
+  ++cx;
+  if (cx == SCREEN_WIDTH) {
+    cx = 0;
+    ++cy;
+  }
+}
+
+void putstr(char *s) {
+  char *p = TILE_MAP + (((cy * SCREEN_WIDTH) + cx) << 1);
+  while (*s) {
+    *p++ = *s++ - 32;
+    *p++ = 0;
+    ++cx;
+    if (cx == SCREEN_WIDTH) {
+      cx = 0;
+      ++cy;
+    }
+  }
+}
+
+char[] hex="0123456789ABCDEF";
+void puthex(byte b) {
+  putch(hex[(b >> 4) & 0x0f]);
+  putch(hex[b & 0x0f]);
+}
+
+void print_u32(u32 *v) {
+  puthex(v.b3); puthex(v.b2);
+  putch(':');
+  puthex(v.b1); puthex(v.b0);
+}
+
+void setattr(byte attr) {
+  char *p = TILE_MAP + (((cy * SCREEN_WIDTH) + cx) << 1) + 1;
+  *p = (attr << 1);
+}
+
+void clreol() {
+  char *p = TILE_MAP + (((cy * SCREEN_WIDTH) + cx) << 1);
+  while(cx++ < SCREEN_WIDTH) {
+    *p++ = 0;
+    *p++ = 0;
+  }
+}
+
+void scroll_up(byte lines) {
+  int movebytes = (ROWS - lines) * (SCREEN_WIDTH << 1);
+  memcpy(TILE_MAP, TILE_MAP + lines * (SCREEN_WIDTH << 1), movebytes);
+  memset(TILE_MAP + movebytes, 0, lines * (SCREEN_WIDTH << 1));
+}
+
+void scroll_down(byte lines) {
+  int total = ROWS * (SCREEN_WIDTH << 1);
+  int src = ROWS - lines - 1;
+  int dst = ROWS - 1;
+  while (src >= 0) {
+    memcpy(TILE_MAP + dst * (SCREEN_WIDTH << 1), 
+           TILE_MAP + src * (SCREEN_WIDTH << 1),
+           SCREEN_WIDTH << 1);
+    --src;
+    --dst;
+  }
+  memset(TILE_MAP, 0, lines * (SCREEN_WIDTH << 1));
+}
+
+char inkey() __asm__ {
+  ld hl,0
+  bit 5,(iy+1)
+  ret z
+  res 5,(iy+1)
+  ld a,($5c08)
+  ld l,a
+  ret 
+}
+
+// mmu state
+byte[111] pages;
+byte pagecount;
+u32 size = {0,0,0,0};
+
+// Save next registers
+byte old_reg_07 = readreg(0x07);
+byte old_reg_43 = readreg(0x43);
+byte old_reg_6b = readreg(0x6b);
+
+byte old_slot_6 = readreg(0x56);
+
+// Save the border color
+byte old_border = (*0x5c48 & 0b00111000) >> 3;
+
+void init() {
+  nextreg(0x07, 3);           // ===== Go fast!!!
+
+  // Tilemap Palette
+  nextreg(0x43, 0b00110000);
+  nextreg(0x40, 0);
+  nextreg(0x41, 0b00000010); // 0-Blue
+  nextreg(0x41, 0b11111100); // 1-Yellow
+  nextreg(0x41, 0b11111100); // 0-Yellow
+  nextreg(0x41, 0b00000010); // 1-Blue
+
+  nextreg(0x6b, 0b11001001); // 80x32 text mode with attributes
+  nextreg(0x6e, OFFSET_MAP);
+  nextreg(0x6f, OFFSET_DEF);
+
+  // Copy the font to the tile definitions
+  memcpy(TILE_DEF, font, 888);
+
+  // Set the border to Blue (assume the default ULA palette)
+  out(0xfe,1);
+}
+
+void loadfile(char* file) {
+  errno=0;
+  byte f=fopen(args,M_READ);
+  if (errno != 0) exit("Could not open file");
+
+  for(;;) {
+    byte page = mmualloc();
+    if (page == 255) exit("out of memory");
+  
+    pages[pagecount++] = page;
+    nextreg(0x56, page);
+    int bytesRead = fread(f, 0xC000, 8192);
+    if (!bytesRead) break;
+
+    u32_addi(&size, bytesRead);
+  }
+
+  fclose(f);
+}
+
+int pagein(u32 *addr) {
+  int lo = addr.b0 | (addr.b1 << 8);
+  int hi = addr.b2 | (addr.b2 << 8);
+  byte page = ((hi << 3) & 0xfff8) | (lo >> 13);
+  int offset = lo & 0x1fff;
+  
+  nextreg(0x56, pages[page]);
+  return offset;
+}
+
+const char KEY_LEFT = 0x08;
+const char KEY_RIGHT = 0x09;
+const char KEY_DOWN = 0x0a;
+const char KEY_UP   = 0x0b;
+
+byte dump(u32 *addr) {
+  char[COLS+1] ascii;
+
+  print_u32(addr); putstr("  ");
+
+  u32 curr = *addr;  
+  byte *p = 0xC000 + pagein(addr);
+  byte i = 0;
+  while(i < COLS && u32_scmp(&curr, &size) < 0) {
+    byte b = *p++;
+    puthex(b); putch(' ');
+    ascii[i] = (b < 32 || b > 126) ? '.' : b;
+    
+    u32_addi(&curr, 1);
+    ++i;    
+  }
+  byte printed = i;
+
+  while(i < COLS) {
+    putstr("   ");
+    ascii[i++] = ' ';    
+  }
+  ascii[COLS]=0;
+  putch(' ');
+  putstr(ascii);
+
+  return printed;      
+}
+
+u32 ZERO = {0,0,0,0};
+
+u32 from = {0,0,0,0};
+u32 to = {0,0,0,0};
+u32 curr;
+u32 tmp;
+byte curr_row;
+
+byte[ROWS] linebytes;
+
+byte inview(u32 *t) {
+  return u32_scmp(t, &from) >= 0 && u32_scmp(t, &to) < 0;
+}
+
+byte goto_addr(u32 *t, byte h) {
+  u32 start = from;
+  byte row = 0;
+
+  for(; row < ROWS; ++row) {
+    u32 end = start;
+    u32_addi(&end, linebytes[row]);
+
+    if (u32_scmp(t, &start) >= 0 &&
+        u32_scmp(t, &end) < 0) {
+        break;
+    }
+
+    u32_addi(&start, linebytes[row]);
+  }
+
+  tmp = *t;
+  u32_sub(&tmp, &start);
+  byte offset = tmp.b0;
+
+  gotoxy(h + 15 + offset * 3, row);
+  return row;
+}
+
+void downrow() {
+  byte i;
+
+  scroll_up(1);
+  
+  for (i = 0; i < ROWS - 1; ++i) linebytes[i] = linebytes[i+1];
+
+  gotoxy(4, ROWS-1);
+  i = dump(&to);
+  u32_addi(&to, i);
+  u32_addi(&from, COLS);
+
+  linebytes[ROWS-1] = i;
+}
+
+void uprow() {
+  byte i;
+
+  scroll_down(1);      
+  
+  u32_addi(&from, -COLS);
+  u32_addi(&to, -COLS);
+
+  for (i = ROWS - 1; i > 0; --i) linebytes[i] = linebytes[i-1];
+
+  gotoxy(4, 0);
+  i = dump(&from);                
+  linebytes[0] = i;
+
+  to = from;
+  for (i = 0; i < ROWS; ++i) u32_addi(&to, linebytes[i]); 
+}
+
+void moveright() {   
+  tmp = curr;
+  u32_addi(&tmp, 1);
+  if (u32_scmp(&tmp, &size) < 0) curr = tmp;  
+}
+
+void edit() {
+  byte n;
+  byte h = 0;
+  from = to;
+
+  for (byte i = 0; i < ROWS; ++i) {
+    gotoxy(4, i);
+    n = dump(&to);
+    linebytes[i] = n;
+    u32_addi(&to, n);
+    if (u32_scmp(&to, &size) >= 0) break;
+  }  
+
+  curr = from;
+  for(;;) {
+    gotoxy(0,31);
+    print_u32(&curr);
+  
+    curr_row = goto_addr(&curr, h);
+    int xxx = 0;
+    setattr(1);
+    char k;
+    while ((k = inkey()) == 0) {
+      __asm__{
+        halt
+      }
+      xxx++;
+      if (xxx == 15) setattr(0);
+      if (xxx == 30){ setattr(1); xxx = 0;}
+    }
+    setattr(0);
+
+    if (k == ' ') break;
+
+    gotoxy(70,31); putstr("Key:"); puthex(k);
+    switch(k) {
+      case KEY_LEFT:
+        if (!h) {
+          tmp = curr;
+          u32_addi(&tmp, -1);
+          if (u32_scmp(&tmp, &ZERO) >= 0) curr = tmp;
+        }
+        h ^= 1;
+        break;
+      
+      case KEY_RIGHT:
+        if (h) moveright();
+        h ^= 1;
+        break;
+
+      case KEY_DOWN:
+        tmp = curr;
+        u32_addi(&tmp, COLS);
+        if (u32_scmp(&tmp, &size) < 0) curr = tmp;
+        break;
+      
+      case KEY_UP:
+        tmp = curr;
+        u32_addi(&tmp, -COLS);        
+        if (u32_scmp(&tmp, &ZERO) >= 0) curr = tmp;
+        break;
+
+      default:
+        byte nibble = 255;
+        if (k >= '0' && k <= '9') nibble = k - '0';
+        else if (k >= 'a' && k <= 'f') nibble = k - 'a' + 10;        
+
+        if (nibble != 255) {
+          int offset = pagein(&curr);
+          byte *p = 0xC000 + offset;
+          if (!h) *p = (*p & 0x0f) | (nibble << 4);
+          else *p = (*p & 0xf0) | nibble;
+          tmp = curr;
+          tmp.b0 &= 0xf0;
+          gotoxy(4, curr_row); dump(&tmp);          
+          if (h) moveright();
+          h ^= 1;
+        }
+        break;
+    }
+    while (!inview(&curr)) {
+      if (u32_scmp(&curr, &from) < 0)
+        uprow();
+      else
+        downrow();
+    }
+  }
+}
+
+void cleanup() {
+  for(byte i = 0; i < pagecount; ++i) {
+    mmufree(pages[i]);
+  }
+
+  // Clear the garbage from the ULA screen
+  memset(0x4000, 0, 6144);
+
+  // Restore the border color
+  out(0xfe, old_border);
+
+  // Restore the next registers
+  nextreg(0x56, old_slot_6);
+
+  nextreg(0x6b, old_reg_6b);
+  nextreg(0x43, old_reg_43);
+
+ nextreg(0x07, old_reg_07);
+}
+
+
+if (*args == 0) return "Expected filename";
+
+init();
+loadfile(args);
+edit();
+cleanup();
