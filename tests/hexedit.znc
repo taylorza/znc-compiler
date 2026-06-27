@@ -1,5 +1,5 @@
-//make dot "hexedit.dot";
-make dot "/dot/hexedit";
+make dot "hexedit.dot";
+//make dot "/dot/hexedit";
 
 include "mmu.znc"
 include "fileio.znc"
@@ -15,6 +15,7 @@ const byte OFFSET_MAP = 0;
 const byte OFFSET_DEF = (TILE_DEF - TILE_MAP) >> 8;
 
 const int SCREEN_WIDTH = 80;
+const int SCREEN_WIDTH2 = SCREEN_WIDTH << 1;
 const int SCREEN_HEIGHT = 32;
 const byte gutter = 2;
 
@@ -25,7 +26,7 @@ struct u32 {
   byte b3;
 }
 
-void u32_addi(u32 *a, int b) {
+void u32_addi(u32 *a, int b) __znccall(1) {
   u32 r;
   
   int sum;
@@ -53,7 +54,7 @@ void u32_addi(u32 *a, int b) {
   *a = r;
 }
 
-void u32_sub(u32 *a, u32 *b) {
+void u32_sub(u32 *a, u32 *b) __znccall(1) {
   int t;
   byte borrow;
 
@@ -73,7 +74,7 @@ void u32_sub(u32 *a, u32 *b) {
   a.b3 = t;
 }
 
-int u32_scmp(u32 *a, u32 *b) {
+int u32_scmp(u32 *a, u32 *b) __znccall(1) {
   char sa3 = a.b3; int ab3 = sa3;
   char sb3 = b.b3; int bb3 = sb3;
 
@@ -87,25 +88,17 @@ int u32_scmp(u32 *a, u32 *b) {
   return 0;
 }
 
-int u32_cmpi(u32 *a, int b) {
-  if (a.b3 | a.b2) return 1;
-  int lo = (a.b1 << 8) | a.b0;
-  if (lo < b) return -1;
-  if (lo > b) return 1;
-  return 0;
-}
-
 // CRT cursor location
 byte cx = 0;
 byte cy = 0;
 byte attr = 0;
 
-void gotoxy(byte x, byte y){
+void gotoxy(byte x, byte y) __znccall(1) {
   cx = x;
   cy = y;
 };
 
-void putch(char ch) {
+void putch(char ch) __znccall(1) {
   char *p = TILE_MAP + (((cy * SCREEN_WIDTH) + cx) << 1);
   *p++ = ch - 32;
   *p = attr;
@@ -116,7 +109,7 @@ void putch(char ch) {
   }
 }
 
-byte putstr(char *s) {
+byte putstr(char *s) __znccall(1) {
   byte n = 0;
   char *p = TILE_MAP + (((cy * SCREEN_WIDTH) + cx) << 1);
   while (*s) {
@@ -132,18 +125,18 @@ byte putstr(char *s) {
 }
 
 char[] hex="0123456789ABCDEF";
-void puthex(byte b) {
+void puthex(byte b) __znccall(1) {
   putch(hex[(b >> 4) & 0x0f]);
   putch(hex[b & 0x0f]);
 }
 
-void print_u32(u32 *v) {
+void print_u32(u32 *v) __znccall(1) {
   puthex(v.b3); puthex(v.b2);
   putch(':');
   puthex(v.b1); puthex(v.b0);
 }
 
-void setattr(byte attr) {
+void setattr(byte attr) __znccall(1) {
   char *p = TILE_MAP + (((cy * SCREEN_WIDTH) + cx) << 1) + 1;
   *p = (attr << 1);
 }
@@ -157,24 +150,16 @@ void clreol() {
   memset(p, 0, (SCREEN_WIDTH - cx) << 1);
 }
 
-void scroll_up(byte lines) {
-  int movebytes = (ROWS - lines) * (SCREEN_WIDTH << 1);
-  memcpy(TILE_MAP, TILE_MAP + lines * (SCREEN_WIDTH << 1), movebytes);
-  memset(TILE_MAP + movebytes, 0, lines * (SCREEN_WIDTH << 1));
+void scroll_up(byte lines) __znccall(1) {
+  int movebytes = (ROWS - lines) * SCREEN_WIDTH2;
+  memcpy(TILE_MAP, TILE_MAP + lines * SCREEN_WIDTH2, movebytes);
+  memset(TILE_MAP + movebytes, 0, lines * SCREEN_WIDTH2);
 }
 
-void scroll_down(byte lines) {
-  int total = ROWS * (SCREEN_WIDTH << 1);
-  int src = ROWS - lines - 1;
-  int dst = ROWS - 1;
-  while (src >= 0) {
-    memcpy(TILE_MAP + dst * (SCREEN_WIDTH << 1), 
-           TILE_MAP + src * (SCREEN_WIDTH << 1),
-           SCREEN_WIDTH << 1);
-    --src;
-    --dst;
-  }
-  memset(TILE_MAP, 0, lines * (SCREEN_WIDTH << 1));
+void scroll_down(byte lines) __znccall(1) {
+  int movebytes = (ROWS - lines) * SCREEN_WIDTH2;
+  memmove(TILE_MAP + lines * SCREEN_WIDTH2, TILE_MAP, movebytes);
+  memset(TILE_MAP, 0, lines * SCREEN_WIDTH2);
 }
 
 char inkey() __asm__ {
@@ -338,7 +323,7 @@ byte inview(u32 *t) {
   return u32_scmp(t, &from) >= 0 && u32_scmp(t, &to) < 0;
 }
 
-byte goto_addr(u32 *t, byte h) {
+byte goto_addr(u32 *t, byte h) __znccall(1) {
   u32 start = from;
   byte row = 0;
 
@@ -401,13 +386,13 @@ void moveright() {
   if (u32_scmp(&tmp, &size) < 0) curr = tmp;  
 }
 
-void menuitem(char key, char* name) {
+void menuitem(char key, char* name) __znccall(1) {
   byte w = 10;
   putch('^'); putch(key); putch(' '); w -= putstr(name);
   while(--w) putch(' ');
 }
 
-byte confirm(char *msg) {
+byte confirm(char *msg) __znccall(1) {
   gotoxy(0, 28); putstr(msg); putstr(" (Y/N)?");
   getch();
   gotoxy(0,28); clreol();
