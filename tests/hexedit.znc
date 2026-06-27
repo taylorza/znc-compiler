@@ -1,9 +1,9 @@
-make dot "hexedit.dot";
+//make dot "hexedit.dot";
+make dot "/dot/hexedit";
 
 include "mmu.znc"
 include "fileio.znc"
 include "memory.znc"
-include "kbd.znc"
 include "font.inc"
 
 const byte ROWS=28;
@@ -16,6 +16,7 @@ const byte OFFSET_DEF = (TILE_DEF - TILE_MAP) >> 8;
 
 const int SCREEN_WIDTH = 80;
 const int SCREEN_HEIGHT = 32;
+const byte gutter = 2;
 
 struct u32 {
   byte b0;
@@ -97,6 +98,7 @@ int u32_cmpi(u32 *a, int b) {
 // CRT cursor location
 byte cx = 0;
 byte cy = 0;
+byte attr = 0;
 
 void gotoxy(byte x, byte y){
   cx = x;
@@ -106,7 +108,7 @@ void gotoxy(byte x, byte y){
 void putch(char ch) {
   char *p = TILE_MAP + (((cy * SCREEN_WIDTH) + cx) << 1);
   *p++ = ch - 32;
-  *p = 0;
+  *p = attr;
   ++cx;
   if (cx == SCREEN_WIDTH) {
     cx = 0;
@@ -114,12 +116,14 @@ void putch(char ch) {
   }
 }
 
-void putstr(char *s) {
+byte putstr(char *s) {
+  byte n = 0;
   char *p = TILE_MAP + (((cy * SCREEN_WIDTH) + cx) << 1);
   while (*s) {
     *p++ = *s++ - 32;
-    *p++ = 0;
+    *p++ = attr;
     ++cx;
+    ++n;
     if (cx == SCREEN_WIDTH) {
       cx = 0;
       ++cy;
@@ -144,12 +148,13 @@ void setattr(byte attr) {
   *p = (attr << 1);
 }
 
+void cls() {
+  memset(TILE_MAP, 0, 6144);
+}
+
 void clreol() {
   char *p = TILE_MAP + (((cy * SCREEN_WIDTH) + cx) << 1);
-  while(cx++ < SCREEN_WIDTH) {
-    *p++ = 0;
-    *p++ = 0;
-  }
+  memset(p, 0, (SCREEN_WIDTH - cx) << 1);
 }
 
 void scroll_up(byte lines) {
@@ -182,6 +187,23 @@ char inkey() __asm__ {
   ret 
 }
 
+byte flashctr = 0;
+char key;
+char lastkey;
+void getch() {
+    setattr(1);
+    lastkey = key;
+    while ((key = inkey()) == 0) {
+      __asm__{
+        halt
+      }
+      ++flashctr;
+      if (flashctr == 15) setattr(0);
+      else if (flashctr == 30){ setattr(1); flashctr = 0;}
+    }
+    setattr(0);
+}
+
 // mmu state
 byte[111] pages;
 byte pagecount;
@@ -199,6 +221,8 @@ byte old_border = (*0x5c48 & 0b00111000) >> 3;
 
 void init() {
   nextreg(0x07, 3);           // ===== Go fast!!!
+  
+  cls();
 
   // Tilemap Palette
   nextreg(0x43, 0b00110000);
@@ -219,6 +243,8 @@ void init() {
   out(0xfe,1);
 }
 
+int lastpagesize = -1;
+
 void loadfile(char* file) {
   errno=0;
   byte f=fopen(args,M_READ);
@@ -232,16 +258,30 @@ void loadfile(char* file) {
     nextreg(0x56, page);
     int bytesRead = fread(f, 0xC000, 8192);
     if (!bytesRead) break;
-
+    lastpagesize = bytesRead;
     u32_addi(&size, bytesRead);
   }
 
   fclose(f);
 }
 
+void savefile(char *file) {
+  errno=0;
+  byte f=fopen(args, M_EXIST | M_WRITE);
+  if (errno != 0) exit("Could not open file");
+
+  for(byte i=0; i < pagecount - 2; ++i) {
+    nextreg(0x56, pages[i]);
+    fwrite(f, 0xc000, 8192);
+  }
+  nextreg(0x56, pages[pagecount - 2]);
+  fwrite(f, 0xc000, lastpagesize);
+  fclose(f);
+}
+
 int pagein(u32 *addr) {
   int lo = addr.b0 | (addr.b1 << 8);
-  int hi = addr.b2 | (addr.b2 << 8);
+  int hi = addr.b2 | (addr.b3 << 8);
   byte page = ((hi << 3) & 0xfff8) | (lo >> 13);
   int offset = lo & 0x1fff;
   
@@ -254,9 +294,10 @@ const char KEY_RIGHT = 0x09;
 const char KEY_DOWN = 0x0a;
 const char KEY_UP   = 0x0b;
 
-byte dump(u32 *addr) {
-  char[COLS+1] ascii;
+const char KEY_EXT = 0x0e;
 
+char[COLS+1] ascii;
+byte dump(u32 *addr) {
   print_u32(addr); putstr("  ");
 
   u32 curr = *addr;  
@@ -317,7 +358,7 @@ byte goto_addr(u32 *t, byte h) {
   u32_sub(&tmp, &start);
   byte offset = tmp.b0;
 
-  gotoxy(h + 15 + offset * 3, row);
+  gotoxy(gutter + 11 + h + offset * 3, row);
   return row;
 }
 
@@ -328,7 +369,7 @@ void downrow() {
   
   for (i = 0; i < ROWS - 1; ++i) linebytes[i] = linebytes[i+1];
 
-  gotoxy(4, ROWS-1);
+  gotoxy(gutter, ROWS-1);
   i = dump(&to);
   u32_addi(&to, i);
   u32_addi(&from, COLS);
@@ -346,7 +387,7 @@ void uprow() {
 
   for (i = ROWS - 1; i > 0; --i) linebytes[i] = linebytes[i-1];
 
-  gotoxy(4, 0);
+  gotoxy(gutter, 0);
   i = dump(&from);                
   linebytes[0] = i;
 
@@ -360,42 +401,72 @@ void moveright() {
   if (u32_scmp(&tmp, &size) < 0) curr = tmp;  
 }
 
+void menuitem(char key, char* name) {
+  byte w = 10;
+  putch('^'); putch(key); putch(' '); w -= putstr(name);
+  while(--w) putch(' ');
+}
+
+byte confirm(char *msg) {
+  gotoxy(0, 28); putstr(msg); putstr(" (Y/N)?");
+  getch();
+  gotoxy(0,28); clreol();
+  return key == 'y' || key == 'Y';
+}
+
+byte running;
+byte dirty;
 void edit() {
   byte n;
   byte h = 0;
   from = to;
 
+  gotoxy(0,29);
+  menuitem('S',"Save");
+  menuitem('Q',"Quit");
+
+  gotoxy(0,31); putstr("Filename:"); putstr(args);
+  
   for (byte i = 0; i < ROWS; ++i) {
-    gotoxy(4, i);
+    gotoxy(gutter, i);
     n = dump(&to);
     linebytes[i] = n;
     u32_addi(&to, n);
     if (u32_scmp(&to, &size) >= 0) break;
   }  
 
-  curr = from;
-  for(;;) {
-    gotoxy(0,31);
+  running = 1;
+  dirty = 0;
+  while(running) {
+    gotoxy(71,31);
     print_u32(&curr);
   
     curr_row = goto_addr(&curr, h);
-    int xxx = 0;
-    setattr(1);
-    char k;
-    while ((k = inkey()) == 0) {
-      __asm__{
-        halt
+    
+    getch();
+    //gotoxy(83,30); putstr("Key:"); puthex(key);
+
+    if (lastkey == KEY_EXT) {
+      switch(key) {
+        case 'q':
+        case 'Q':
+          if (dirty) {
+            if (!confirm("Loose changes")) continue;
+          }
+          running = 0;
+          break;
+        case 's':
+        case 'S':
+          if (confirm("Overwrite file")) {
+            savefile(args);
+            dirty = 0;
+          }
+          break;
       }
-      xxx++;
-      if (xxx == 15) setattr(0);
-      if (xxx == 30){ setattr(1); xxx = 0;}
+      continue;
     }
-    setattr(0);
 
-    if (k == ' ') break;
-
-    gotoxy(70,31); putstr("Key:"); puthex(k);
-    switch(k) {
+    switch(key) {
       case KEY_LEFT:
         if (!h) {
           tmp = curr;
@@ -424,8 +495,8 @@ void edit() {
 
       default:
         byte nibble = 255;
-        if (k >= '0' && k <= '9') nibble = k - '0';
-        else if (k >= 'a' && k <= 'f') nibble = k - 'a' + 10;        
+        if (key >= '0' && key <= '9') nibble = key - '0';
+        else if (key >= 'a' && key <= 'f') nibble = key - 'a' + 10;        
 
         if (nibble != 255) {
           int offset = pagein(&curr);
@@ -434,9 +505,10 @@ void edit() {
           else *p = (*p & 0xf0) | nibble;
           tmp = curr;
           tmp.b0 &= 0xf0;
-          gotoxy(4, curr_row); dump(&tmp);          
+          gotoxy(gutter, curr_row); dump(&tmp);          
           if (h) moveright();
           h ^= 1;
+          dirty = 1;
         }
         break;
     }
@@ -454,8 +526,7 @@ void cleanup() {
     mmufree(pages[i]);
   }
 
-  // Clear the garbage from the ULA screen
-  memset(0x4000, 0, 6144);
+  cls();
 
   // Restore the border color
   out(0xfe, old_border);
