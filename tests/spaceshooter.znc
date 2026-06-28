@@ -264,6 +264,12 @@ void printnum(int n) {
   print(buf);
 }
 
+byte old_reg_07 = readreg(0x07);  // CPU Speed
+byte old_reg_14 = readreg(0x14);  // Global Transparency index
+byte old_reg_4a = readreg(0x4a);  // Fallback Transparency index
+byte old_reg_4b = readreg(0x4b);  // Sprite Transparency index
+byte old_reg_4c = readreg(0x4c);  // Tilemap Transparency index
+
 void init() {
   nextreg(7,3); // 28Mhz
 
@@ -276,14 +282,18 @@ void init() {
   nextreg(0x19,0);
   nextreg(0x19,191);
 
-  nextreg(0x14, 0xe3);            // Global Transparency index
-  nextreg(0x4a, 0xe3);            // Fallback Transparency index
-  nextreg(0x4b, 0xe3);            // Sprite Transparency index
-  nextreg(0x4c, 0x03);            // Tilemap Transparency index
+  nextreg(0x14, 0xe3);
+  nextreg(0x4a, 0xe3);
+  nextreg(0x4b, 0xe3);
+  nextreg(0x4c, 0x03);
 
   loadsprites("spaceshooter.spr", 8);
   loadtiles("spaceshooter.til", 64);
   loadpalette(PAL_TIL_1, "spaceshooter.pal");
+
+  for(byte i=0; i < 128; ++i) {
+    spr_hide(i);
+  }
 
   til_enable();
 }
@@ -567,3 +577,10 @@ spr_disable();
 til_disable();
 memset(0x4000, 0, 6144);
 memset(0x5800, 0b00111000, 768);
+
+nextreg(0x14, old_reg_14);
+nextreg(0x4a, old_reg_4a);
+nextreg(0x4b, old_reg_4b);
+nextreg(0x4c, old_reg_4c);
+
+nextreg(0x07, old_reg_07);

@@ -5,6 +5,7 @@
 - Added fseek to fileio.znc
 - Added dot.znc to standard library 
 - Added hexvw.znc example
+- Added hexedit.znc example
 - Enhancement - delegates are not limited to returning int types
 - Enhancement - delegates now support variadic functions
 - Enhancement - increased max named types from 64 to 255

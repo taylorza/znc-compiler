@@ -1,7 +1,7 @@
 #ifndef SPRITE__
 const byte SPRITE__=1;
 
-void spr_load(byte startid, byte *data, int count) __asm__ {
+void spr_load(byte startid, byte *data, int count) __znccall(1) __asm__ {
 _
     push ix
     ld ix,0
@@ -49,12 +49,12 @@ void spr_disable() {
   nextreg(0x15,0b01000000);
 }
 
-void spr_hide(byte spriteid) {
+void spr_hide(byte spriteid) __znccall(1) {
   nextreg(0x34,spriteid);
   nextreg(0x38, 0);
 }
 
-void spr_update(byte spriteid, byte patternid, int x, int y, byte flags) {
+void spr_update(byte spriteid, byte patternid, int x, int y, byte flags) __znccall(1) {
   nextreg(0x34,spriteid);
   nextreg(0x35,x);
   nextreg(0x36,y);

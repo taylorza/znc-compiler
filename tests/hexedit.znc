@@ -447,7 +447,7 @@ void edit() {
           break;
         case 's':
         case 'S':
-          if (confirm("Overwrite file")) {
+          if (dirty && confirm("Overwrite file")) {
             savefile(args);
             dirty = 0;
           }
