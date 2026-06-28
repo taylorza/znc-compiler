@@ -131,8 +131,8 @@ void parse(const char* sourcefile, char* outfilename, uint8_t entrypoint) MYCC {
         }
         localbytes = 0;       
         exit_lbl = newlbl();
-        emit_frame_prologue(1, exit_lbl);
-        top_local_lbl = emit_alloclocals();
+        emit_frame_prologue(1);
+        top_local_lbl = emit_alloclocals();        
     }
 
     while (tok != tokEOS) {
@@ -1135,9 +1135,10 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
         if (symfunc.fn.signature_id == SIGNATURE_INVALID) {
             error(errTooManyTypes);
         }
+        symfunc.type_id = type_make_function(symfunc.fn.signature_id);
     }
 
-    symfunc.fn.arg_count = func_arg_count;
+    symfunc.fn.arg_count = func_arg_count;    
     if (tok == tokSemi) {        
         if (!defined) symfunc.klass = FUNCTION_PROTO;
     } else {
@@ -1162,7 +1163,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
             maxlocalcount = 0;
             bp_lastlocal = 0;
             localbytes = 0;
-            emit_frame_prologue(0, retlbl);
+            emit_frame_prologue(0);
             locals_lbl = emit_alloclocals();
 
             parse_statement_block(NO_LABEL, NO_LABEL);

@@ -4,6 +4,7 @@
 
 uint16_t nxtlbl = 0;    // label counter
 uint16_t argcntlbl = 0; // label for the argcount for the current function
+uint16_t sp_lbl;        // label for the stack pointer (for DOT commands) 
 
 char buf[64];
 
@@ -673,12 +674,13 @@ void emit_nreg_A(uint8_t reg) MYCC {
     emit_instrln("nreg %d,a", reg);
 }
 
-void emit_frame_prologue(uint8_t toplevel, uint16_t exit_lbl) MYCC {
+void emit_frame_prologue(uint8_t toplevel) MYCC {
     emit_instrln("push ix");
     
     if (toplevel) {
-        emit_instrln("ld (lbl%d+1), sp", exit_lbl);
-        emit_instrln("ld ix,(lbl%d+1)", exit_lbl);
+        sp_lbl = newlbl();
+        emit_instrln("ld (lbl%d+1), sp", sp_lbl);
+        emit_instrln("ld ix,(lbl%d+1)", sp_lbl);
     }
     else {
         emit_instrln("ld ix,0");
@@ -689,6 +691,8 @@ void emit_frame_prologue(uint8_t toplevel, uint16_t exit_lbl) MYCC {
 void emit_frame_epilogue(uint8_t toplevel, uint16_t exit_lbl, uint8_t calling_convention, uint8_t arg_count) MYCC {
     emit_lbl(exit_lbl);
     if (toplevel) {
+        emit_rtl("ccexit");
+        emit_lbl(sp_lbl);
         emit_instrln("ld sp,0");
         emit_instrln("pop ix");
     } else {
@@ -821,7 +825,9 @@ void emit_output(const char* filename, TOKEN outputTok) MYCC {
         emit_org(0x2000);
         /* Create char[80] array type for args */
         uint8_t args_type = type_make_array(TYPE_ID_CHAR, 80);
+        uint8_t fn_type = type_make_pointer(TYPE_ID_VOID, 1);
         addglb("args", VARIABLE, args_type, 0);
+        addglb("_exitfn", VARIABLE, fn_type, 0);
         emit_rtl("ldcmdln");
     }
 }

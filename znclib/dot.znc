@@ -1,15 +1,25 @@
 #ifndef DOT__
 const byte DOT__ = 1;
 
-delegate void ErrorHandler();
+delegate void PFN_EXIT();
 
-void seterrh(ErrorHandler fn) __znccall(1) __asm__ {
+void seterrh(PFN_EXIT fn) __znccall(1) __asm__ {
     pop bc
     pop hl
     push bc
 
     rst $08
     db $95
+    ret
+}
+
+PFN_EXIT exitat(PFN_EXIT fn) __znccall(1) __asm__ {
+    pop bc
+    pop de
+    push bc
+
+    ld hl, (__exitfn)
+    ld (__exitfn), de
     ret
 }
 

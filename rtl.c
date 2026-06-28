@@ -14,6 +14,12 @@ typedef struct RTLREC {
 } RTLREC;
 
 RTLREC rtltbl[] = {
+    // Call exit function at __exitfn, if set.  Otherwise, just return.
+    {"ccexit",
+#include "RTL/generated/ccexit.inc"
+    NULL,
+    FLAG_RTL_INLINE
+    },
     // Sign extend A
     {"ccsxt",
 #include "RTL/generated/ccsxt.inc"
@@ -26,7 +32,6 @@ RTLREC rtltbl[] = {
     NULL,
     FLAG_RTL_NONE
     },
-    
     // Bitwise OR
     {"ccor",
 #include "RTL/generated/ccor.inc"

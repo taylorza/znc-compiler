@@ -6,11 +6,12 @@ Register an error handler to be used by the DOT command.
 
 Types
 
-- `delegate void ErrorHandler()` —  Function pointer type for error handler functions.
+- `delegate void PFN_EXIT()` —  Function pointer type for error/exit handler functions.
 
 Functions
 
-- `void seterrh(ErrorHandler fn)` — Register an error handler function. 
+- `void seterrh(PFN_EXIT fn)` — Register an error handler function. 
+- `void exitat(PFN_EXIT fn)` — Register a function to be called at program exit.
 
 Examples
 

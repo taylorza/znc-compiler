@@ -3,7 +3,9 @@
 - Added cmdline.znc - parse the commandline into argc/argv
 - Added zxbgfx.znc - ZX BASIC Graphics functions
 - Added fseek to fileio.znc
-- Added dot.znc to standard library 
+- Added dot.znc to standard library
+-- seterrh - set the error handler for a DOT command
+-- exitat  - set an exit function that is executed when a DOT command completes 
 - Added hexvw.znc example
 - Added hexedit.znc example
 - Enhancement - delegates are not limited to returning int types
