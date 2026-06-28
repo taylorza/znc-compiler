@@ -141,6 +141,10 @@ void setattr(byte attr) __znccall(1) {
   *p = (attr << 1);
 }
 
+void inverse() {
+  attr ^= 1 << 1;
+}
+
 void cls() {
   memset(TILE_MAP, 0, 6144);
 }
@@ -312,72 +316,64 @@ byte dump(u32 *addr) {
 u32 ZERO = {0,0,0,0};
 
 u32 from = {0,0,0,0};
-u32 to = {0,0,0,0};
 u32 curr;
 u32 tmp;
 byte curr_row;
 
-byte[ROWS] linebytes;
-
 byte inview(u32 *t) {
-  return u32_scmp(t, &from) >= 0 && u32_scmp(t, &to) < 0;
+  u32 end = from;
+  u32_addi(&end, ROWS * COLS);
+  if (u32_scmp(&end, &size) > 0) end = size;
+  return u32_scmp(t, &from) >= 0 && u32_scmp(t, &end) < 0;
 }
 
 byte goto_addr(u32 *t, byte h) __znccall(1) {
-  u32 start = from;
-  byte row = 0;
-
-  for(; row < ROWS; ++row) {
-    u32 end = start;
-    u32_addi(&end, linebytes[row]);
-
-    if (u32_scmp(t, &start) >= 0 &&
-        u32_scmp(t, &end) < 0) {
-        break;
-    }
-
-    u32_addi(&start, linebytes[row]);
+  if (u32_scmp(t, &from) < 0) {
+    gotoxy(gutter + 11 + h, 0);
+    return 0;
   }
 
-  tmp = *t;
-  u32_sub(&tmp, &start);
-  byte offset = tmp.b0;
+  byte r;
+  byte offset;
+  u32 delta = *t;
+  u32_sub(&delta, &from);
 
-  gotoxy(gutter + 11 + h + offset * 3, row);
-  return row;
+  if (delta.b2 != 0 || delta.b3 != 0) {
+    r = ROWS-1;
+    offset = COLS-1;
+    gotoxy(gutter + 11 + h + offset * 3, r);
+    return r;
+  }
+
+  int d16 = (delta.b1 << 8) | delta.b0;
+  if (d16 >= ROWS * COLS) {
+    r = ROWS - 1;
+    offset = COLS - 1;
+    gotoxy(gutter + 11 + h + offset * 3, r);
+    return r;
+  }
+
+  r = d16 >> 4;
+  offset = d16 & 0x0f;
+  gotoxy(gutter + 11 + h + offset * 3, r);
+  return r;
 }
 
 void downrow() {
-  byte i;
-
   scroll_up(1);
-  
-  for (i = 0; i < ROWS - 1; ++i) linebytes[i] = linebytes[i+1];
-
+  u32 addr = from;
+  u32_addi(&addr, ROWS * COLS);
   gotoxy(gutter, ROWS-1);
-  i = dump(&to);
-  u32_addi(&to, i);
+  dump(&addr);  
   u32_addi(&from, COLS);
-
-  linebytes[ROWS-1] = i;
 }
 
 void uprow() {
-  byte i;
-
   scroll_down(1);      
-  
   u32_addi(&from, -COLS);
-  u32_addi(&to, -COLS);
-
-  for (i = ROWS - 1; i > 0; --i) linebytes[i] = linebytes[i-1];
-
+  u32 addr = from;
   gotoxy(gutter, 0);
-  i = dump(&from);                
-  linebytes[0] = i;
-
-  to = from;
-  for (i = 0; i < ROWS; ++i) u32_addi(&to, linebytes[i]); 
+  dump(&addr);
 }
 
 void moveright() {   
@@ -386,10 +382,19 @@ void moveright() {
   if (u32_scmp(&tmp, &size) < 0) curr = tmp;  
 }
 
-void menuitem(char key, char* name) __znccall(1) {
+void menuitem(char key, char* name, byte active) __znccall(1) {
   byte w = 10;
-  putch('^'); putch(key); putch(' '); w -= putstr(name);
+  if (active) inverse();
+  putch('^'); putch(key); 
+  if (active) inverse();
+  putch(' '); w -= putstr(name);
   while(--w) putch(' ');
+}
+
+void menu(byte active) {
+  gotoxy(0,29);
+  menuitem('S',"Save", active);
+  menuitem('Q',"Quit", active);
 }
 
 byte confirm(char *msg) __znccall(1) {
@@ -404,20 +409,17 @@ byte dirty;
 void edit() {
   byte n;
   byte h = 0;
-  from = to;
+  from = ZERO;
 
-  gotoxy(0,29);
-  menuitem('S',"Save");
-  menuitem('Q',"Quit");
-
+  menu(0);
   gotoxy(0,31); putstr("Filename:"); putstr(args);
   
   for (byte i = 0; i < ROWS; ++i) {
+    tmp = from;
+    u32_addi(&tmp, i * COLS);
     gotoxy(gutter, i);
-    n = dump(&to);
-    linebytes[i] = n;
-    u32_addi(&to, n);
-    if (u32_scmp(&to, &size) >= 0) break;
+    dump(&tmp);    
+    if (u32_scmp(&tmp, &size) >= 0) break;
   }  
 
   running = 1;
@@ -429,10 +431,13 @@ void edit() {
     curr_row = goto_addr(&curr, h);
     
     getch();
-    //gotoxy(83,30); putstr("Key:"); puthex(key);
-
+    
     if (lastkey == KEY_EXT) {
+      menu(0);
       switch(key) {
+        case KEY_EXT:
+          lastkey = key = 0;
+          break;
         case 'q':
         case 'Q':
           if (dirty) {
@@ -449,6 +454,8 @@ void edit() {
           break;
       }
       continue;
+    } else if (key == KEY_EXT) {
+      menu(1);
     }
 
     switch(key) {
