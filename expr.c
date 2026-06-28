@@ -1293,6 +1293,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
              */
             if (is_func_or_proto(&factor_result.sym) && tok != tokLParen && tok != tokLBrack) {
                 factor_result.value = 0;                  /* Functions don't have a numeric value */
+                factor_result.type_id = type_make_pointer(factor_result.sym.type_id, 1); /* Function pointer type */
                 goto ident_cleanup;
             }
 

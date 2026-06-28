@@ -73,6 +73,12 @@ uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC
     uint8_t is_void_ptr_to   = (kind_to   == TK_VOID && indir_to   == 1) ? 1 : 0;
     uint8_t is_void_ptr_from = (kind_from == TK_VOID && indir_from == 1) ? 1 : 0;
 
+    /* void pointers can receive any value except non-pointers to void or struct */
+    if (is_void_ptr_to) {
+        if (indir_from < 1 && (kind_from == TK_STRUCT || kind_from == TK_VOID)) return 0;
+        return 1;
+    }
+
     /* Enums are encoded as TK_INT
      * Two sides are enum-typed when: kind == TK_INT, indir == 0, aux0 != 0.
      * Rules:
