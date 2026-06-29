@@ -7,7 +7,7 @@
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/spriteballs.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/udg.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/ulagfx.znc /zdev/
-%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/zxbgfx.znc /zdev/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/zxbgfxtst.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/feature_test.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/cal.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/calMonth.znc /zdev/
@@ -18,6 +18,9 @@
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/spaceshooter.spr /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/spaceshooter.til /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/spaceshooter.pal /zdev/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/hexvw.znc /zdev/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/hexedit.znc /zdev/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/font.inc /zdev/
 
 
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/ay.znc /zdev/
@@ -44,6 +47,6 @@ rem Libraries used with permission from Iáń Júkéś
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/strtoint.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/version.znc /zdev/
 
+%1/../../emulator/hdfmonkey get %1/../../sdcard/tbblue-dev.sd /zdev/testrunner.bas tests/testrunner.bas
 %1/../../emulator/hdfmonkey get %1/../../sdcard/tbblue-dev.sd /zdev/zncdemo.bas tests/zncdemo.bas
 %1/../../emulator/hdfmonkey get %1/../../sdcard/tbblue-dev.sd /zdev/zide.bas tests/zide.bas
-
