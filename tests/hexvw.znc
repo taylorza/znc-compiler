@@ -52,6 +52,16 @@ void u32_add(u32 *a, int b) {
   *a = r;
 }
 
+int u32_scmp(u32 *a, int b) {
+  char ab1 = a.b1, ab0 = a.b0;
+  byte b1 = (b >> 8) & 0xff;
+  byte b0 = b & 0xff;
+
+  if (a.b3 || a.b2) return 1;
+
+  if (a.b1 != b1) return (a.b1 < b1) ? -1 : 1;
+  if (a.b0 != b0) return (a.b0 < b0) ? -1 : 1;
+}
 
 // Save next registers
 byte old_reg_07 = readreg(0x07);
@@ -61,8 +71,14 @@ byte old_reg_6b = readreg(0x6b);
 // Save the border color
 byte old_border = (*0x5c48 & 0b00111000) >> 3;
 
+void cls() {
+  memset(TILE_MAP, 0, 6144);
+}
+
 void init() {
   nextreg(0x07, 3);           // ===== Go fast!!!
+
+  cls();
 
   // Tilemap Palette
   nextreg(0x43, 0b00110000);
@@ -96,7 +112,7 @@ void init() {
 
 void cleanup() {
   // Clear the garbage from the ULA screen
-  memset(0x4000, 0, 6144);
+  cls();
 
   // Restore the border color
   out(0xfe, old_border);
@@ -219,8 +235,6 @@ if (errno != 0) return "Could not open file";
 
 init();
 
-
-
 byte[READSIZE] buf;
 int read;
 char k;
@@ -248,7 +262,7 @@ for(;;) {
   if (k == ' ') break;
 
   if (k == 8 || k == 53 || k == 11 || k == 55) {
-    if (addr.b1 > ((READSIZE >> 8) & 0xff) || (addr.b1 == ((READSIZE >> 8) & 0xff) && addr.b0 > (READSIZE & 0xff))) {  
+    if (u32_scmp(&addr, READSIZE) > 0) {  
       u32_add(&addr, -(READSIZE + lastread)); 
       fseek(f, READSIZE + lastread, M_SEEK_BWD);
       update = 1;
