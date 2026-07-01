@@ -225,6 +225,19 @@ void init() {
   nextreg(0x6e, OFFSET_MAP);
   nextreg(0x6f, OFFSET_DEF);
 
+  // Set tilemap defaults
+  // Reset clip window
+  nextreg(0x1c, 0b00001000);      // Reset tilemap clip index
+  nextreg(0x1b, 0);               // X1 - 0
+  nextreg(0x1b, 159);             // X2 - 318
+  nextreg(0x1b, 0);               // Y1 - 0
+  nextreg(0x1b, 255);             // Y1 - 255
+
+  // Reset scroll offsets
+  nextreg(0x2f, 0);               // X Scroll offset - MSB
+  nextreg(0x30, 0);               // X Scroll offset - LSB
+  nextreg(0x31, 0);               // Y Scroll offset
+
   // Copy the font to the tile definitions
   memcpy(TILE_DEF, font, 888);
 
@@ -234,14 +247,20 @@ void init() {
 
 int lastpagesize = -1;
 
-void loadfile(char* file) {
+void error(char *msg) __znccall(1);
+void confirm(char *msg) __znccall(1) ;
+
+void loadfile(char* file) __znccall(1) {
   errno=0;
   byte f=fopen(args,M_READ);
-  if (errno != 0) exit("Could not open file");
+  if (errno != 0) error("Could not open file");
 
   for(;;) {
     byte page = mmualloc();
-    if (page == 255) exit("out of memory");
+    if (page == 255) {
+      fclose(f);
+      error("out of memory");
+    }
   
     pages[pagecount++] = page;
     nextreg(0x56, page);
@@ -254,10 +273,15 @@ void loadfile(char* file) {
   fclose(f);
 }
 
-void savefile(char *file) {
+void savefile(char *file) __znccall(1) {
   errno=0;
   byte f=fopen(args, M_EXIST | M_WRITE);
-  if (errno != 0) exit("Could not open file");
+  if (errno != 0) {
+    if (confirm("Save failed. Exit")) {
+      exit(0);
+    }
+    return;
+  }
 
   for(byte i=0; i < pagecount - 2; ++i) {
     nextreg(0x56, pages[i]);
@@ -268,7 +292,7 @@ void savefile(char *file) {
   fclose(f);
 }
 
-int pagein(u32 *addr) {
+int pagein(u32 *addr) __znccall(1) {
   int lo = addr.b0 | (addr.b1 << 8);
   int hi = addr.b2 | (addr.b3 << 8);
   byte page = ((hi << 3) & 0xfff8) | (lo >> 13);
@@ -320,7 +344,7 @@ u32 curr;
 u32 tmp;
 byte curr_row;
 
-byte inview(u32 *t) {
+byte inview(u32 *t) __znccall(1) {
   u32 end = from;
   u32_addi(&end, ROWS * COLS);
   if (u32_scmp(&end, &size) > 0) end = size;
@@ -391,7 +415,7 @@ void menuitem(char key, char* name, byte active) __znccall(1) {
   while(--w) putch(' ');
 }
 
-void menu(byte active) {
+void menu(byte active) __znccall(1) {
   gotoxy(0,29);
   menuitem('S',"Save", active);
   menuitem('Q',"Quit", active);
@@ -532,10 +556,19 @@ void cleanup() {
  nextreg(0x07, old_reg_07);
 }
 
+void error(char *msg) __znccall(1) {
+  cleanup();
+  exit(msg);
+}
 
-if (*args == 0) return "Expected filename";
+if (*args == 0) {
+  puts("HEX Editor v1.0\r\r");
+  puts(".hexedit <filename>\r");
+  exit(0);
+}
+
+loadfile(args);
 
 init();
-loadfile(args);
 edit();
 cleanup();

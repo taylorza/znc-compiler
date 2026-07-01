@@ -74,11 +74,38 @@ void init() {
   nextreg(0x6e, OFFSET_MAP);
   nextreg(0x6f, OFFSET_DEF);
 
+  // Set tilemap defaults
+  // Reset clip window
+  nextreg(0x1c, 0b00001000);      // Reset tilemap clip index
+  nextreg(0x1b, 0);               // X1 - 0
+  nextreg(0x1b, 159);             // X2 - 318
+  nextreg(0x1b, 0);               // Y1 - 0
+  nextreg(0x1b, 255);             // Y1 - 255
+
+  // Reset scroll offsets
+  nextreg(0x2f, 0);               // X Scroll offset - MSB
+  nextreg(0x30, 0);               // X Scroll offset - LSB
+  nextreg(0x31, 0);               // Y Scroll offset
+
   // Copy the font to the tile definitions
   memcpy(TILE_DEF, font, 888);
 
   // Set the border to Blue (assume the default ULA palette)
   out(0xfe,1);
+}
+
+void cleanup() {
+  // Clear the garbage from the ULA screen
+  memset(0x4000, 0, 6144);
+
+  // Restore the border color
+  out(0xfe, old_border);
+
+  // Restore the next registers
+  nextreg(0x6b, old_reg_6b);
+  nextreg(0x43, old_reg_43);
+
+  nextreg(0x07, old_reg_07);
 }
 
 // CRT cursor location
@@ -180,14 +207,19 @@ void dump(byte* data, int bytes) {
   }    
 }
 
-
-if (*args == 0) return "Expected filename";
-
-init();
+if (*args == 0) {
+  puts("HEX Viewer v1.0\r\r");
+  puts(".hexvw <filename>\r");
+  exit(0);
+}
 
 errno=0;
 byte f=fopen(args,M_READ);
 if (errno != 0) return "Could not open file";
+
+init();
+
+
 
 byte[READSIZE] buf;
 int read;
@@ -227,14 +259,4 @@ for(;;) {
 }
 fclose(f);
 
-// Clear the garbage from the ULA screen
-memset(0x4000, 0, 6144);
-
-// Restore the border color
-out(0xfe, old_border);
-
-// Restore the next registers
-nextreg(0x6b, old_reg_6b);
-nextreg(0x43, old_reg_43);
-
-nextreg(0x07, old_reg_07);
+cleanup();
