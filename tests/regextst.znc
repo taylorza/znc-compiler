@@ -1,0 +1,166 @@
+make dot "regextst.dot";
+
+include "io.znc"
+include "regex.znc"
+
+void result(int b, char *msg) {
+  puts(msg); puts(": ");
+  if (b) {
+    ink(4); puts("PASSED");
+  } else {
+    ink(2); puts("FAILED");
+  }
+  putc('\r');
+  ink(0);
+}
+
+char* pat1 = "code-\\[[0-9a-fA-F]\\]";
+char* str1 = "System alert: code-[F] detected.";
+
+char* pat2 = "fatal|critical|error";
+char* str2 = "Status update: critical failure in sector 7.";
+
+char* pat3 = "magic\\.bin|test\\.txt";
+char* str3 = "Checking file: test.txt now.";
+
+char* pat4 = "^[A-Z]xxx";
+char* str4 = "Bxxx is at the start."; 
+
+char* pat5 = "^[A-Z]xxx";
+char* str5 = " bBxxx in the middle."; 
+
+char* pat6 = "done$";
+char* str6 = "Task is done";         
+
+char* pat7 = "done$";
+char* str7 = "Task is done.";        
+
+char* pat8 = "[^0-9]abc";
+char* str8 = "Xabc matches non-digit"; 
+
+char* pat9 = "[^0-9]abc";
+char* str9 = "5abc fails digit";       
+
+char* pat10 = "a\\|b\\|c";
+char* str10 = "The character is a|b|c"; 
+
+char* pat11 = "price\\$";
+char* str11 = "The price$";          
+
+char* pat12 = "price\\$";
+char* str12 = "price";               
+
+char* pat13 = "\\^start";
+char* str13 = "The symbols are ^start"; 
+
+char* pat14 = "file\\.txt";
+char* str14 = "Reading file.txt";    
+
+char* pat15 = "file\\.txt";
+char* str15 = "Reading fileXTxt";    
+
+char* pat16 = "colou?r";
+char* str16 = "The colour of the Z80 board.";  
+char* pat17 = "colou?r";
+char* str17 = "The color of the Z80 board.";   
+
+char* pat18 = "v1\\.[0-9]+";
+char* str18 = "Running version v1.2345 log.";   
+char* pat19 = "v1\\.[0-9]+";
+char* str19 = "Running version v1. log.";       
+
+char* pat20 = "b[aeiou]*g";
+char* str20 = "The beeeg bag is here.";         
+
+char* pat21 = "v1\\.[0-9]+|v2\\.[0-9]+";
+char* str21 = "The subsystem is on v2.148 software."; 
+
+char* pat22 = "fatal|critic?al";
+char* str22 = "System state is critical.";
+
+char* pat23 = "cat|dog|bird";
+char* str23 = "The user has a dog as a pet.";
+
+char* pat24 = "apple+|orange*|banana?";
+char* str24 = "Breakfast had an orangeee juice.";
+
+char* pat25 = "(?i)system_alert";
+char* str25 = "LOG: SYSTEM_ALERT triggered.";
+
+char* pat26 = "(?i)debug(?-i)_STRICT";
+char* str26_1 = "Trace: DeBuG_STRICT entry point."; 
+char* str26_2 = "Trace: DeBuG_strict entry point."; 
+
+char* pat27 = "v.r";
+char* str27 = "Check var display.";
+
+char* pat28 = "start.*end";
+char* str28 = "The start of the end.";
+
+char* pat29 = "ID\\d\\d\\d";
+char* str29 = "User ID247 logged in.";
+
+char* pat30 = "\\d+";
+char* str30 = "No numbers here!";
+
+char* pat31 = "\\w+@\\w+";
+char* str31 = "Contact user@host for info.";
+
+char* pat32 = "end\\s+of";
+char* str32 = "This is the end   of the line.";
+
+char* pat33 = "[\\d_]+";
+char* str33 = "The value_123 is valid.";
+
+char* pat34 = "(?i)[a-z]+_ok";
+char* str34 = "STATUS_OK confirmed.";
+
+char* pat35 = "cat|dog|bird";
+char* str35 = "The user has a fish as a pet.";
+
+char* pat36 = "rate\\*100";
+char* str36 = "The formula is rate*100 percent.";
+
+char* pat37 = "^exact$";
+char* str37_1 = "exact";
+char* str37_2 = "not exact";
+
+
+result(match(pat1, str1), "Test 1");
+result(match(pat2, str2), "Test 2");
+result(match(pat3, str3), "Test 3");
+result(match(pat4, str4), "Test 4");
+result(!match(pat5, str5), "Test 5");
+result(match(pat6, str6), "Test 6");
+result(!match(pat7, str7), "Test 7");
+result(match(pat8, str8), "Test 8");
+result(!match(pat9, str9), "Test 9");
+result(match(pat10, str10), "Test 10");
+result(match(pat11, str11), "Test 11");
+result(!match(pat12, str12), "Test 12");
+result(match(pat13, str13), "Test 13");
+result(match(pat14, str14), "Test 14");
+result(!match(pat15, str15), "Test 15");
+result(match(pat16, str16), "Test 16");
+result(match(pat17, str17), "Test 17");
+result(match(pat18, str18), "Test 18");
+result(!match(pat19, str19), "Test 19");
+result(match(pat20, str20), "Test 20");
+result(match(pat21, str21), "Test 21");
+result(match(pat22, str22), "Test 22");
+result(match(pat23, str23), "Test 23");
+result(match(pat24, str24), "Test 24");
+result(match(pat25, str25), "Test 25");
+result(match(pat26, str26_1) && !match(pat26, str26_2), "Test 26");
+result(match(pat27, str27), "Test 27");
+result(match(pat28, str28), "Test 28");
+result(match(pat29, str29), "Test 29");
+result(!match(pat30, str30), "Test 30");
+result(match(pat31, str31), "Test 31");
+result(match(pat32, str32), "Test 32");
+result(match(pat33, str33), "Test 33");
+result(match(pat34, str34), "Test 34");
+result(!match(pat35, str35), "Test 35");
+result(match(pat36, str36), "Test 36");
+result(match(pat37, str37_1) && !match(pat37, str37_2), "Test 37");
+

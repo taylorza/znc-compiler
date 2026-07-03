@@ -1,3 +1,10 @@
+2026/07/-- - Version 0.6c
+- Enhancement - make/raw/dot/next/org/bank are no longer reserved words
+- Fix - Address of indexed pointers on the stack returning the wrong address
+- Added - ctype.znc a library of utility functions for text data, isdigit, isalpha, isalnum, to_lower, to_upper etc.
+- Added - regex.znc a tiny but capable regex implementation
+- Added - grep.znc a example program using the new regex library to implement a grep DOT command
+
 2026/06/28 - Version 0.6b
 - Added calling convention __znccall(1) which forces callee stack cleanup
 - Added cmdline.znc - parse the commandline into argc/argv

@@ -397,8 +397,9 @@ int match(char* pattern, char* text) __znccall(1) {
     quant = *next_q;
   }
 
-  if (_is_one(quant, "*?")) {
-    /* First token can be empty: try every position (including end). */
+  if (_is_one(quant, "*?") || _find_alt(p) != 0) {
+    /* First token can be empty, or pattern has top-level alternation:
+       try every position (including end). */
     char* t = text;
     for(;;) {
       if (_match_here(p, t)) return 1;

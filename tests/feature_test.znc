@@ -31,6 +31,7 @@ const byte TEST_PTRST   = TEST_G3;   // pointer to struct member / array element
 const byte TEST_MUTREC = TEST_G3;    // mutual recursion
 const byte TEST_MEM_PTR = TEST_G3;   // pointer to nested struct member
 const byte TEST_CALLCON = TEST_G3;   // test calling conventions
+const byte TEST_ADDROF = TEST_G3;   // &arr[c/r], &ptr[c/r], &sptr.f, &a[i].f, &p[i].f
 
 // Derived:
 #if TEST_STRUCTS
@@ -1219,6 +1220,59 @@ void test_callconv() {
 }
 #endif
 
+#if TEST_ADDROF
+void test_addrof() {
+    int[4] ia;
+    ia[0] = 1; ia[1] = 2; ia[2] = 3; ia[3] = 4;
+
+    // &arr[const]: constant-index address of array element
+    int *p0 = &ia[2];
+    *p0 = 99;
+    chk("ao_ac", ia[2] == 99);
+
+    // &arr[runtime]: runtime-index address of array element
+    int i = 3;
+    int *p1 = &ia[i];
+    *p1 = 77;
+    chk("ao_ar", ia[3] == 77);
+
+    // &ptr[const]: constant-index address via pointer (fixed bug)
+    int *base = ia;
+    int *p2 = &base[1];
+    *p2 = 55;
+    chk("ao_pc", ia[1] == 55);
+
+    // &ptr[runtime]: runtime-index address via pointer
+    int ri = 0;
+    int *p3 = &base[ri];
+    *p3 = 33;
+    chk("ao_pr", ia[0] == 33);
+
+    // &sptr.field: address of struct field via struct pointer
+    Point q;
+    q.x = 10; q.y = 20;
+    Point *sp = &q;
+    int *pf = &sp.y;
+    *pf = 88;
+    chk("ao_spf", q.y == 88);
+
+    // &arr[i].field: address of field in indexed struct array element
+    Point[3] pts;
+    pts[0].x = 1; pts[0].y = 2;
+    pts[1].x = 3; pts[1].y = 4;
+    pts[2].x = 5; pts[2].y = 6;
+    int *paf = &pts[1].x;
+    *paf = 66;
+    chk("ao_aif", pts[1].x == 66);
+
+    // &ptr[i].field: address of field via struct pointer + index
+    Point *pa = pts;
+    int *ppf = &pa[2].y;
+    *ppf = 44;
+    chk("ao_pif", pts[2].y == 44);
+}
+#endif
+
 
 pass_count = 0;
 fail_count = 0;
@@ -1292,6 +1346,7 @@ test_mem_ptr();
 test_par_dref();
 test_par_unop();
 test_callconv();
+test_addrof();
 #endif
 
 puts("================\r");

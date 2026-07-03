@@ -121,14 +121,15 @@ _
 
   ld a,l
   cp ' '          ; Check spacebar (0x20)
-  jr z,.yes
-
+  jr nz,.nospace  ; Not a space, check control chars
+  ld hl,1         ; Space matched - return 1
+  ret
+.nospace
   sub 0x09        ; Shift control spaces ('\t', '\n', '\v', '\f', '\r')
   cp 5            ; Checks if result falls in range 0-4
 
-.yes
   ld hl,0
-  rl l            ; Returns 1 if match found (Z or C flag active), else 0
+  rl l            ; Returns 1 if carry set (control char in range)
   ret
 }
 
