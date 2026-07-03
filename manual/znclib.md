@@ -6,6 +6,7 @@ Libraries
 
 - [ay](znclib/ay.md) — AY-3-8912 stereo sound chip control
 - [cmdline](znclib/cmdline.md) — Command-line parsing
+- [ctype](znclib/ctype.md) — Character classification and case conversion
 - [datetime](znclib/datetime.md) — Real-time clock and date/time parsing
 - [dot](znclib/dot.md) — DOT overlay error handler
 - [fileio](znclib/fileio.md) — File open/read/write/seek operations
@@ -18,6 +19,7 @@ Libraries
 - [mouse](znclib/mouse.md) — Mouse position and buttons
 - [printf](znclib/printf.md) — Formatted printing
 - [rnd](znclib/rnd.md) — Pseudorandom number generator
+- [regex](znclib/regex.md) — Regular expression matching
 - [sprite](znclib/sprite.md) — Sprite loading and updates
 - [sprintf](znclib/sprintf.md) — String formatting to buffer
 - [string](znclib/string.md) — Core string functions

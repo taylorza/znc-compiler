@@ -17,6 +17,25 @@ byte isdigit(char c) __znccall(1) __asm__ {
   ret             ; Return false (0)
 }
 
+byte isalpha(char c) __znccall(1) __asm__ {
+_
+  pop de          ; Pop return address
+  pop hl          ; Pop character 'c' into HL (L contains the char)
+  push de         ; Restore return address to stack
+
+  sub 'A'         ; Shift 'A'-'Z' down to 0-25
+  cp 26           ; Check if it's uppercase (0-25 sets Carry)
+  jr c,.yes
+
+  sub 'a'-'A'     ; Shift 'a'-'z' down to 0-25 relative to the prev subtraction
+  cp 26           ; Check if it's lowercase (0-25 sets Carry)
+
+.yes
+  ld hl,0         ; Clear H and L (sets false state)
+  rl l            ; Rotate Carry bit into L (if Carry=1, HL becomes 1)
+  ret  
+}
+
 byte isalnum(char c) __znccall(1) __asm__ {
 _
   pop de          ; Pop return address
