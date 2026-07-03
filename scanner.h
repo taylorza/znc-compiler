@@ -42,6 +42,8 @@ void exit_asm_block(void) MYCC;
 void far_parse_asm(void) MYCC;
 void parse_asm_block(void) MYCC;
 
+TOKEN lookup_ident_token(const char* ident) MYCC;
+
 TOKEN_TYPE get_token(void) MYCC;
 void expect(TOKEN t, char ch);
 

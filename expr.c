@@ -696,17 +696,40 @@ static void parse_factor_ampersand(EXPR_RESULT *result) MYCC {
             expect(tokRBrack, ']');
 
             if (addr_base_sym) {
-                if (type_is_const(index_result.type_id)) {
-                    if (type_is_fixed(index_result.type_id))
-                        index_result.value = (uint16_t)((int16_t)index_result.value >> 4);
-                    uint16_t total_offset = index_result.value * scale;
-                    emit_ld_symaddr_offset(&sym, total_offset);
+                /* If the base symbol is a pointer variable, compute p + index
+                 * (load the pointer value and add offset). For arrays/structs
+                 * fall back to computing the address of the element within the
+                 * symbol storage (emit_ld_symaddr_offset / emit_ld_symaddr).
+                 */
+                if (type_is_pointer(sym.type_id)) {
+                    if (type_is_const(index_result.type_id)) {
+                        if (type_is_fixed(index_result.type_id))
+                            index_result.value = (uint16_t)((int16_t)index_result.value >> 4);
+                        uint16_t total_offset = index_result.value * scale;
+                        /* load pointer value then add immediate offset */
+                        emit_ld_symval(&sym);
+                        if (total_offset) { emit_ldde_immed_n(total_offset); emit_add16(); }
+                    } else {
+                        if (type_is_fixed(index_result.type_id)) emit_fixed_to_int();
+                        if (scale > 1) emit_scale_reg(scale, 1);
+                        /* load pointer value (HL) and add scaled index in HL */
+                        emit_swap(); /* index currently in HL from parse */
+                        emit_ld_symval(&sym);
+                        emit_add16();
+                    }
                 } else {
-                    if (type_is_fixed(index_result.type_id)) emit_fixed_to_int();
-                    if (scale > 1) emit_scale_reg(scale, 1);
-                    emit_swap();
-                    emit_ld_symaddr(&sym);
-                    emit_add16();
+                    if (type_is_const(index_result.type_id)) {
+                        if (type_is_fixed(index_result.type_id))
+                            index_result.value = (uint16_t)((int16_t)index_result.value >> 4);
+                        uint16_t total_offset = index_result.value * scale;
+                        emit_ld_symaddr_offset(&sym, total_offset);
+                    } else {
+                        if (type_is_fixed(index_result.type_id)) emit_fixed_to_int();
+                        if (scale > 1) emit_scale_reg(scale, 1);
+                        emit_swap();
+                        emit_ld_symaddr(&sym);
+                        emit_add16();
+                    }
                 }
                 addr_base_sym = 0;
             } else {

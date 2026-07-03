@@ -36,11 +36,19 @@ typedef struct KEYWORD {
  * to BANK_42, calls the banked function, and returns the result.
  */
 TOKEN far_lookup_keyword(const char* ident) MYCC;
+TOKEN far_ident_token(const char* ident) MYCC;
 
 /* Shared-memory stub that forwards to the banked implementation. */
 TOKEN lookup_keyword(const char* ident) MYCC {
     PROLOG(42)
         TOKEN t = far_lookup_keyword(ident);
+    EPILOG_RETURN(t)
+}
+
+/* Wrapper to call the banked ident->token mapper. */
+TOKEN lookup_ident_token(const char* ident) MYCC {
+    PROLOG(42)
+        TOKEN t = far_ident_token(ident);
     EPILOG_RETURN(t)
 }
 

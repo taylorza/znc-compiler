@@ -20,7 +20,6 @@ static const KEYWORD kw_a[] = {
 };
 
 static const KEYWORD kw_b[] = {
-    {"bank", tokBank},
     {"break", tokBreak},
     {"byte", tokByte},
 };
@@ -35,7 +34,6 @@ static const KEYWORD kw_c[] = {
 static const KEYWORD kw_d[] = {
     {"default", tokDefault},
     {"delegate", tokDelegate},
-    {"dot", tokDot},
 };
 
 static const KEYWORD kw_e[] = {
@@ -57,17 +55,15 @@ static const KEYWORD kw_i[] = {
     {"int", tokInt},
 };
 
-static const KEYWORD kw_m[] = {
-    {"make", tokMake},
-};
+/* 'make' is intentionally not a keyword so it can be used as an identifier.
+   The special meaning is handled in the parser when an identifier named
+   "make" appears in the appropriate context. */
 
 static const KEYWORD kw_n[] = {
-    {"nex", tokNex},
     {"nextreg", tokNextReg},
 };
 
 static const KEYWORD kw_o[] = {
-    {"org", tokOrg},
     {"out", tokOut},
 };
 
@@ -77,7 +73,6 @@ static const KEYWORD kw_p[] = {
 };
 
 static const KEYWORD kw_r[] = {
-    {"raw", tokRaw},
     {"readreg", tokReadReg},
     {"return", tokReturn},
 };
@@ -126,7 +121,7 @@ static const KEYWORD_BUCKET keyword_buckets[128] = {
     ['e'] = { kw_e, sizeof(kw_e) / sizeof(KEYWORD) },
     ['f'] = { kw_f, sizeof(kw_f) / sizeof(KEYWORD) },
     ['i'] = { kw_i, sizeof(kw_i) / sizeof(KEYWORD) },
-    ['m'] = { kw_m, sizeof(kw_m) / sizeof(KEYWORD) },
+    ['m'] = { NULL, 0 },
     ['n'] = { kw_n, sizeof(kw_n) / sizeof(KEYWORD) },
     ['o'] = { kw_o, sizeof(kw_o) / sizeof(KEYWORD) },
     ['p'] = { kw_p, sizeof(kw_p) / sizeof(KEYWORD) },
@@ -148,7 +143,20 @@ TOKEN far_lookup_keyword(const char* ident) MYCC {
         if (strncmp(ident, b->list[i].name, MAX_IDENT_LEN) == 0)
             return b->list[i].tok;
     }
+    return tokNone;
+}
 
+/* Banked helper to map certain identifier names to special tokens while
+   keeping the literal strings in banked memory. Returns tokNone if the
+   identifier is not one of the special names. */
+TOKEN far_ident_token(const char* ident) MYCC {
+    /* compare against a short set of names stored in this bank */
+    if (strncmp(ident, "make", MAX_IDENT_LEN) == 0) return tokMake;
+    if (strncmp(ident, "nex", MAX_IDENT_LEN) == 0) return tokNex;
+    if (strncmp(ident, "dot", MAX_IDENT_LEN) == 0) return tokDot;
+    if (strncmp(ident, "raw", MAX_IDENT_LEN) == 0) return tokRaw;
+    if (strncmp(ident, "org", MAX_IDENT_LEN) == 0) return tokOrg;
+    if (strncmp(ident, "bank", MAX_IDENT_LEN) == 0) return tokBank;
     return tokNone;
 }
 

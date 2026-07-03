@@ -113,12 +113,10 @@ void parse(const char* sourcefile, char* outfilename, uint8_t entrypoint) MYCC {
     get_token();
 
     // initialization statements
-    switch (tok) {
-        case tokMake: parse_make(outfilename); break;            
-        case tokOrg: parse_org(); break;
-        default:
-            // Assemble to memory default address will be $c000
-            break;
+    if (tok == tokIdent) {
+        TOKEN t = lookup_ident_token(token);
+        if (t == tokMake) parse_make(outfilename);
+        else if (t == tokOrg) parse_org();
     }
 
     if (entrypoint) {        
@@ -164,35 +162,30 @@ void emit_make_defines(TOKEN outputTok) {
 void parse_make(const char *filename) MYCC {
     get_token(); // skip 'make'
 
-    switch (tok) {
-        case tokNex:            
-        case tokRaw:
-        case tokDot:     
-            tokMakeType = tok; // remember type of make command
-            
-            get_token(); // skip output type
-            if (tok == tokString) {
-                snprintf(outfilename, MAX_FILENAME_LEN, "%s", token);
-                get_token(); // skip string
-            }
-            else {
-                snprintf(outfilename, MAX_FILENAME_LEN, "%s%s", filename, tokMakeType == tokNex ? ".nex" : "");
-            }
-            expect_semi(); 
-            
-            if (tokMakeType == tokRaw || tokMakeType == tokDot)
-                emit_output(outfilename, tokMakeType);
-            
-            if (tok == tokBank) parse_bank();
-            else if (tokMakeType == tokNex) emit_bank(0, 0);
+    /* Output type (nex/dot/raw) is always an identifier — not a keyword. */
+    if (tok != tokIdent) { error(errExpected_s, "nex/dot/raw"); return; }
+    TOKEN t = lookup_ident_token(token);
+    if (t != tokNex && t != tokRaw && t != tokDot) { error(errExpected_s, "nex/dot/raw"); return; }
+    tokMakeType = t;
 
-            if (tok == tokOrg) parse_org();
-            else if (tokMakeType == tokNex) emit_org(0xc000);
-            break;        
-        default:
-            error(errExpected_s, "nex/dot/raw");
-            break;
+    get_token(); // skip output type
+
+    if (tok == tokString) {
+        snprintf(outfilename, MAX_FILENAME_LEN, "%s", token);
+        get_token(); // skip string
+    } else {
+        snprintf(outfilename, MAX_FILENAME_LEN, "%s%s", filename, tokMakeType == tokNex ? ".nex" : "");
     }
+    expect_semi();
+
+    if (tokMakeType == tokRaw || tokMakeType == tokDot)
+        emit_output(outfilename, tokMakeType);
+
+    if (tok == tokIdent && lookup_ident_token(token) == tokBank) parse_bank();
+    else if (tokMakeType == tokNex) emit_bank(0, 0);
+
+    if (tok == tokIdent && lookup_ident_token(token) == tokOrg) parse_org();
+    else if (tokMakeType == tokNex) emit_org(0xc000);
 
     emit_make_defines(tokMakeType);
 }
@@ -284,6 +277,11 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
             parse_decl();
             return;
         }
+
+        /* org and bank are not keywords; recognise them here as directives. */
+        TOKEN special = lookup_ident_token(token);
+        if (special == tokOrg) { parse_org(); return; }
+        if (special == tokBank) { parse_bank(); return; }
     }
 
     switch (tok) {
@@ -328,8 +326,6 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
         case tokNextReg: parse_nextreg(); break;
         case tokAsm: parse_asm(); break;
         case tokInclude: parse_include(); break;
-        case tokOrg: parse_org(); break;
-        case tokBank: parse_bank(); break;
         case tokSemi: get_token(); break; // empty statement
 
         case tokHashIf: 
