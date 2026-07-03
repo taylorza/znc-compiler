@@ -1,0 +1,218 @@
+#ifndef CTYPE__
+const byte CTYPE__ = 1;
+
+byte isdigit(char c) __znccall(1) __asm__ {
+  pop de          ; Pop return address
+  pop hl          ; Pop character 'c' into HL (L contains the char)
+  push de         ; Restore return address to stack
+
+  ld a,l          ; Move char to accumulator
+  sub '0'         ; Subtract '0' ascii value
+  cp 10           ; Check if it is less than 10 (0-9)
+  
+  ld hl,1         ; Pre-load true (1) into HL (does not affect flags)
+  ret c           ; Return immediately if it was a digit (0-9)
+
+  dec l           ; Efficiently change HL from 1 to 0
+  ret             ; Return false (0)
+}
+
+byte isalnum(char c) __znccall(1) __asm__ {
+_
+  pop de          ; Pop return address
+  pop hl          ; Pop character 'c' into HL (L contains the char)
+  push de         ; Restore return address to stack
+
+  ld a,l          ; Move char to accumulator
+  sub '0'         ; Shift '0'-'9' to 0-9
+  cp 10           ; Check if it's a digit (0-9 sets Carry)
+  jr c,.yes
+
+  sub 'A'-'0'     ; Shift 'A'-'Z' down to 0-25 relative to the prev subtraction
+  cp 26           ; Check if it's uppercase (0-25 sets Carry)
+  jr c,.yes
+
+  sub 'a'-'A'     ; Shift 'a'-'z' down to 0-25 relative to the prev subtraction
+  cp 26           ; Check if it's lowercase (0-25 sets Carry)
+
+.yes
+  ld hl,0         ; Clear H and L (sets false state)
+  rl l            ; Rotate Carry bit into L (if Carry=1, HL becomes 1)
+  ret
+}
+
+byte islanum(char c) __znccall(1) __asm__ {
+_  
+  pop de          ; Pop return address
+  pop hl          ; Pop character 'c' into HL (L contains the char)
+  push de         ; Restore return address to stack
+
+  ld a,l          ; Move char to accumulator
+  sub '0'         ; Shift '0'-'9' to 0-9
+  cp 10           ; Check if it's a digit (0-9 sets Carry)
+  jr c,.yes
+
+  sub 'a'-'0'     ; Shift 'a'-'z' down to 0-25 relative to the first subtraction
+  cp 26           ; Check if it's lowercase (0-25 sets Carry)
+
+.yes
+  ld hl,0         ; Clear H and L registers
+  rl l            ; Rotate Carry bit into L (Carry=1 becomes HL=1, Carry=0 becomes HL=0)
+  ret
+}
+
+byte isupper(char c) __znccall(1) __asm__ {
+  pop de
+  pop hl
+  push de
+
+  ld a,l
+  sub 'A'
+  cp 26
+
+  ld hl,0
+  rl l
+  ret
+}
+
+byte islower(char c) __znccall(1) __asm__ {
+  pop de
+  pop hl
+  push de
+
+  ld a,l
+  sub 'a'
+  cp 26
+
+  ld hl,0
+  rl l
+  ret
+}
+
+byte isxdigit(char c) __znccall(1) __asm__ {
+_
+  pop de
+  pop hl
+  push de
+
+  ld a,l
+  sub '0'
+  cp 10           ; Sets Carry if '0'-'9'
+  jr c,.yes
+
+  sub 'A'-'0'
+  cp 6            ; Sets Carry if 'A'-'F'
+  jr c,.yes
+
+  sub 'a'-'A'
+  cp 6            ; Sets Carry if 'a'-'f'
+
+.yes
+  ld hl,0
+  rl l
+  ret
+}
+
+byte isspace(char c) __znccall(1) __asm__ {
+_
+  pop de
+  pop hl
+  push de
+
+  ld a,l
+  cp ' '          ; Check spacebar (0x20)
+  jr z,.yes
+
+  sub 0x09        ; Shift control spaces ('\t', '\n', '\v', '\f', '\r')
+  cp 5            ; Checks if result falls in range 0-4
+
+.yes
+  ld hl,0
+  rl l            ; Returns 1 if match found (Z or C flag active), else 0
+  ret
+}
+
+byte isprint(char c) __znccall(1) __asm__ {
+  pop de
+  pop hl
+  push de
+
+  ld a,l
+  sub 32          ; Remove control range (0-31 shifted to underflow)
+  cp 95           ; Checks range up to 126 (32 + 95 = 127 boundary)
+
+  ld hl,0
+  rl l
+  ret
+}
+
+byte ispunct(char c) __znccall(1) __asm__ {
+_
+  pop de
+  pop hl
+  push de
+
+  ld a,l
+  sub 32
+  cp 95           ; Is it printable?
+  jr nc,.no       ; If not printable, it's not punctuation
+
+  add a,32        ; Restore character value to accumulator
+  sub '0'
+  cp 10           ; Is it a digit?
+  jr c,.no
+
+  sub 'A'-'0'
+  cp 26           ; Is it uppercase?
+  jr c,.no
+
+  sub 'a'-'A'
+  cp 26           ; Is it lowercase?
+  jr c,.no
+
+  ld hl,1         ; It's printable, but not a digit or letter -> Punctuation!
+  ret
+
+.no
+  ld hl,0
+  ret
+}
+
+char to_lower(char c) __znccall(1) __asm__ {
+_
+  pop de          ; Pop return address
+  pop hl          ; Pop character 'c' into HL (L contains the char)
+  push de         ; Restore return address to stack
+
+  ld a,l          ; Move character to accumulator
+  sub 'A'         ; Shift range so 'A' becomes 0
+  cp 26           ; Check if it's within 0-25 (uppercase range)
+  jr nc,.done     ; If not less than 26, it's not uppercase; skip conversion
+
+  add a,'A'+0x20  ; Restore original position and add 0x20 to convert to lowercase
+  ld l,a          ; Place the modified character back into the return register
+
+.done
+  ret
+}
+
+char to_upper(char c) __znccall(1) __asm__ {
+_  
+  pop de          ; Pop return address
+  pop hl          ; Pop character 'c' into HL (L contains the char)
+  push de         ; Restore return address to stack
+
+  ld a,l          ; Move character to accumulator
+  sub 'a'         ; Shift range so 'a' becomes 0
+  cp 26           ; Check if it's within 0-25 (lowercase range)
+  jr nc,.done     ; If not less than 26, it's not lowercase, skip conversion
+
+  sub 0x20        ; Convert to uppercase (relative subtraction from 'a')
+  add a,'a'       ; Restore the absolute ASCII position
+  ld l,a          ; Place the modified character back into the return register
+
+.done
+  ret
+}
+
+#endif // CTYPE__

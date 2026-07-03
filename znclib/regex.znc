@@ -1,0 +1,420 @@
+/*
+ * Tiny low-memory regex engine for ZNC.
+ * 
+ * Supported Grammar:
+ * 
+ *   Metacharacters:
+ *     .         Matches any single ASCII character except '\0'.
+ *     ^         Matches only at the absolute beginning of the text line.
+ *               Must be placed at the very start of the pattern string.
+ *     $         Matches only at the absolute end of the text line string.
+ *               Must be placed at the very end of the pattern string.
+ * 
+ *   Quantifiers:
+ *     *         Matches zero or more occurrences of the preceding token.
+ *     +         Matches one or more occurrences of the preceding token.
+ *     ?         Matches zero or one occurrence of the preceding token.
+ * 
+ *   Alternation:
+ *     |         Logical OR operator. Splits patterns into sequential structural
+ *               match pipelines (e.g., "fatal|error" or "apple+|orange*").
+ * 
+ *   Character Classes:
+ *     [...]     Matches any single character listed inside the brackets.
+ *     [^...]    Inverted class. Matches any character NOT listed inside.
+ *     a-z       Sequential character ranges (e.g., [a-zA-Z0-9]).
+ * 
+ *   Escape Sequences:
+ *     \         Bypasses structural syntax definitions. Allows matching literal
+ *               operators like \., \^, \$, \|, \*, \+, \?, \[ etc.
+ * 
+ *   Shorthand Character Classes:
+ *     \d        Matches any decimal digit character ('0' through '9').
+ *     \w        Matches any alphanumeric "word" character or underscore
+ *               ('a'-'z', 'A'-'Z', '0'-'9', '_').
+ *     \s        Matches any whitespace token (' ', '\t', '\r', '\n').
+ * 
+ *               *Note: Shorthand classes operate both as standalone
+ *               tokens (e.g., "\d+") and embedded directly inside custom bracket 
+ *               enclosures (e.g., "[\d_a-fA-F]").
+ * 
+ *   Inline Modifiers (Case Sensitivity Flags):
+ *     (?i)      Turns case insensitivity ON. All downstream literals, custom 
+ *               bracket classes, and range boundaries match regardless of case.
+ *     (?-i)     Turns case insensitivity OFF. Restores strict case matching 
+ *               for all downstream tokens.
+ * 
+ *               *Note: The system defaults to case-sensitive evaluation at the 
+ *               start of every line scan. Modifiers work dynamically mid-pattern 
+ *               (e.g., "(?i)debug(?-i)_STRICT").
+ */
+
+#ifndef REGEX__
+const byte REGEX__ = 1;
+
+include "ctype.znc"
+
+/* Global case-insensitive flag */
+byte _re_icase = 0;
+
+int   match(char* pattern, char* text) __znccall(1);
+int   _match_here(char* p, char* t) __znccall(1);
+int   _match_class(char* p, char c) __znccall(1);
+int   _match_short(char type, char c) __znccall(1);
+int   _match_char(char* p, char c) __znccall(1);
+char* _skip_class(char* p) __znccall(1);
+char* _find_alt(char* p) __znccall(1);
+char* _parse_flags(char* p) __znccall(1);
+
+byte _is_seq(char *p, char *set, byte len) __znccall(1) __asm__ {
+_
+  pop af          ; Pop return address
+  pop bc          ; Pop 'len' into BC
+  pop de          ; Pop 'set' into DE
+  pop hl          ; Pop 'p' into HL
+  push af
+
+  ; If len == 0, match empty sequence
+  ld a,c
+  or a
+  jr nz, .has_len
+  ld hl,1
+  ret
+
+.has_len:
+  ld b,c
+.compare:
+  ld a,(de)
+  cp (hl)
+  jr nz, .nomatch
+  inc hl
+  inc de
+  djnz .compare
+
+  ld hl,1
+  ret
+
+.nomatch:
+  ld hl,0
+  ret
+}
+
+byte _is_one(char ch, char *set) __znccall(1) __asm__ {
+_
+  pop bc          ; Pop return address
+  pop de          ; Pop pointer 'set' into DE
+  pop hl          ; Pop 'ch' (L contains the character value)
+  push bc         ; Restore return address to stack
+
+  ld c, l         ; Store target character 'ch' safely in C
+
+.loop:
+  ld a, (de)      ; Load current character from 'set' into A
+  or a            ; Check if it is the null terminator ('\0')
+  jr z, .nomatch  ; If we reached the end of the set, 'ch' was not found
+
+  cp c            ; Compare the set character with our target character
+  jr z, .match    ; If they match, we found it!
+
+  inc de          ; Advance 'set' pointer to the next character
+  jr .loop        ; Keep searching
+
+.match:
+  ld hl, 1        ; Return True (1)
+  ret
+
+.nomatch:
+  ld hl, 0        ; Return False (0)
+  ret
+}
+
+
+/* Inline (?i) / (?-i) flags */
+char* _parse_flags(char* p) __znccall(1) {
+  while (_is_seq(p, "(?", 2)) {
+    /* Guard against truncated/malformed flag groups */
+    if (_is_seq(&p[2], "i)", 2)) {
+      _re_icase = 1;
+      p += 4;
+    } else if (_is_seq(&p[2], "-i)", 3)) {
+      _re_icase = 0;
+      p += 5;
+    } else {
+      /* Unknown or malformed flag group — skip to the closing ')' if any
+         so the caller can make progress instead of looping forever. */
+      char *q = p;
+      while (*q != '\0' && *q != ')') ++q;
+      if (*q == ')') ++q;
+      p = q;
+    }
+  }
+  return p;
+}
+
+/* Shorthand classes: \d, \w, \s */
+int _match_short(char type, char c) __znccall(1) {
+  char x = _re_icase ? to_lower(c) : c;
+
+  if (type == 'd') {
+    return isdigit(x);
+  }
+
+  if (type == 'w') {
+    return (islanum(x) || (x == '_'));
+  }
+
+  if (type == 's') {
+    return (isspace(x));
+  }
+
+  return 0;
+}
+
+/* Single token match */
+int _match_char(char* p, char c) __znccall(1) {
+  if (c == '\0') return 0;
+
+  if (*p == '\\') {
+    char esc = p[1];
+    if (esc == '\0') return 0;
+
+    if (_is_one(esc, "dws")) {
+      return _match_short(esc, c);
+    }
+
+    return _re_icase ? (to_lower(c) == to_lower(esc)) : (c == esc);
+  }
+
+  if (*p == '.') return 1;
+  if (*p == '[') return _match_class(p + 1, c);
+
+  return _re_icase ? (to_lower(c) == to_lower(*p)) : (c == *p);
+}
+
+/* Character class [...] / [^...] */
+int _match_class(char* p, char c) __znccall(1) {
+  int invert = 0;
+  int matched = 0;
+  char x = _re_icase ? to_lower(c) : c;
+
+  if (*p == '^') {
+    invert = 1;
+    ++p;
+  }
+
+  while (*p != ']' && *p != '\0') {
+    if (*p == '\\') {
+      char esc = *(++p);
+      if (*p == '\0') break;
+
+      if (_is_one(esc, "dws")) {
+        if (_match_short(esc, c)) matched = 1;
+      } else {
+        char xe = _re_icase ? to_lower(esc) : esc;
+        if (x == xe) matched = 1;
+      }
+      ++p;
+      continue;
+    }
+
+    if (p[1] == '-' && p[2] != ']' && p[2] != '\0') {
+      char start = _re_icase ? to_lower(p[0]) : p[0];
+      char end   = _re_icase ? to_lower(p[2]) : p[2];
+
+      if (x >= start && x <= end) matched = 1;
+      p += 3;
+      continue;
+    }
+
+    {
+      char y = _re_icase ? to_lower(*p) : *p;
+      if (x == y) matched = 1;
+      ++p;
+    }
+  }
+
+  return invert ? !matched : matched;
+}
+
+/* Skip [...] */
+char* _skip_class(char* p) __znccall(1) {
+  if (*p == '^') ++p;
+  while (*p != ']' && *p != '\0') {
+    if (*p == '\\') {
+      ++p;
+      if (*p == '\0') break;
+    }
+    ++p;
+  }
+  if (*p == ']') ++p;
+  return p;
+}
+
+/* Find next '|' respecting escapes, classes, flags */
+char* _find_alt(char* p) __znccall(1) {
+  while (*p != '\0') {
+    if (*p == '\\') {
+      ++p;
+      if (*p == '\0') break;
+    }
+    else if (*p == '[') {
+      p = _skip_class(p + 1);
+      continue;
+    }
+    else if (_is_seq(&p[0], "(?", 2) && _is_one(p[2], "i-")) {
+      while (*p != '\0' && *p != ')') ++p;
+      if (*p == '\0') break;
+    }
+    else if (*p == '|') {
+      return p;
+    }
+    ++p;
+  }
+  return 0;
+}
+
+/* Core matcher for a segment (null-terminated pattern) */
+int _match_here(char* p, char* t) __znccall(1) {
+  char* alt;
+
+  p = _parse_flags(p);
+
+  if (*p == '\0') return 1;
+
+  alt = _find_alt(p);
+  if (alt != 0) {
+    /* Left side: p .. alt */
+    char saved = *alt;
+    *alt = '\0';
+    /* Preserve case flag across recursive attempts */
+    byte old_icase = _re_icase;
+    int res = _match_here(p, t);
+    *alt = saved;
+    _re_icase = old_icase;
+    if (res) return 1;
+
+    old_icase = _re_icase;
+    res = _match_here(alt + 1, t);
+    _re_icase = old_icase;
+    return res;
+  }
+
+  while (*p != '\0') {
+    char* next_p = p;
+    char quant = '\0';
+
+    if (*p == '\\') {
+      if (p[1] == '\0') return 0;
+      next_p = p + 2;
+    }
+    else if (*p == '[') {
+      next_p = _skip_class(p + 1);
+    }
+    else if (_is_seq(p, "(?", 2)) {
+      p = _parse_flags(p);
+      continue;
+    }
+    else if (_is_seq(p, "$\0", 2)) {
+      return *t == '\0';
+    }
+    else {
+      next_p = p + 1;
+    }
+
+    if (_is_one(*next_p, "*+?")) {
+      quant = *next_p;
+      ++next_p;
+    }
+
+    if (quant == '?') {
+      if (_match_char(p, *t)) {
+        byte old_icase = _re_icase;
+        if (_match_here(next_p, t + 1)) {
+          _re_icase = old_icase;
+          return 1;
+        }
+        _re_icase = old_icase;
+      }
+      p = next_p;
+    }
+    else if (_is_one(quant, "*+")) {
+      char* start_t = t;
+
+      while (_match_char(p, *t)) ++t;
+      if (quant == '+' && t == start_t) return 0;
+
+      while (t >= start_t) {
+        byte old_icase = _re_icase;
+        if (_match_here(next_p, t)) {
+          _re_icase = old_icase;
+          return 1;
+        }
+        _re_icase = old_icase;
+        --t;
+      }
+      return 0;
+    }
+    else {
+      if (!_match_char(p, *t)) return 0;
+      p = next_p;
+      ++t;
+    }
+  }
+  return 1;
+}
+
+/* Top-level matcher */
+int match(char* pattern, char* text) __znccall(1) {
+  _re_icase = 0;
+  char* p = _parse_flags(pattern);
+
+  if (*p == '\0') return 1;
+  if (*p == '^') return _match_here(p + 1, text);
+
+  /* Determine whether the first token can match the empty string.
+     If it can, we must try `match_here` at every position (including end).
+     Otherwise we can fast-scan only positions where the token would match. */
+  char* q = p;
+
+  char* next_q = q;
+  char quant = '\0';
+
+  if (*q == '\\') {
+    if (q[1] == '\0') return 0;
+    next_q = q + 2;
+  }
+  else if (*q == '[') {
+    next_q = _skip_class(q + 1);
+  }
+  else if (_is_seq(q, "$\0", 2)) {
+    return *text == '\0';
+  }
+  else {
+    next_q = q + 1;
+  }
+
+  if (_is_one(*next_q, "*+?")) {
+    quant = *next_q;
+  }
+
+  if (_is_one(quant, "*?")) {
+    /* First token can be empty: try every position (including end). */
+    char* t = text;
+    for(;;) {
+      if (_match_here(p, t)) return 1;
+      if (*t++ == '\0') return 0;
+    }      
+  }
+
+  /* Fast-scan: only try _match_here at positions where the first token
+     would match. */
+  while (*text != '\0') {
+    if (_match_char(q, *text)) {
+      if (_match_here(p, text)) return 1;
+    }
+    ++text;
+  }
+
+  return 0;
+}
+#endif

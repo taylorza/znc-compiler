@@ -1,0 +1,240 @@
+make dot "grep.dot";
+
+include "dot.znc"
+include "mmu.znc"
+include "fileio.znc"
+include "cmdline.znc"
+include "regex.znc"
+include "memory.znc"
+include "string.znc"
+
+const int LINE_SIZE = 8192;
+const byte MAX_ARGS = 2;
+
+struct u24 {
+  byte b0;
+  byte b1;
+  byte b2;
+}
+
+void u24_inc(u24 *n) {
+  n.b0++;
+  if (n.b0 != 0) return;
+  n.b1++;
+  if (n.b1 != 0) return;
+  n.b2++;
+}
+
+void u24_addi(u24 *n, int v) {
+  int lo = v & 0xff;
+  n.b0 += lo;
+  if (n.b0 < lo) n.b1++;
+  v = v >> 8;
+  if (v != 0) {
+    n.b1 += v & 0xff;
+    if (n.b1 < (v & 0xff)) n.b2++;
+  }
+}
+
+void print_u24(u24 *num) {
+  char[12] buf;
+  byte idx = 11;
+  buf[idx] = '\0';
+
+  u24 n = *num;
+  while (n.b0 != 0 || n.b1 != 0 || n.b2 != 0) {
+    int rem = 0;
+    int temp;
+
+    temp = (rem << 8) | n.b2;
+    n.b2 = temp / 10;
+    rem = temp % 10;
+
+    temp = (rem << 8) | n.b1;
+    n.b1 = temp / 10;
+    rem = temp % 10;
+
+    temp = (rem << 8) | n.b0;
+    n.b0 = temp / 10;
+    rem = temp % 10;
+
+    buf[--idx] = '0' + rem;
+  }
+  if (idx == 11) {
+    buf[--idx] = '0';
+  }
+  puts(&buf[idx]);
+}
+
+/* Static Work Buffers */
+char* line_buf;
+char* raw;
+char* mapped;
+char *pattern;
+char *filename;
+byte handle;
+
+int pat_len;
+int buf_len;
+int eof;
+int nread;
+int half;
+int line_start;
+int j;
+int pos;
+int remain;
+int to_read;
+int overlap;
+char saved_char;
+char scan_char;
+
+char*[MAX_ARGS] argv;
+byte argc = parse_cmdline(args, argv, MAX_ARGS);
+
+if (argc < 2) {
+  puts("Usage: grep <pattern> <filename>\r");
+  return 0;
+}
+
+pattern = argv[0];
+filename = argv[1];
+
+handle = fopen(filename, M_READ);
+if (handle == 0 || errno != 0) {
+  puts("Error: Could not open file\r");
+  return 0;
+}
+
+u24 loc = {0,0,0};
+u24_inc(&loc);
+
+byte mmu6 = mmualloc();
+byte old_mmu6 = readreg(0x56);
+nextreg(0x56, mmu6);
+line_buf = 0xC000;
+
+void onerror() {
+  exit(0);
+}
+seterrh(onerror);
+
+void cleanup() {
+  mmufree(mmu6);
+  nextreg(0x56, old_mmu6);
+}
+exitat(cleanup);
+
+void read_window() {
+  if (buf_len < half) {
+    to_read = half - buf_len;
+    nread = fread(handle, &raw[buf_len], to_read);
+    if (nread <= 0) {
+      eof = 1;
+    } else {
+      buf_len += nread;
+    }
+  }
+}
+
+void map_window() {
+  for (j = 0; j < buf_len; ++j) {
+    scan_char = raw[j];
+    mapped[j] = (scan_char == '\0') ? 1 : scan_char;
+  }
+  mapped[buf_len] = '\0';
+}
+
+void shift_window() {
+  overlap = pat_len - 1;
+  if (overlap < 0) overlap = 0;
+  if (overlap > 0 && buf_len > overlap) {
+    memmove(raw, &raw[buf_len - overlap], overlap);
+    u24_addi(&loc, buf_len - overlap);
+    buf_len = overlap;
+  } else {
+    u24_addi(&loc, buf_len);
+    buf_len = 0;
+  }
+}
+
+void emit_match(char* line) {
+  print_u24(&loc);
+  putc(':');
+  puts(line);
+  putc('\r');
+}
+
+void scan_text() {
+  line_start = 0;
+  while (!eof) {
+    read_window();
+
+    pos = 0;
+    while (pos < buf_len) {
+      scan_char = raw[pos];
+      if (scan_char == '\n') {
+        saved_char = raw[pos];
+        raw[pos] = '\0';
+        if (match(pattern, &raw[line_start])) emit_match(&raw[line_start]);
+        raw[pos] = saved_char;
+        pos++;
+        line_start = pos;
+        u24_inc(&loc);
+        continue;
+      }
+
+      if (scan_char == '\r') {
+        if (pos + 1 >= buf_len && !eof) break;
+
+        saved_char = raw[pos];
+        raw[pos] = '\0';
+        if (match(pattern, &raw[line_start])) emit_match(&raw[line_start]);
+        raw[pos] = saved_char;
+
+        if (pos + 1 < buf_len && raw[pos + 1] == '\n') {
+          pos += 2;
+        } else {
+          pos++;
+        }
+        line_start = pos;
+        u24_inc(&loc);
+        continue;
+      }
+
+      pos++;
+    }
+
+    if (line_start > 0) {
+      remain = buf_len - line_start;
+      if (remain > 0) memmove(raw, &raw[line_start], remain);
+      buf_len = remain;
+      line_start = 0;
+    } else {
+      if (buf_len == half) {
+        raw[half - 1] = '\0';
+        if (match(pattern, raw)) emit_match(raw);
+        buf_len = 0;
+        line_start = 0;
+      }
+    }
+
+    if (eof) break;
+  }
+
+  if (buf_len > 0) {
+    raw[buf_len] = '\0';
+    if (match(pattern, raw)) emit_match(raw);
+  }
+}
+
+pat_len = strlen(pattern);
+buf_len = 0;
+eof = 0;
+half = LINE_SIZE / 2;
+raw = line_buf;
+mapped = line_buf + half;
+
+scan_text();
+
+fclose(handle);
+return 0;
