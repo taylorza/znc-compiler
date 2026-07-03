@@ -2,184 +2,184 @@
 const byte SPRINTF__=0x01; 
 
 void sprintf(char* dst, char *fmt, ...) {
-    va_list args;
-    
-    va_start(args, fmt);
-    int i = 0;
-    while (fmt[i] != 0) {
-        char ch = fmt[i];
+  va_list args;
+  
+  va_start(args, fmt);
+  int i = 0;
+  while (fmt[i] != 0) {
+    char ch = fmt[i];
 
-        if (ch != '%') {
-            *dst++ = ch;
-            ++i;
-            continue;
-        }
-
-        char code = fmt[++i];
-        if (code == '%') {
-            *dst++ = '%';
-            ++i;
-            continue;
-        }
-        
-        char pad = ' ';
-        if (code == '0') {
-            pad = '0';
-            code = fmt[++i];
-        }
-
-        int width = 0;
-        while (fmt[i] != 0 && (code >='0' && code <= '9')) {                       
-            width = (width * 10) + (code-'0');
-            code = fmt[++i];
-        }
-        
-        int x;
-        switch (code) {
-            case 'd': {
-                x = va_arg(args, int);
-
-                if (x < 0) {
-                    *dst++ = '-';
-                    x = -x;
-                    if (width) --width;
-                }
-
-                char[6] buf;
-                int p = 0;
-
-                if (x == 0) {
-                    buf[p++] = '0';
-                    if (width) --width;
-                } else {
-                    while (x > 0) {
-                        int digit = x % 10;
-                        buf[p++] = '0' + digit;                    
-                        x = x / 10;
-                        if (width) --width;
-                    }
-                }
-
-                while (width--) {
-                    *dst++ = pad;
-                }
-                while (p > 0) {                
-                    *dst++ = buf[--p];
-                }
-                break;
-            }
-            case 'x':
-            case 'X': {
-                x = va_arg(args, int);
-                int offs = 'x' - code;
-                
-                char[4] buf;
-                int p = 0;
-
-                if (x == 0) {
-                    buf[p++] = '0';
-                    if (width) --width;        
-                } else {
-                    while (x != 0) {
-                        int digit = x & 0x0f;
-                        buf[p++] = (digit < 10) ? ('0' + digit) : ('a' - offs + (digit - 10));
-                        x = (x >> 4) & 0x0fff;
-                        if (width) --width;
-                    }
-                }
-
-                while (width--) {
-                    *dst++ = pad;
-                }
-                while (p > 0) {                
-                    *dst++ = buf[--p];
-                }
-                break;
-            }
-            case 'f': {
-                x = va_arg(args, int);
-
-                if (x < 0) {
-                    *dst++ = '-';
-                    x = -x;
-                    if (width) --width;
-                }
-
-                int ipart = x >> 4;
-                int frac_dec = (x & 0x0f) * 625;
-
-                char[4] buf;
-                int p = 0;
-
-                if (ipart == 0) {
-                    buf[p++] = '0';
-                    if (width) --width;
-                } else {
-                    while (ipart > 0) {
-                        buf[p++] = '0' + (ipart % 10);
-                        ipart = ipart / 10;
-                        if (width) --width;
-                    }
-                }
-
-                while (width--) {
-                    *dst++ = pad;
-                }
-                while (p > 0) {
-                    *dst++ = buf[--p];
-                }
-
-                *dst++ = '.';
-
-                char[4] fbuf;
-                int fp = 0;
-                while(fp < 4) {
-                  fbuf[fp++] = '0' + (frac_dec % 10); 
-                  frac_dec = frac_dec / 10;
-                }
-                int fstart = 0;
-                while (fstart < fp - 1 && fbuf[fstart] == '0') ++fstart;
-                while (fp > fstart) {
-                    *dst++ = fbuf[--fp];
-                }
-                break;
-            }
-            case 'b':
-                x = va_arg(args, int);
-                int bit = x < 256 ? 7 : 15;
-                if (width > (bit+1)) width = width - (bit+1);
-                while (width--) {
-                    *dst++ = pad;
-                }    
-                for (; bit >= 0; --bit) {
-                    *dst++ = (x & (1 << bit)) ? '1' : '0';
-                }
-                break;
-            case 'c':
-                x = va_arg(args, int);
-                *dst++ = x;
-                while (width--) {
-                    *dst++ = pad;
-                }
-                break;
-            case 's':
-                x = va_arg(args, char*);
-                int len = 0;
-                while (*x) {*dst++ = *x++; ++len; }            
-                if (width > len) width = width - len;
-                else width = 0;
-                while (width--) {
-                    *dst++ = pad;
-                }
-                break;
-            default:
-                *dst++ = '%';
-                *dst++ = code>32 && code < 128 ? code : '?';
-                break;
-        }
-
-        ++i;
+    if (ch != '%') {
+      *dst++ = ch;
+      ++i;
+      continue;
     }
-    *dst = 0;
+
+    char code = fmt[++i];
+    if (code == '%') {
+      *dst++ = '%';
+      ++i;
+      continue;
+    }
+    
+    char pad = ' ';
+    if (code == '0') {
+      pad = '0';
+      code = fmt[++i];
+    }
+
+    int width = 0;
+    while (fmt[i] != 0 && (code >='0' && code <= '9')) {             
+      width = (width * 10) + (code-'0');
+      code = fmt[++i];
+    }
+    
+    int x;
+    switch (code) {
+      case 'd': {
+        x = va_arg(args, int);
+
+        if (x < 0) {
+          *dst++ = '-';
+          x = -x;
+          if (width) --width;
+        }
+
+        char[6] buf;
+        int p = 0;
+
+        if (x == 0) {
+          buf[p++] = '0';
+          if (width) --width;
+        } else {
+          while (x > 0) {
+            int digit = x % 10;
+            buf[p++] = '0' + digit;          
+            x = x / 10;
+            if (width) --width;
+          }
+        }
+
+        while (width--) {
+          *dst++ = pad;
+        }
+        while (p > 0) {        
+          *dst++ = buf[--p];
+        }
+        break;
+      }
+      case 'x':
+      case 'X': {
+        x = va_arg(args, int);
+        int offs = 'x' - code;
+        
+        char[4] buf;
+        int p = 0;
+
+        if (x == 0) {
+          buf[p++] = '0';
+          if (width) --width;    
+        } else {
+          while (x != 0) {
+            int digit = x & 0x0f;
+            buf[p++] = (digit < 10) ? ('0' + digit) : ('a' - offs + (digit - 10));
+            x = (x >> 4) & 0x0fff;
+            if (width) --width;
+          }
+        }
+
+        while (width--) {
+          *dst++ = pad;
+        }
+        while (p > 0) {        
+          *dst++ = buf[--p];
+        }
+        break;
+      }
+      case 'f': {
+        x = va_arg(args, int);
+
+        if (x < 0) {
+          *dst++ = '-';
+          x = -x;
+          if (width) --width;
+        }
+
+        int ipart = x >> 4;
+        int frac_dec = (x & 0x0f) * 625;
+
+        char[4] buf;
+        int p = 0;
+
+        if (ipart == 0) {
+          buf[p++] = '0';
+          if (width) --width;
+        } else {
+          while (ipart > 0) {
+            buf[p++] = '0' + (ipart % 10);
+            ipart = ipart / 10;
+            if (width) --width;
+          }
+        }
+
+        while (width--) {
+          *dst++ = pad;
+        }
+        while (p > 0) {
+          *dst++ = buf[--p];
+        }
+
+        *dst++ = '.';
+
+        char[4] fbuf;
+        int fp = 0;
+        while(fp < 4) {
+          fbuf[fp++] = '0' + (frac_dec % 10); 
+          frac_dec = frac_dec / 10;
+        }
+        int fstart = 0;
+        while (fstart < fp - 1 && fbuf[fstart] == '0') ++fstart;
+        while (fp > fstart) {
+          *dst++ = fbuf[--fp];
+        }
+        break;
+      }
+      case 'b':
+        x = va_arg(args, int);
+        int bit = x < 256 ? 7 : 15;
+        if (width > (bit+1)) width = width - (bit+1);
+        while (width--) {
+          *dst++ = pad;
+        }  
+        for (; bit >= 0; --bit) {
+          *dst++ = (x & (1 << bit)) ? '1' : '0';
+        }
+        break;
+      case 'c':
+        x = va_arg(args, int);
+        *dst++ = x;
+        while (width--) {
+          *dst++ = pad;
+        }
+        break;
+      case 's':
+        x = va_arg(args, char*);
+        int len = 0;
+        while (*x) {*dst++ = *x++; ++len; }      
+        if (width > len) width = width - len;
+        else width = 0;
+        while (width--) {
+          *dst++ = pad;
+        }
+        break;
+      default:
+        *dst++ = '%';
+        *dst++ = code>32 && code < 128 ? code : '?';
+        break;
+    }
+
+    ++i;
+  }
+  *dst = 0;
 }
 #endif
