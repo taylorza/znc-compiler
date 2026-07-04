@@ -164,4 +164,25 @@ char* strstr(char *s1, char *s2) __asm__ {
   pop ix
   ret
 }
+
+char* strchr(char *str, char ch) __znccall(1) __asm__ {
+_
+  pop bc      ; Pop return address
+  pop de      ; Pop 'ch' into DE
+  pop hl      ; Pop 'str' into HL
+  push bc     ; Restore return address
+
+.loop
+  ld a,(hl)
+  cp e
+  ret z
+
+  inc hl
+
+  or a        
+  jr nz,.done
+
+  ld hl,0
+  ret
+}
 #endif
