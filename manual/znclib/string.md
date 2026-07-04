@@ -22,6 +22,7 @@ Functions
 - `int strlen(char *s)` — Return length of string (excluding null terminator).
 - `int strcmp(char *s1, char *s2)` — Compare two strings, return negative/zero/positive.
 - `char* strcat(char *dst, char *src)` — Append `src` to `dst`.
+- `char* strchr(char *s, char c)` — Return pointer to first occurrence of `c` or `0`.
 - `char* strstr(char *haystack, char *needle)` — Return pointer to first occurrence of `needle` or `0`.
 
 Examples
