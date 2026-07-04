@@ -688,10 +688,10 @@ void emit_frame_prologue(uint8_t toplevel) MYCC {
     }
 }
 
-void emit_frame_epilogue(uint8_t toplevel, uint16_t exit_lbl, uint8_t calling_convention, uint8_t arg_count) MYCC {
+void emit_frame_epilogue(uint8_t toplevel, uint16_t exit_lbl, uint8_t calling_convention, uint8_t arg_count, TOKEN tokMakeType) MYCC {
     emit_lbl(exit_lbl);
     if (toplevel) {
-        emit_rtl("ccexit");
+        if (tokMakeType == tokDot) emit_rtl("ccexit");
         emit_lbl(sp_lbl);
         emit_instrln("ld sp,0");
         emit_instrln("pop ix");
@@ -707,8 +707,11 @@ void emit_frame_epilogue(uint8_t toplevel, uint16_t exit_lbl, uint8_t calling_co
                 emit_instrln("push bc"); // Push return address back on stack"                
                 break;            
         }
-    }    
-    emit_ret();
+    }
+    if (tokMakeType == tokNex)
+        emit_instrln("jr $");
+    else 
+        emit_ret();
 }
 
 void emit_clean_stack(int16_t bytes) MYCC {

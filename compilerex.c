@@ -336,7 +336,7 @@ void far_parse_bank(void) MYCC {
         bankseen = 1;
 
         emit_instrln("xor a"); // clear A register and carry flag
-        emit_frame_epilogue(1, exit_lbl, 0, 0);
+        emit_frame_epilogue(1, exit_lbl, 0, 0, tokMakeType);
         emit_lblequ16(top_local_lbl, localbytes);
 
         /* Emit global non-banked strings and variables */

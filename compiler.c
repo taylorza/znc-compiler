@@ -139,7 +139,7 @@ void parse(const char* sourcefile, char* outfilename, uint8_t entrypoint) MYCC {
 
     if (entrypoint && !bankseen) {
         emit_instrln("xor a"); // clear A register and carry flag
-        emit_frame_epilogue(1, exit_lbl, 0, 0);
+        emit_frame_epilogue(1, exit_lbl, 0, 0, tokMakeType);
         emit_lblequ16(top_local_lbl, localbytes);
     }
     src_close();
@@ -175,6 +175,12 @@ void parse_make(const char *filename) MYCC {
         get_token(); // skip string
     } else {
         snprintf(outfilename, MAX_FILENAME_LEN, "%s%s", filename, tokMakeType == tokNex ? ".nex" : "");
+    }
+    if (tokMakeType == tokNex && tok == tokComma) {
+        get_token(); // skip ','
+        expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
+        if (!type_is_const(expr_result.type_id)) error(errConstExpected);
+        stack_size = expr_result.value;
     }
     expect_semi();
 
@@ -1164,7 +1170,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
 
             parse_statement_block(NO_LABEL, NO_LABEL);
 
-            emit_frame_epilogue(0, retlbl, calling_convention, func_arg_count);
+            emit_frame_epilogue(0, retlbl, calling_convention, func_arg_count, tokMakeType);
             
             emit_lblequ16(locals_lbl, localbytes);
             localbytes = oldlocalbytes;
