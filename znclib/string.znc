@@ -180,7 +180,7 @@ _
   inc hl
 
   or a        
-  jr nz,.done
+  jr nz,.loop
 
   ld hl,0
   ret
