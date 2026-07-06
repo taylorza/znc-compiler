@@ -22,9 +22,11 @@
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/hexvw.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/hexedit.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/font.inc /zdev/
-
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/crttst.znc /zdev/
 
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/ay.znc /zdev/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/crt.znc /zdev/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/crtedit.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/ctype.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/io.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/fileio.znc /zdev/

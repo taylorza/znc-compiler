@@ -1,0 +1,43 @@
+make dot "crttst.dot";
+include "crtedit.znc"
+
+char[32] buf;
+
+crt_init();
+
+char* hex = "0123456789ABCDEF";
+void puthex(byte b) {
+  crt_putc(hex[b >> 4]);
+  crt_putc(hex[b & 0x0f]);
+}
+
+for(;;) {
+    char k;
+    while ((k = crt_inkey()) == 0);
+    if (k == KEY_ENTER) break;
+    crt_gotoxy(0,0);
+    crt_puts("Key: ");
+    puthex(k);
+}
+
+crt_setbg(1);
+crt_setfg(6);
+crt_cls();
+
+crt_gotoxy(10,5);
+crt_puts("Enter name: ");
+
+crt_setbg(0);
+crt_setfg(7);
+char k = crt_edit(buf, 0, 31, 11);
+crt_setbg(1);
+crt_setfg(6);
+
+if (k == KEY_ENTER) {
+    crt_gotoxy(10,6);
+    crt_puts("Hello ");
+    crt_puts(buf);
+    crt_getch();
+}
+
+crt_restore();

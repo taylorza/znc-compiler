@@ -1,0 +1,316 @@
+#ifndef CRT__
+byte CRT__=1;
+
+#ifndef font
+include "font.inc"
+#endif
+
+include "memory.znc"
+
+const char KEY_TRUEVID = 0x04;
+const char KEY_INVVID = 0x05;
+const char KEY_CAPS = 0x06;
+const char KEY_EDIT = 0x07;
+const char KEY_LEFT = 0x08;
+const char KEY_RIGHT = 0x09;
+const char KEY_DOWN = 0x0a;
+const char KEY_UP = 0x0b;
+const char KEY_DELETE = 0x0c;
+const char KEY_ENTER = 0x0d;
+const char KEY_GRAPH = 0x0f;
+
+const byte CRT_WIDTH = 80;
+const byte CRT_WIDTH2 = CRT_WIDTH << 1;
+const byte CRT_HEIGHT = 32;
+
+const int CRT_TILEMAP = 0x4000;
+const int CRT_TILEDEF = 0x5400;
+const byte CRT_TILE_OFFS = (CRT_TILEDEF - CRT_TILEMAP) >> 8;
+
+const byte CRT_FLASHRATE = 15;
+
+byte _crt_x = 0;
+byte _crt_y = 0;
+
+char *_crt_p = CRT_TILEMAP;
+byte _crt_attr = 0x70 << 1;
+byte _crt_caps = 0;                
+byte _crt_fctr = 0;
+
+byte _crt_cur_norm = 255;         // Attribute used for normal cursor (255 = calculate attribute)
+byte _crt_cur_caps = 255;         // Attribute used for capslock cursor (255 = calculate attribute)
+
+byte updatereg(byte reg, byte value) __znccall(1) __asm__ {
+  pop bc      ; Pop return address
+  pop de      ; Pop value to DE
+  pop hl      ; Pop reg to HL
+  push bc     ; Restore return address
+
+  ld bc,0x243b
+  ld a,l
+  out (c),a   ; select register
+  inc b       ; move to NextReg Data
+  in a,(c)    ; read current value
+  ld l,a      ; save old value to L
+  out (c),e   ; write new nextreg value
+  
+  ld h,0      ; HL = old reg value
+  ret
+}
+
+byte[] _crt_pal = {
+  // Standard Colors (Intensity = 0)
+  0b00000000, // Black
+  0b00000010, // Blue
+  0b10100000, // Red
+  0b10100010, // Magenta
+  0b00010100, // Green
+  0b00010110, // Cyan
+  0b10110100, // Yellow
+  0b10110110, // Light Grey
+
+  // Bright Colors (Intensity = 1)
+  0b01101101, // Dark Grey (Bright Black)
+  0b01101111, // Bright Blue
+  0b11101101, // Bright Red
+  0b11101111, // Bright Magenta
+  0b01111101, // Bright Green
+  0b01111111, // Bright Cyan
+  0b11111101, // Bright Yellow
+  0b11111111  // White (Bright Light Grey)
+};
+
+byte _crt_save_43;
+byte _crt_save_6b;
+
+void crt_cls() __znccall(1);
+
+void crt_setpal(byte* pal) __znccall(1) {
+  if (pal == 0) pal = _crt_pal;
+  nextreg(0x43, 0b00110000);
+  nextreg(0x40, 0);
+  for (byte b = 0; b < 8; ++b) {
+    byte bc = pal[b];
+    for (byte f = 0; f < 16; ++f) {
+      nextreg(0x41, bc);
+      nextreg(0x41, pal[f]);
+    }
+  }
+}
+
+void crt_init() __znccall(1) {
+  // Build palette 
+  _crt_save_43 = updatereg(0x43, 0b00110000);
+  crt_setpal(_crt_pal);
+  
+  _crt_save_6b = updatereg(0x6b, 0b11001001); // 80x32 text mode with attributes
+  nextreg(0x6e, 0);             // Tilemap Offset 0
+  nextreg(0x6f, CRT_TILE_OFFS); // Tile definition offset
+
+  // Set tilemap defaults
+  // Reset clip window
+  nextreg(0x1c, 0b00001000);      // Reset tilemap clip index
+  nextreg(0x1b, 0);               // X1 - 0
+  nextreg(0x1b, 159);             // X2 - 318
+  nextreg(0x1b, 0);               // Y1 - 0
+  nextreg(0x1b, 255);             // Y1 - 255
+
+  // Reset scroll offsets
+  nextreg(0x2f, 0);               // X Scroll offset - MSB
+  nextreg(0x30, 0);               // X Scroll offset - LSB
+  nextreg(0x31, 0);               // Y Scroll offset
+
+  // Copy the font to the tile definitions
+  memcpy(CRT_TILEDEF, font, 768);
+  crt_cls();
+}
+
+void crt_restore() __znccall(1) {
+  nextreg(0x43, _crt_save_43);
+  nextreg(0x6b, _crt_save_6b);
+  memset(CRT_TILEMAP, 0, 6144);
+  memset(CRT_TILEMAP+6144, 0x38, 768);
+}
+
+void crt_gotoxy(byte x, byte y) __znccall(1) {
+  if (x > 79) x = 0;
+  if (y > 31) y = 0;
+  _crt_x = x;
+  _crt_y = y;
+  _crt_p = CRT_TILEMAP + (((_crt_y * CRT_WIDTH) + _crt_x) << 1);
+}
+
+byte crt_wherex() __asm__ {
+  ld hl,(__crt_x)
+  ret
+}
+
+byte crt_wherey() __asm__ {
+  ld hl,(__crt_y)
+  ret
+}
+
+void crt_scroll(char lines) {
+  if (abs(lines) > CRT_HEIGHT) {
+    crt_cls(); 
+    return;
+  }
+  int movebytes = (CRT_HEIGHT - abs(lines)) * CRT_WIDTH2;
+  int clearbytes = abs(lines) * CRT_WIDTH2;
+  byte *from; 
+  if (lines > 0) {    
+    memcpy(CRT_TILEMAP, CRT_TILEMAP + clearbytes, movebytes);
+    from = CRT_TILEMAP + movebytes;
+  } else if (lines < 0) {     
+    lines = -lines;
+    memmove(CRT_TILEMAP + clearbytes, CRT_TILEMAP, movebytes);
+    from = CRT_TILEMAP;
+  }  
+  memset16(from, _crt_attr << 8, clearbytes >> 1);
+  if (_crt_y > 0) crt_gotoxy(_crt_x, _crt_y - 1);
+}
+
+void crt_setbg(byte color) __znccall(1) {
+  _crt_attr = (_crt_attr & 0b00011110) | (color << 5);
+}
+
+void crt_setfg(byte color) __znccall(1) {
+  _crt_attr = (_crt_attr & 0b11100000) | ((color & 0x0f) << 1);
+}
+
+void crt_putc(byte ch) __znccall(1) {
+  if (ch < 32) {    
+    if (ch == 13) {
+      _crt_x = 0;
+      ++_crt_y;
+    }
+  } else {
+    *_crt_p++ = ch - 32;
+    *_crt_p++ = _crt_attr;
+    ++_crt_x;
+    if (_crt_x == CRT_WIDTH) {
+      _crt_x = 0;
+      ++_crt_y;
+    }    
+  }
+
+  if (_crt_y >= CRT_HEIGHT) {
+    crt_scroll(1);
+    crt_gotoxy(_crt_x, CRT_HEIGHT-1);   
+  }
+}
+
+int crt_puts(char *s) __znccall(1) {
+  int n = 0;
+  while (*s) {
+    ++n;
+    crt_putc(*s++);  
+  }
+  return n;
+}
+
+byte crt_getattr(byte x, byte y) __znccall(1) {
+  byte *p = CRT_TILEMAP + (((_crt_y * CRT_WIDTH) + _crt_x) << 1);
+  return *(p+1);
+}
+
+void crt_setattr(byte x, byte y, byte attr) __znccall(1) {
+  byte *p = CRT_TILEMAP + (((_crt_y * CRT_WIDTH) + _crt_x) << 1);
+  *(p+1) = attr;
+}
+
+void crt_cls() __znccall(1) {
+  memset16(CRT_TILEMAP, _crt_attr << 8, CRT_WIDTH * CRT_HEIGHT);
+  crt_gotoxy(0, 0);
+}
+
+char crt_inkey() __asm__ {
+_
+  ld hl,0
+  bit 5,(iy+1)
+  ret z
+  res 5,(iy+1)
+  ld a,($5c08)
+
+  ld c,a    ; Save keycode in C
+
+  cp 0x06   ; CAPSLOCK
+  jr z,.capslock
+
+  ld hl,.tbl
+.loop
+  ld a,(hl)
+  or a
+  jr z,.done
+  inc hl        ; move to alt-code
+  cp c          
+  jr z,.conv
+  inc hl        ; move to next keycode
+  jr .loop
+
+.capslock
+  ld a,(__crt_caps)
+  xor 1
+  ld (__crt_caps),a
+  jr .done
+
+.conv
+  ld c,(hl)     ; load alt-code
+
+.done
+  ld l,c
+  ret 
+
+.tbl db 0xc3, "|"
+     db 0xc5, "]"
+     db 0xc6, "["
+     db 0xc7, 0x7f ; '(c)'
+     db 0xcb, "}"
+     db 0xcc, "{"
+     db 0xcd, "\"
+     db 0xe2, "~"
+     db 0
+}
+
+byte _crt_attr_cur(byte attr) {
+  byte bg = (attr >> 5); 
+  byte fg = bg;
+  if (_crt_cur_norm == 255 || _crt_cur_caps == 255) {    
+    bg = bg + (_crt_caps ? 3 : 5);    
+  } else {
+    bg = _crt_caps ? _crt_cur_caps : _crt_cur_norm;
+  }
+  return (attr & 0b00010001) | (bg << 5) | (fg << 1);
+}
+
+void crt_cursor(byte nocaps_color, byte caps_color) {
+  _crt_cur_norm = nocaps_color;
+  _crt_cur_caps = caps_color;
+}
+
+char crt_getch() {
+  char key;
+  byte *p = _crt_p+1;
+  byte attr0 = *p;
+  byte attr1 = _crt_attr_cur(attr0);
+
+  *p = attr1;
+  _crt_fctr = 0;
+  while ((key = crt_inkey()) == 0) {
+    __asm__ {
+      halt
+    }
+    ++_crt_fctr;
+    if (_crt_fctr == CRT_FLASHRATE) *p = attr0;
+    else if (_crt_fctr == CRT_FLASHRATE << 1) {
+      *p = attr1;
+      _crt_fctr = 0;
+    }
+  }
+  *p = attr0;
+
+  if (_crt_caps && key >= 'a' && key <= 'z') key -= 32;
+  return key;
+}
+
+#endif

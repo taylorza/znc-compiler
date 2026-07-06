@@ -122,6 +122,7 @@ byte putstr(char *s) __znccall(1) {
       ++cy;
     }
   }
+  return n;
 }
 
 char[] hex="0123456789ABCDEF";

@@ -1,0 +1,82 @@
+#ifndef CRTEDIT__
+const byte CRTEDIT__ = 1;
+
+include "crt.znc"
+include "string.znc"
+
+void _crt_edt_puts(char *text, int editwidth) {
+  while (*text && editwidth--) {
+    crt_putc(*text++);
+  }
+  if (editwidth > 0) {
+    memset16(_crt_p, _crt_attr << 8, editwidth);  
+  }
+}
+
+char crt_edit(char *text, char *alphabet, int maxlen, int editwidth) {
+  byte x = _crt_x;
+  byte y = _crt_y;
+
+  if (editwidth == 0 || editwidth > maxlen+1) editwidth = maxlen+1;
+
+  byte redraw = 1;
+  int len = strlen(text);  
+  int i = len;
+  int offset = 0;
+
+  char exitkey = 0;
+  while(!exitkey) {
+    if (i >= offset + editwidth) { offset = i - (editwidth - 1); redraw = 1; }
+    if (i < offset) { offset = i; redraw = 1; }
+
+    if (redraw) {
+      crt_gotoxy(x, y);
+      _crt_edt_puts(text + offset, editwidth);    
+      redraw = 0;
+    }
+    
+    crt_gotoxy(x+i-offset, y);
+    char ch = crt_getch();
+
+    switch (ch) {
+      case KEY_ENTER:
+      case KEY_EDIT: 
+        exitkey = ch;
+        break;
+      
+      case KEY_DELETE:
+        if (i > 0) {
+          --i;          
+          memmove(text+i, text+i+1, len-i);          
+          --len;
+          redraw = 1;
+        }
+        break;
+
+      case KEY_LEFT:
+        if (i > 0) --i;
+        break;
+
+      case KEY_RIGHT:
+        if (i < len) ++i;
+        break;
+
+      default:
+        if (len < maxlen && ch >= 32 && ch <= 127) {
+          if (!alphabet || strchr(alphabet, ch)) {
+            memmove(text+i+1, text+i, len-i+1);
+            text[i] = ch;
+            ++i;
+            ++len;
+            text[len] = '\0';
+            redraw = 1;            
+          }
+        }
+        break;
+    }
+  }
+  crt_gotoxy(x, y);
+  return exitkey;
+}
+
+#endif // CRTEDIT__

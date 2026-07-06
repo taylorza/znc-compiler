@@ -6,6 +6,8 @@ Libraries
 
 - [ay](znclib/ay.md) — AY-3-8912 stereo sound chip control
 - [cmdline](znclib/cmdline.md) — Command-line parsing
+- [crt](znclib/crt.md) — Tilemap text console (CRT)
+- [crtedit](znclib/crtedit.md) — Single-line text editor using the CRT
 - [ctype](znclib/ctype.md) — Character classification and case conversion
 - [datetime](znclib/datetime.md) — Real-time clock and date/time parsing
 - [dot](znclib/dot.md) — DOT overlay error handler

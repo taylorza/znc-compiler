@@ -98,4 +98,42 @@ void memset(void *dst, char b, int len) __asm__ {
   ret
 }
 
+void memset16(void *dst, int v, int len) __znccall(1) __asm__ {
+  pop af          ; Pop return address
+  pop bc          ; Pop len into BC
+  pop de          ; Pop v into DE
+  pop hl          ; pop dst into HL
+  push af         ; Restore return address
+      
+  ld a,b
+  or c
+  ret z           ; Return if len == 0
+
+  ; Seed the first word
+  ld (hl), e
+  inc hl
+  ld (hl), d
+
+  ; Check if only needed to write 1 word
+  dec bc
+  ld a,c
+  or b
+  ret z
+
+  ld e,l          ; DE = dst + 1
+  ld d,h
+  inc de          ; DE = dst + 2
+
+  dec hl          ; HL = dst (src for LDIR)
+  
+  ; Double BC
+  sla c
+  rl b
+
+  ; Copy [HL++] to [DE++]
+  ldir
+
+  ret
+}
+
 #endif
