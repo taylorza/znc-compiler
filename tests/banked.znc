@@ -1,27 +1,26 @@
 make dot "banked.dot";
-include "fileio.znc"
-include "mmu.znc"
 
-void greet(char *msg);
+include "dotn.znc"
 
-byte oldpage = readreg(0x56);
-byte page = mmualloc();
-nextreg(0x56,page);
-
-byte h=fgethandle();
-fread(h, 0xc000, 8192);
-fclose(h);
+// Forward declaration of banked functions
+void greet(char *msg) bank(1);
+void greet2(char *msg) bank(2);
 
 greet("World!");
-
-nextreg(0x56,oldpage);
+greet2("World2!");
 
 bank(1) {
   org(0xc000);
   
-  include "printf.znc"
-  
   void greet(char *msg) {
-    printf("Hello %s", msg);
+    puts(msg);putc('\r');
+  }
+}
+
+bank(2) {
+  org(0xc000);
+
+  void greet2(char *msg) {
+    greet(msg);
   }
 }

@@ -11,7 +11,7 @@ extern uint16_t locals_lbl;
 extern uint16_t exit_lbl;
 
 extern uint8_t bankseen;
-extern uint8_t inbank;
+extern uint8_t currbank;
 extern uint16_t top_local_lbl;
 extern uint8_t hash_if_depth;
 

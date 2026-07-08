@@ -72,10 +72,11 @@ static void emit_incdec_step(uint16_t step, uint8_t isdec) MYCC {
         }
     } else {
         if (isdec) {
-            emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step)); emit_nl();
+            emit_ldde_immed(); emit_n((uint16_t)(0 - (int)step));
         } else {
-            emit_instrln("ld de,%d", step);
+            emit_ldde_immed(); emit_n(step);
         }
+        emit_nl();
         emit_add16();
     }
 }

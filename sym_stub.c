@@ -10,7 +10,7 @@
 /* undefined_sym is kept in the main bank so every banked module (expr.c in
  * BANK_43, initializer.c in BANK_43, etc.) can read it without a bank switch.
  * It must NOT live in sym.c (BANK_41). */
-SYMBOL undefined_sym = {.name_id = IDENT_ID_NONE, .scope = SCOPE_UNDEFINED, .klass = CLASS_UNDEFINED};
+SYMBOL undefined_sym = {.name_id = IDENT_ID_NONE};
 
 SYMBOL findglb(const char* name) MYCC {
     IDENT_ID nid = intern_ident(name);

@@ -1,0 +1,45 @@
+#ifndef DOTN__
+const byte DOTN__=1;
+
+include "dot.znc"
+include "fileio.znc";
+include "mmu.znc";
+
+byte[255] _page_map;
+byte _page_count;
+__asm__ {
+  ld a,PAGE_COUNT
+  ld (__page_count),a
+}
+
+PFN_EXIT _dotn_exitfn = 0;
+void _dotn_cleanup();
+
+{
+  byte fh = fgethandle();
+  byte old_mmu6 = readreg(0x56);
+  for(int i=0; i < _page_count; i++) {  
+  byte mmu = mmualloc();
+  nextreg(0x56, mmu);
+  fread(fh, 0xc000, 0x2000);
+  byte *id = 0xdfff;
+  _page_map[*id] = mmu;
+  }
+  nextreg(0x56, old_mmu6);
+
+  _dotn_exitfn = exitat(_dotn_cleanup);
+}
+
+void _dotn_cleanup() {
+  if (_dotn_exitfn) {
+    _dotn_exitfn();
+  }
+  for(int i=0; i < 255; i++) {
+    if (_page_map[i]) {
+      mmufree(_page_map[i]);
+    }
+  }
+}
+
+
+#endif // DOTN__

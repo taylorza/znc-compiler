@@ -34,6 +34,9 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC;
 void parse_decl(void) MYCC;
 void parse_type(uint8_t* type_id_out) MYCC;
 
+uint8_t page_map[256];  /* page map for banked code generation */
+extern uint8_t page_count; /* current page order for banked code generation */
+
 /* Enum storage in BANK_47 */
 #define MAX_ENUMS 64
 #define MAX_ENUM_MEMBERS 256
@@ -308,19 +311,19 @@ void far_parse_org(void) MYCC {
 }
 
 void far_parse_bank(void) MYCC {
-    if (inbank) error(errTopLevelOnly);
-
-    inbank = 1;
+    if (currbank) error(errTopLevelOnly);
+    
     get_token(); // skip bank
-    uint8_t bankid;
     uint16_t offset = 0;
     expect_LParen();
     
     expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
     if (!type_is_const(expr_result.type_id)) error(errConstExpected);
     if (expr_result.value > 255) error(errInvalid_s, "bank");
-    bankid = (uint8_t)expr_result.value;
- 
+    currbank = (uint8_t)expr_result.value;
+    if (page_map[currbank]) error(errBankAlreadyUsed);
+    page_map[currbank] = ++page_count;
+
     if (tok == tokComma) {
         get_token(); // skip ','
         
@@ -348,9 +351,10 @@ void far_parse_bank(void) MYCC {
         }
     }
 
-    emit_bank(bankid, offset);
+    emit_bank(currbank, offset);
+
     char bank_str_lbl[16];
-    snprintf(bank_str_lbl, sizeof(bank_str_lbl), "str_b%d", bankid);
+    snprintf(bank_str_lbl, sizeof(bank_str_lbl), "str_b%d", currbank);
     set_strref_ctx(bank_str_lbl, (uint16_t)bank_str_start);
     set_str_search_base(bank_str_start);
     
@@ -363,9 +367,17 @@ void far_parse_bank(void) MYCC {
     reset_lastgbl(bank_gbl_start);
     reset_laststr(bank_str_start);
     set_str_search_base(0);
-    set_strref_ctx("str", 0);
-    inbank = 0;
-    emit_instrln("ds $2000 - ($ - %u)", current_org);
+    set_strref_ctx("str", 0);   
+  
+    if (tokMakeType == tokDot) {   
+        emit_instrln("ds $2000 - ($ - %u)", current_org - 1);
+        emit_instrln("db %d", currbank);
+    }
+    else {
+        emit_instrln("ds $2000 - ($ - %u)", current_org);        
+    }
+    
+    currbank = 0;
 }
 
 void far_parse_enum_member(EXPR_RESULT *result, const char* enum_name) MYCC {

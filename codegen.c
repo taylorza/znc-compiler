@@ -44,8 +44,8 @@ void asm_close(void) MYCC {
     
     if (pos) {
 #ifdef __ZXNEXT
-        zx_border(asmbuf[0] & 1);
-        esx_f_write(asm_fh, asmbuf, pos);
+        zx_border(asmbuf[0] & 1);        
+        esx_f_write(asm_fh, asmbuf, pos);        
 #else
         fwrite(asmbuf, 1, pos, asm_fh);
 #endif
@@ -64,7 +64,7 @@ void asm_close(void) MYCC {
 void asm_putc(char c) MYCC {
     if (pos == MAX_WRITE_BUF) {
 #ifdef __ZXNEXT
-        zx_border(asmbuf[0] & 1);
+        zx_border(asmbuf[0] & 1);        
         esx_f_write(asm_fh, asmbuf, pos);        
 #else
         fwrite(asmbuf, 1, pos, asm_fh);
@@ -144,7 +144,7 @@ void emit_instr(const char * fmt, ...) MYCC {
 void emit_instrln(const char* fmt, ...) MYCC {
     va_list v;
     va_start(v, fmt);
-    vsnprintf(buf, sizeof(buf), (char *)fmt, v);
+    vsnprintf(buf, sizeof(buf), (char *)fmt, v);    
     va_end(v);
     asm_puts("  "); asm_puts(buf);
     emit_nl();
@@ -370,9 +370,19 @@ void emit_call(const char *name) MYCC {
 
 void emit_callsym(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
     if (is_func_or_proto(sym)) {
-        emit_instr("call ");
-        emit_sname_id(sym->name_id);
-        emit_nl();
+        if (currbank == sym->bank) {
+            emit_instr("call ");
+            emit_sname_id(sym->name_id);
+            emit_nl();
+        }
+        else {
+            /* Emit a call to the bank-switching stub */
+            if (sym->bank == 255) error(errInvalidBank);
+            emit_instrln("ld a,%d", sym->bank);
+            emit_ldde_immed(); emit_sname_id(sym->name_id);
+            emit_nl();
+            emit_rtl("ccfarcall");            
+        }        
     } else {
         uint16_t retlbl = newlbl();
         /* Only load the symbol value if it's not already in HL */
@@ -439,7 +449,8 @@ static int16_t compute_symbol_base_offset(SYMBOL *sym) MYCC {
 
 /* Helper: Emit code to compute address in HL when offsets out of range */
 static void emit_compute_ix_address(int16_t offset) MYCC {
-    emit_instrln("ld hl,%d", offset);
+    //emit_instrln("ld hl,%d", offset);
+    emit_ld_const(offset);
     emit_instrln("ld e,ixl");
     emit_instrln("ld d,ixh");    
     emit_instrln("add hl,de");
@@ -778,7 +789,8 @@ void emit_div_pow2(uint8_t shift_count) MYCC {
 void emit_mod_pow2(uint16_t divisor) MYCC {
     uint16_t mask = divisor - 1;
     /* x % power_of_2 = x & (power_of_2 - 1) */
-    emit_instrln("ld hl,%d", mask);
+    //emit_instrln("ld hl,%d", mask);
+    emit_ld_const(mask);
     emit_rtl("ccand");
 }
 
@@ -831,7 +843,7 @@ void emit_output(const char* filename, TOKEN outputTok) MYCC {
         uint8_t fn_type = type_make_pointer(TYPE_ID_VOID, 1);
         addglb("args", VARIABLE, args_type, 0);
         addglb("_exitfn", VARIABLE, fn_type, 0);
-        emit_rtl("ldcmdln");
+        emit_rtl("ldcmdln");        
     }
 }
 

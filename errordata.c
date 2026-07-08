@@ -33,6 +33,9 @@ static const char* errmsg[] = {
     "Not a struct",
     "Illegal operation",
     "Invalid calling convention",
+    "Invalid bank",
+    "Bank mismatch",
+    "Bank already used",
 };
 
 /* Banked function to copy error message to buffer */

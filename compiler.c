@@ -10,7 +10,8 @@ TOKEN tokMakeType = tokRaw; // type of make command
 uint8_t infunc = 0;         // 1 if parsing a function
 uint8_t func_rettype = 0;   // return type of current function (0 = void)
 uint8_t bankseen = 0;       // set to 1 the first time a bank directive is encountered
-uint8_t inbank = 0;         // 1 if in explicit bank
+uint8_t currbank = 0;       // 0 if no BANK, otherwise id of current bank (1..255)
+uint8_t page_count = 0;     // current page order for banked code generation
 
 uint16_t locals_lbl;        // label of the EQU with the arg count
 uint8_t localcount;         // number of live local variables
@@ -1088,7 +1089,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
     SYMBOL symfunc = lookupIdent(name);
     uint8_t defined = 0;
     uint8_t calling_convention = 0; // 0 = default, 1 = stdcall with callee cleanup
-
+    
     if (not_defined(&symfunc)) {
         symfunc = declglb(rettype_id, FUNCTION, name, 0);
     } else if (symfunc.klass != FUNCTION_PROTO) {
@@ -1102,8 +1103,19 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
     /* Use helper to parse and declare locals */
     parse_signature(1);
     
-    /* Check for calling convention specifier */
-    calling_convention = parse_znccall(func_is_variadic);
+    calling_convention = 0;
+    while (tok == tokIdent || tok == tokZncCall) {
+        if (tok == tokIdent && lookup_ident_token(token) == tokBank) {
+            get_token(); // skip 'bank'
+            expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
+            if (!type_is_const(expr_result.type_id)) error(errConstExpected);
+            if (expr_result.value >= 255) error(errInvalidBank);
+            symfunc.bank = (uint8_t)expr_result.value;            
+        }
+        else if (tok == tokZncCall) {
+            calling_convention = parse_znccall(func_is_variadic);
+        }
+    }
    
     /* Check signature compatibility if already declared */
     if (defined || symfunc.klass == FUNCTION_PROTO) {
@@ -1155,12 +1167,20 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
 
         emit_sname(name); emit_nl();
 
-        if (tok == tokAsm) {
+        if (tok == tokAsm || tok == tokLBrace) {
+            if (symfunc.bank != 0 && symfunc.bank != currbank) {
+                error(errBankMismatch);
+            }
+            if (currbank) {
+                symfunc.bank = currbank;
+                updatesym(&symfunc);
+            }
+        }
+        if (tok == tokAsm) {            
             parse_asm();
         }
         else {
-            if (tok != tokLBrace) error(errExpected_c, '{');
-
+            if (tok != tokLBrace) error(errExpected_c, '{');            
             uint16_t oldlocalbytes = localbytes;
             maxlocalcount = 0;
             bp_lastlocal = 0;
@@ -1174,6 +1194,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
             
             emit_lblequ16(locals_lbl, localbytes);
             localbytes = oldlocalbytes;
+            
         }
         emit_lbl(skiplbl);
 
@@ -1223,7 +1244,7 @@ SYMBOL declloc(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t offse
 
 SYMBOL decl_in_scope(uint8_t type_id, SYM_CLASS klass, const char* name) {
     SYMBOL sym;
-    if ((infunc || is_scoped()) && (!inbank || infunc)) {
+    if ((infunc || is_scoped()) && (!currbank || infunc)) {
         uint16_t size = type_size(type_id); 
         sym = findloc(name);
         if (is_defined(&sym)) error(errAlreadyDefined_s, name);
@@ -1276,6 +1297,7 @@ void compile(const char *filename, char *outfilename) MYCC {
     check_undefined();
 
     if (tokMakeType == tokNex) emit_nex(outfilename, start_lbl, stack_lbl, stack_size);
+    else if (tokMakeType == tokDot) emit_strln("PAGE_COUNT equ %d", page_count);
     asm_close();
     
     dump_rtl(rtlfilename);    

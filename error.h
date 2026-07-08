@@ -32,6 +32,9 @@ typedef enum ERROR {
     errNotAStruct,
     errIllegalOp,
     errInvalidCallingConvention,
+    errInvalidBank,
+    errBankMismatch,
+    errBankAlreadyUsed,
 } ERROR;
 
 void error(ERROR err, ...);

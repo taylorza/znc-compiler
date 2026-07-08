@@ -14,6 +14,12 @@ typedef struct RTLREC {
 } RTLREC;
 
 RTLREC rtltbl[] = {
+    // Far call to function in another bank
+    {"ccfarcall",
+#include "RTL/generated/ccfarcall.inc"
+    NULL,
+    FLAG_RTL_NONE
+    },
     // Call exit function at __exitfn, if set.  Otherwise, just return.
     {"ccexit",
 #include "RTL/generated/ccexit.inc"

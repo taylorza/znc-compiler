@@ -64,6 +64,7 @@ SYMBOL* far_addglb(IDENT_ID name_id, SYM_CLASS klass, uint8_t type_id, int16_t v
     sym->type_id = type_id;
     sym->scope = GLOBAL;
     sym->flags = 0;
+    sym->bank = 0; // default to main bank; parse code may set decl_bank when inside a bank
     if (klass == FUNCTION || klass == FUNCTION_PROTO) {
         sym->fn.signature_id = 0xFF; // No signature by default
     }
@@ -89,6 +90,7 @@ SYMBOL* far_addloc(IDENT_ID name_id, SYM_CLASS klass, uint8_t type_id, int16_t v
     sym->type_id = type_id;
     sym->scope = LOCAL;
     sym->flags = 0;
+    sym->bank = 0; // local symbols default to main bank unless updated elsewhere
     if (klass == FUNCTION || klass == FUNCTION_PROTO) {        
         sym->fn.signature_id = 0xFF; // No signature by default
     } else {

@@ -20,6 +20,7 @@ typedef struct SYMBOL {
     uint8_t klass;
     uint8_t scope;    
     uint8_t flags;
+    uint8_t bank;     // bank number this symbol (function) was declared in (0 = main bank)    
 } SYMBOL;
 
 /* Symbol flags */

@@ -8,6 +8,8 @@
 - Added - regex.znc a tiny but capable regex implementation
 - Added - grep.znc a example program using the new regex library to implement a grep DOT command
 - Added - strchr to string.znc
+- Added - memset16 to memory.znc which sets 16-bit values in memory
+- Added - support for transparent banked function calls
 
 2026/06/28 - Version 0.6b
 - Added calling convention __znccall(1) which forces callee stack cleanup
