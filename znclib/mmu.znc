@@ -1,3 +1,5 @@
+#ifndef MMU__
+const byte MMU__=1;
 
 byte mmualloc() __asm__ {
 _
@@ -35,3 +37,4 @@ void mmufree(byte page) __asm__ {
 
   ret      
 }
+#endif // MMU__

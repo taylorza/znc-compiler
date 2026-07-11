@@ -370,7 +370,7 @@ void emit_call(const char *name) MYCC {
 
 void emit_callsym(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
     if (is_func_or_proto(sym)) {
-        if (currbank == sym->bank) {
+        if (currbank == sym->bank || sym->bank == 0) {
             emit_instr("call ");
             emit_sname_id(sym->name_id);
             emit_nl();

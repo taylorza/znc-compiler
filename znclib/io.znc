@@ -13,6 +13,14 @@ void gotoxy(byte x, byte y) {
   putc(22);putc(y);putc(x);
 }
 
+byte wherex() {
+  return *0x5c88;
+}
+
+byte wherey() {
+  return *0x5c89;
+}
+
 void printnum(int n) {
   if (n==0) { putc('0'); return; }
 

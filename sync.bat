@@ -29,7 +29,9 @@
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/crtedit.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/ctype.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/io.znc /zdev/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/esxbase.inc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/fileio.znc /zdev/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/dirinfo.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/memory.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/rnd.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/regex.znc /zdev/

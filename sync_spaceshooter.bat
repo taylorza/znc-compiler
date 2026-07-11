@@ -15,11 +15,13 @@ rem %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/regex.z
 rem %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/regextst.znc /zdev/
 rem %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/grep.znc /zdev/
 
-%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/crt.znc /zdev/
-%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/crtedit.znc /zdev/
-%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/crttst.znc /zdev/
+rem %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/crt.znc /zdev/
+rem %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/crtedit.znc /zdev/
+rem %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/crttst.znc /zdev/
 
-%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/dotn.znc /zdev/
-%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/banked.znc /zdev/
+rem %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/dotn.znc /zdev/
+rem %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/banked.znc /zdev/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/mmu.znc /zdev/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/grep.znc /zdev/
 
 
