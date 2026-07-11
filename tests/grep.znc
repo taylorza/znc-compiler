@@ -122,7 +122,7 @@ void cleanup() {
   mmufree(mmu6);
   nextreg(0x56, old_mmu6);
 }
-exitat(cleanup);
+atexit(cleanup);
 
 void read_window() {
   if (buf_len < half) {

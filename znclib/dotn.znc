@@ -19,25 +19,25 @@ void _dotn_cleanup();
   byte fh = fgethandle();
   byte old_mmu6 = readreg(0x56);
   for(int i=0; i < _page_count; i++) {  
-  byte mmu = mmualloc();
-  nextreg(0x56, mmu);
-  fread(fh, 0xc000, 0x2000);
-  byte *id = 0xdfff;
-  _page_map[*id] = mmu;
+    byte mmu = mmualloc();
+    nextreg(0x56, mmu);
+    fread(fh, 0xc000, 0x2000);
+    byte *id = 0xdfff;
+    _page_map[*id] = mmu;
   }
   nextreg(0x56, old_mmu6);
 
-  _dotn_exitfn = exitat(_dotn_cleanup);
+  _dotn_exitfn = atexit(_dotn_cleanup);
 }
 
 void _dotn_cleanup() {
-  if (_dotn_exitfn) {
-    _dotn_exitfn();
-  }
   for(int i=0; i < 255; i++) {
     if (_page_map[i]) {
       mmufree(_page_map[i]);
     }
+  }
+  if (_dotn_exitfn) {
+    _dotn_exitfn();
   }
 }
 
