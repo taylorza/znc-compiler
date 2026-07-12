@@ -11,6 +11,7 @@ Libraries
 - [ctype](znclib/ctype.md) — Character classification and case conversion
 - [datetime](znclib/datetime.md) — Real-time clock and date/time parsing
 - [dot](znclib/dot.md) — DOT overlay error handler
+- [dirinfo](znclib/dirinfo.md) — Directory access
 - [fileio](znclib/fileio.md) — File open/read/write/seek operations
 - [intToMonth](znclib/intToMonth.md) — Month number to text conversion
 - [io](znclib/io.md) — Cursor, color, and character I/O

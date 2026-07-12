@@ -3,11 +3,6 @@
 Description
 
 File I/O helpers for opening, reading, writing, seeking, and closing files.
-
-Functions
-
-- `byte fopen(char *filename, byte mode)` — Open a file, return handle or `0xFF` on error.
-
 Types
 
 - None
@@ -31,7 +26,7 @@ Globals
 
 Functions
 
-- `byte fopen(char *filename, byte mode)` — Open a file, return handle or `0xFF` on error.
+- `byte fopen(char *filename, byte mode)` — Open a file, return handle or `0` on error.
 - `int fread(byte handle, char *buffer, int len)` — Read up to `len` bytes into `buffer`.
 - `int fwrite(byte handle, char *buffer, int len)` — Write `len` bytes from `buffer`.
 - `int fseek(byte handle, int pos, byte mode)` — Seek in file (set/forward/back).
@@ -41,7 +36,7 @@ Examples
 
 ```c
 byte h = fopen("data.bin", M_READ);
-if (h != 0xFF) {
+if (h != 0) {
   char[128] buf;
   int n = fread(h, buf, 128);
   fclose(h);
