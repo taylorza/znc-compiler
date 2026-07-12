@@ -22,7 +22,7 @@ uint16_t localbytes;        // total bytes for locals
 uint16_t exit_lbl;          // label for the global exit (return to BASIC for DOT commands)
 uint16_t start_lbl;         // label for the start of the code
 uint16_t stack_lbl;         // label for nex stack
-uint16_t stack_size = 256;  // stack size
+uint16_t stack_base;        // base address of the stack for NEX files
 
 uint16_t top_local_lbl = 0; // label for the top of the local variable space (for calculating offsets)
 uint16_t current_org;       // current org address for output
@@ -126,7 +126,7 @@ void parse(const char* sourcefile, char* outfilename, uint8_t entrypoint) MYCC {
             stack_lbl = newlbl();
             emit_lbl(start_lbl);
             emit_instr("ld sp,");
-            emit_lblref(stack_lbl); emit_nl();
+            emit_n(stack_base); emit_nl();
         }
         localbytes = 0;       
         exit_lbl = newlbl();
@@ -177,12 +177,17 @@ void parse_make(const char *filename) MYCC {
     } else {
         snprintf(outfilename, MAX_FILENAME_LEN, "%s%s", filename, tokMakeType == tokNex ? ".nex" : "");
     }
-    if (tokMakeType == tokNex && tok == tokComma) {
-        get_token(); // skip ','
-        expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
-        if (!type_is_const(expr_result.type_id)) error(errConstExpected);
-        stack_size = expr_result.value;
+    if (tokMakeType == tokNex) {
+        if (tok == tokComma) {
+            get_token(); // skip ','
+            expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
+            if (!type_is_const(expr_result.type_id)) error(errConstExpected);
+            stack_base = expr_result.value;
+        } else {
+            stack_base = 0xBFFF;
+        }
     }
+    
     expect_semi();
 
     if (tokMakeType == tokRaw || tokMakeType == tokDot)
@@ -192,7 +197,10 @@ void parse_make(const char *filename) MYCC {
     else if (tokMakeType == tokNex) emit_bank(0, 0);
 
     if (tok == tokIdent && lookup_ident_token(token) == tokOrg) parse_org();
-    else if (tokMakeType == tokNex) emit_org(0xc000);
+    else if (tokMakeType == tokNex) {
+        emit_org(0xc000);
+        current_org = 0xc000;
+    }
 
     emit_make_defines(tokMakeType);
 }
@@ -1296,7 +1304,7 @@ void compile(const char *filename, char *outfilename) MYCC {
     }
     check_undefined();
 
-    if (tokMakeType == tokNex) emit_nex(outfilename, start_lbl, stack_lbl, stack_size);
+    if (tokMakeType == tokNex) emit_nex(outfilename, start_lbl, stack_base);
     else if (tokMakeType == tokDot) emit_strln("PAGE_COUNT equ %d", page_count);
     asm_close();
     

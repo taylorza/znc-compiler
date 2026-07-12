@@ -719,7 +719,7 @@ void emit_frame_epilogue(uint8_t toplevel, uint16_t exit_lbl, uint8_t calling_co
                 break;            
         }
     }
-    if (tokMakeType == tokNex)
+    if (toplevel && tokMakeType == tokNex)
         emit_instrln("jr $");
     else 
         emit_ret();
@@ -847,13 +847,10 @@ void emit_output(const char* filename, TOKEN outputTok) MYCC {
     }
 }
 
-void emit_nex(const char* filename, uint16_t start, uint16_t stack, uint16_t stacksize) MYCC {
-    emit_instrln("ds %d", stacksize);
-    emit_lbl(stack);
-    emit_instrln("equ $");
+void emit_nex(const char* filename, uint16_t start, uint16_t sp) MYCC {
     emit_instr("savenex \"%s\",", filename);
     emit_lblref(start); emit_ch(',');
-    emit_lblref(stack);
+    emit_n(sp);
     emit_nl();
 }
 

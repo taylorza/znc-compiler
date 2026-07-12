@@ -377,11 +377,7 @@ void far_parse_bank(void) MYCC {
     if (tokMakeType == tokDot) {   
         emit_instrln("ds $2000 - ($ - %u)", current_org - 1);
         emit_instrln("db %d", currbank);
-    }
-    else {
-        emit_instrln("ds $2000 - ($ - %u)", current_org);        
-    }
-    
+    }    
     currbank = 0;
 }
 

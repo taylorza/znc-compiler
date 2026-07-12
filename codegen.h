@@ -101,7 +101,7 @@ void emit_mod_const_optimized(uint16_t divisor) MYCC;
 void emit_org(uint16_t address) MYCC;
 void emit_bank(uint8_t bank16, uint16_t offset) MYCC;
 void emit_output(const char* filename, TOKEN outputTok) MYCC;
-void emit_nex(const char* filename, uint16_t start, uint16_t stack, uint16_t stacksize) MYCC;
+void emit_nex(const char* filename, uint16_t start, uint16_t sp) MYCC;
 void emit_ld_const(uint16_t value) MYCC;
 
 void emit_int_to_fixed(void) MYCC;
