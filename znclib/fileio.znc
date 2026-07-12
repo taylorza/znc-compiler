@@ -51,7 +51,7 @@ byte fopen(char *filename, byte mode) __znccall(1) __asm__ {
   jp esx_err
 }
 
-int fread(byte handle, char *buffer, int len) __znccall(1)__asm__ {
+int fread(byte handle, char *buffer, int len) __znccall(1) __asm__ {
   pop af      ; Return address
   pop bc      ; pop len in BC
   pop hl      ; pop buffer in HL
@@ -78,7 +78,7 @@ int fread(byte handle, char *buffer, int len) __znccall(1)__asm__ {
   jp esx_err
 }
 
-int fwrite(byte handle, char *buffer, int len) __asm__ {
+int fwrite(byte handle, char *buffer, int len) __znccall(1) __asm__ {
   pop af      ; Return address
   pop bc      ; pop len in BC
   pop hl      ; pop buffer in HL
@@ -105,11 +105,12 @@ int fwrite(byte handle, char *buffer, int len) __asm__ {
   jp esx_err
 }
 
-int fseek(byte handle, int pos, byte mode) __asm__ {
+int fseek(byte handle, int pos, byte mode) __znccall(1) __asm__ {
   pop af      ; Return address
   pop hl      ; pop mode in L
   pop de      ; pop pos in DE
   pop bc      ; pop handle in C
+  push af     ; restore return address
 
   xor a
   ld (_errno),a  

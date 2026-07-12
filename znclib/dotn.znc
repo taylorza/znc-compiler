@@ -1,6 +1,13 @@
 #ifndef DOTN__
 const byte DOTN__=1;
 
+/*
+  Supports multi-bank DOT programs on the ZX Spectrum Next.
+  At startup, reads each banked page from the dot file into a newly allocated MMU page,
+  building a page map (bank ID -> MMU page) for runtime lookups.
+  All allocated pages are freed automatically on exit via atexit().
+*/
+
 include "dot.znc"
 include "fileio.znc";
 include "mmu.znc";
@@ -17,15 +24,15 @@ void _dotn_cleanup();
 
 {
   byte fh = fgethandle();
-  byte old_mmu6 = readreg(0x56);
+  byte old_mmu4 = readreg(0x54);
   for(int i=0; i < _page_count; i++) {  
     byte mmu = mmualloc();
-    nextreg(0x56, mmu);
-    fread(fh, 0xc000, 0x2000);
-    byte *id = 0xdfff;
+    nextreg(0x54, mmu);
+    fread(fh, 0x8000, 0x2000);
+    byte *id = 0x9fff;
     _page_map[*id] = mmu;
   }
-  nextreg(0x56, old_mmu6);
+  nextreg(0x54, old_mmu4);
 
   _dotn_exitfn = atexit(_dotn_cleanup);
 }

@@ -61,6 +61,7 @@ int u32_scmp(u32 *a, int b) {
 
   if (a.b1 != b1) return (a.b1 < b1) ? -1 : 1;
   if (a.b0 != b0) return (a.b0 < b0) ? -1 : 1;
+  return 0;
 }
 
 // Save next registers
@@ -262,7 +263,7 @@ for(;;) {
   if (k == ' ') break;
 
   if (k == 8 || k == 53 || k == 11 || k == 55) {
-    if (u32_scmp(&addr, READSIZE) > 0) {  
+    if (u32_scmp(&addr, READSIZE) > 0) {
       u32_add(&addr, -(READSIZE + lastread)); 
       fseek(f, READSIZE + lastread, M_SEEK_BWD);
       update = 1;

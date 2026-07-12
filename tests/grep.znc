@@ -11,8 +11,10 @@ include "string.znc"
 byte scan_text(char* filename, char* pattern) bank(1);
 
 const int LINE_SIZE = 8192;
+const int HALF_LINE = LINE_SIZE / 2;
 const byte MAX_ARGS = 2;
-const int LINE_BUF = 0x8000;
+
+const int LINE_BUF = 0xC000;
 
 struct u24 {
   byte b0;
@@ -80,9 +82,9 @@ if (argc < 2) {
 char *pattern = argv[0];
 char *filespec = argv[1];
 
-byte mmu4 = mmualloc();
-byte old_mmu4 = readreg(0x54);
-nextreg(0x54, mmu4);
+byte mmu6 = mmualloc();
+byte old_mmu6 = readreg(0x56);
+nextreg(0x56, mmu6);
 
 byte hfile = 0;
 byte hdir = 0;
@@ -97,8 +99,8 @@ seterrh(onerror);
 PFN_EXIT old_exitfn = 0;
 
 void cleanup() {
-  mmufree(mmu4);
-  nextreg(0x54, old_mmu4);
+  mmufree(mmu6);
+  nextreg(0x56, old_mmu6);
 
   if (old_exitfn) {
     old_exitfn();
@@ -126,8 +128,6 @@ fclose(hdir);
 return 0;
 
 bank(1) {
-  org(0xC000);
-
   /* Static Work Buffers */
   char* raw;
   char* mapped;
@@ -136,47 +136,23 @@ bank(1) {
   int buf_len;
   int eof;
   int nread;
-  int half;
   int line_start;
-  int j;
   int pos;
   int remain;
   int to_read;
-  int overlap;
   char saved_char;
   char scan_char;
   u24 loc;
   
   void read_window() {
-    if (buf_len < half) {
-      to_read = half - buf_len;
+    if (buf_len < HALF_LINE) {
+      to_read = HALF_LINE - buf_len;
       nread = fread(hfile, &raw[buf_len], to_read);
       if (nread <= 0) {
         eof = 1;
       } else {
         buf_len += nread;
       }
-    }
-  }
-
-  void map_window() {
-    for (j = 0; j < buf_len; ++j) {
-      scan_char = raw[j];
-      mapped[j] = (scan_char == '\0') ? 1 : scan_char;
-    }
-    mapped[buf_len] = '\0';
-  }
-
-  void shift_window() {
-    overlap = pat_len - 1;
-    if (overlap < 0) overlap = 0;
-    if (overlap > 0 && buf_len > overlap) {
-      memmove(raw, &raw[buf_len - overlap], overlap);
-      u24_addi(&loc, buf_len - overlap);
-      buf_len = overlap;
-    } else {
-      u24_addi(&loc, buf_len);
-      buf_len = 0;
     }
   }
 
@@ -194,9 +170,8 @@ bank(1) {
     pat_len = strlen(pattern);
     buf_len = 0;
     eof = 0;
-    half = LINE_SIZE / 2;
     raw = LINE_BUF;
-    mapped = LINE_BUF + half;
+    mapped = LINE_BUF + HALF_LINE;
     
     loc = {0,0,0};
     u24_inc(&loc);
@@ -252,8 +227,8 @@ bank(1) {
         buf_len = remain;
         line_start = 0;
       } else {
-        if (buf_len == half) {
-          raw[half - 1] = '\0';
+        if (buf_len == HALF_LINE) {
+          raw[HALF_LINE - 1] = '\0';
           if (match(pattern, raw)) emit_match(filename, raw);
           buf_len = 0;
           line_start = 0;

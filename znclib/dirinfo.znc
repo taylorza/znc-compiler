@@ -1,0 +1,90 @@
+#ifndef DIRINFO__
+const byte DIRINFO__=1;
+
+include "esxbase.inc"
+
+const byte DIR_SFN      = 0x00;
+const byte DIR_LFN      = 0x10;
+const byte DIR_WILDCARD = 0x20;
+const byte DIR_EN_SF    = 0x80;
+
+const byte F_EX_FILES   = 0x80;
+const byte F_EX_DIRS    = 0x40;
+const byte F_EX_DOTS    = 0x20;
+const byte F_EX_SYS     = 0x10;
+const byte S_LFN        = 0x00;
+const byte S_SFN        = 0x01;
+const byte S_DATE       = 0x02;  
+const byte S_SIZE       = 0x03;
+const byte S_REVERSED   = 0x04;
+
+struct DIRENT {
+  byte attr;
+  char[12+8+1] name; // 8.3 + null terminator
+}
+
+struct DIRENTLFN {
+  byte attr;
+  char[255+8+1] name; // 255 + null terminator
+}
+
+byte fopendir(char *dir, char *filter, byte mode, byte sf_flags) __znccall(1) __asm__ {
+_
+  pop af      ; Return address
+  pop bc      ; pop sf_flags in C
+  pop de      ; pop mode in E
+  ld b,e      ; mode in B
+  pop de      ; pop filter in DE
+  pop hl      ; pop dir in HL
+  push af     ; restore return address
+
+  xor a
+  ld (_errno),a
+
+  ld a,'*'
+
+  if !__DOT
+    push hl
+    pop ix
+  endif
+
+  rst $08
+  db $a3      ; F_OPENDIR
+  
+  ld l,a      ; HL = handle
+  ld h,0
+  ret nc
+
+  jp esx_err
+}
+
+
+byte freaddir(byte handle, char *filter, void* dirent) __znccall(1)__asm__ {
+  pop af      ; Return address
+  pop hl      ; pop dirent in HL
+  pop de      ; pop filter in DE
+  pop bc      ; pop handle in C
+  push af     ; restore return address
+
+  xor a
+  ld (_errno),a
+
+  ld a,c      ; handle in A
+  
+  if !__DOT
+    push hl
+    pop ix
+  endif
+   
+  rst 0x08
+  db 0xa4     ; F_READDIR
+  
+  ld l,a      ; HL = entries read
+  ld h,0
+  ret nc
+
+  jp esx_err      
+}
+
+#endif // DIRINFO__
+

@@ -34,7 +34,7 @@ _
   ; to the target page.  BC is set once and reused for both the select
   ; write and the data read.
   ld bc,9275            ; NextReg select port
-  ld d,86               ; NextReg index: MMU slot 6 (0xC000-0xDFFF)
+  ld d,84               ; NextReg index: MMU slot 6 (0xC000-0xDFFF)
   out (c),d             ; select NextReg 0x56
   inc b                 ; BC = 0x253B (NextReg data port)
   in d,(c)              ; D = page currently mapped at slot 6
@@ -55,7 +55,7 @@ _
   pop af                ; A = saved page (D was high byte of pushed DE → pops into A)
   pop de                ; DE = saved real return address
 
-  nextreg 86,a          ; restore MMU slot 6 to the previous page
+  nextreg 84,a          ; restore MMU slot 6 to the previous page
 
   ld (.sp),sp         ; reset trampoline stack pointer (ready for next call)
   ld sp,(.callersp)   ; restore caller stack pointer

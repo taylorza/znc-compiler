@@ -23,5 +23,7 @@ rem %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/dotn.zn
 rem %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/banked.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/mmu.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/grep.znc /zdev/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/hexvw.znc /zdev/
+
 
 

@@ -25,6 +25,8 @@ extern uint8_t  func_rettype;
 extern uint16_t retlbl;
 extern TOKEN    tokMakeType;
 
+#define DOT_SCRATCH_ADDR 0x8000
+
 /* Main-bank helpers declared in compiler.c */
 void do_exit(EXPR_RESULT exit_expr);
 void skip_statement_far(void) MYCC;
@@ -314,7 +316,7 @@ void far_parse_bank(void) MYCC {
     if (currbank) error(errTopLevelOnly);
     
     get_token(); // skip bank
-    uint16_t offset = 0;
+    uint16_t offset = 0;    
     expect_LParen();
     
     expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
@@ -326,10 +328,9 @@ void far_parse_bank(void) MYCC {
 
     if (tok == tokComma) {
         get_token(); // skip ','
-        
         expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
         if (!type_is_const(expr_result.type_id)) error(errConstExpected);
-        offset = expr_result.value;
+        offset = expr_result.value;        
     }
     expect_RParen();
     
@@ -352,6 +353,10 @@ void far_parse_bank(void) MYCC {
     }
 
     emit_bank(currbank, offset);
+    if (tokMakeType == tokDot) {
+        emit_org(DOT_SCRATCH_ADDR + offset);
+        current_org = DOT_SCRATCH_ADDR + offset;
+    }
 
     char bank_str_lbl[16];
     snprintf(bank_str_lbl, sizeof(bank_str_lbl), "str_b%d", currbank);
