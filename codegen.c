@@ -761,70 +761,70 @@ void emit_mulDE2(void) MYCC {
     emit_instrln("bsla de,b");
 }
 
-/* Optimized division by power of 2 - use arithmetic right shift
- * DE = DE / HL where HL is a power of 2
- * For signed division, need to handle negative numbers correctly */
-void emit_div_pow2(uint8_t shift_count) MYCC {
-    if (shift_count == 0) {
-        /* Division by 1 - result is already in DE, just move to HL */
-        emit_swap();
-        return;
-    }
-    if (shift_count == 1) {
-        /* Division by 2 - special case with sra */
-        emit_instrln("sra d");
-        emit_instrln("rr e");
-        emit_swap();
-        return;
-    }
-    /* General case: use bsra for shift right arithmetic */
-    emit_instrln("ld b,%d", shift_count);
-    emit_instrln("bsra de,b");
-    emit_swap();
-}
-
-/* Optimized modulo by power of 2 - use bitwise AND
- * DE = DE % HL where HL is a power of 2
- * For positive numbers: x % 2^n = x & (2^n - 1) */
-void emit_mod_pow2(uint16_t divisor) MYCC {
-    uint16_t mask = divisor - 1;
-    /* x % power_of_2 = x & (power_of_2 - 1) */
-    //emit_instrln("ld hl,%d", mask);
-    emit_ld_const(mask);
-    emit_rtl("ccand");
-}
-
-/* Optimized division - detects power of 2 and uses shift, otherwise uses RTL
- * DE = DE / divisor (constant) */
-void emit_div_const_optimized(uint16_t divisor) MYCC {
-    /* Check if divisor is a power of 2 and positive */
-    if (divisor > 0 && (divisor & (divisor - 1)) == 0) {
-        /* Count trailing zeros to get shift amount */
-        uint8_t shift = 0;
-        uint16_t temp = divisor;
-        while (temp > 1) {
-            shift++;
-            temp >>= 1;
-        }
-        emit_div_pow2(shift);
-    } else {
-        /* Use generic division */
-        emit_rtl("ccdiv");
-    }
-}
-
-/* Optimized modulo - detects power of 2 and uses AND, otherwise uses RTL
- * DE = DE % divisor (constant) */
-void emit_mod_const_optimized(uint16_t divisor) MYCC {
-    /* Check if divisor is a power of 2 and positive */
-    if (divisor > 0 && (divisor & (divisor - 1)) == 0) {
-        emit_mod_pow2(divisor);
-    } else {
-        /* Use generic division and take remainder */
-        emit_rtl("ccdiv");
-        emit_swap();  /* Remainder is in DE, move to HL */
-    }
-}
+///* Optimized division by power of 2 - use arithmetic right shift
+// * DE = DE / HL where HL is a power of 2
+// * For signed division, need to handle negative numbers correctly */
+//void emit_div_pow2(uint8_t shift_count) MYCC {
+//    if (shift_count == 0) {
+//        /* Division by 1 - result is already in DE, just move to HL */
+//        emit_swap();
+//        return;
+//    }
+//    if (shift_count == 1) {
+//        /* Division by 2 - special case with sra */
+//        emit_instrln("sra d");
+//        emit_instrln("rr e");
+//        emit_swap();
+//        return;
+//    }
+//    /* General case: use bsra for shift right arithmetic */
+//    emit_instrln("ld b,%d", shift_count);
+//    emit_instrln("bsra de,b");
+//    emit_swap();
+//}
+//
+///* Optimized modulo by power of 2 - use bitwise AND
+// * DE = DE % HL where HL is a power of 2
+// * For positive numbers: x % 2^n = x & (2^n - 1) */
+//void emit_mod_pow2(uint16_t divisor) MYCC {
+//    uint16_t mask = divisor - 1;
+//    /* x % power_of_2 = x & (power_of_2 - 1) */
+//    //emit_instrln("ld hl,%d", mask);
+//    emit_ld_const(mask);
+//    emit_rtl("ccand");
+//}
+//
+///* Optimized division - detects power of 2 and uses shift, otherwise uses RTL
+// * DE = DE / divisor (constant) */
+//void emit_div_const_optimized(uint16_t divisor) MYCC {
+//    /* Check if divisor is a power of 2 and positive */
+//    if (divisor > 0 && (divisor & (divisor - 1)) == 0) {
+//        /* Count trailing zeros to get shift amount */
+//        uint8_t shift = 0;
+//        uint16_t temp = divisor;
+//        while (temp > 1) {
+//            shift++;
+//            temp >>= 1;
+//        }
+//        emit_div_pow2(shift);
+//    } else {
+//        /* Use generic division */
+//        emit_rtl("ccdiv");
+//    }
+//}
+//
+///* Optimized modulo - detects power of 2 and uses AND, otherwise uses RTL
+// * DE = DE % divisor (constant) */
+//void emit_mod_const_optimized(uint16_t divisor) MYCC {
+//    /* Check if divisor is a power of 2 and positive */
+//    if (divisor > 0 && (divisor & (divisor - 1)) == 0) {
+//        emit_mod_pow2(divisor);
+//    } else {
+//        /* Use generic division and take remainder */
+//        emit_rtl("ccdiv");
+//        emit_swap();  /* Remainder is in DE, move to HL */
+//    }
+//}
 
 void emit_org(uint16_t address) MYCC {
     emit_instrln("org %d", address);

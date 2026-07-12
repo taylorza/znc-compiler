@@ -154,8 +154,8 @@ RTLREC rtltbl[] = {
     NULL,
     FLAG_RTL_NONE
     },
-    // HL = HL / DE
-    // DE = HL % DE
+    // HL = DE / HL
+    // DE = DE % HL
     {"ccdiv",
 #include "RTL/generated/ccdiv.inc"
         NULL,
@@ -299,6 +299,7 @@ void far_dump_rtl(char *outfilename) MYCC {
         return;
     }
 #endif
+    F_WRITE(fh, ";#OPT_OFF\n", 10);
     for (uint8_t i = 0; i < sizeof(rtltbl) / sizeof(RTLREC); ++i) {
         RTLREC *rtl = &rtltbl[i];    
         //printf("\n  %s (%s) (%d)", rtl->name, rtl->deps, rtl->flags);            
@@ -312,6 +313,7 @@ void far_dump_rtl(char *outfilename) MYCC {
             F_WRITE(fh, " ret\n", 5);
         }     
     }
+    F_WRITE(fh, ";#OPT_ON\n", 9);
     F_CLOSE(fh);
 }
 

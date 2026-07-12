@@ -6,6 +6,9 @@
 - Enhancement - includes look in the current directory then C:/ZDEV/ to resolve the include file
 - Enhancement - zopt looks for the rule file in the current directory then C:/ZDEV/ to resolve the rule file
 - Enhancement - Examples are moved to C:/ZDEV/examples/ folder
+- Enhancement - ZOPT supports disabling optimizations for specific functions using the ;#OPT_OFF and ;#OPT_ON directives. 
+                  This is automatically applied for all user assembly routines. 
+                  Allowing for more aggressive optimizations for the compiler generated code.
 - Added - dirinfo.znc a library of functions for directory access, fopendir, freaddir
 - Added - ctype.znc a library of utility functions for text data, isdigit, isalpha, isalnum, to_lower, to_upper etc.
 - Added - crt.znc 80x32 16 color

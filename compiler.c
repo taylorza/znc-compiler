@@ -679,7 +679,9 @@ void parse_asm(void) MYCC {
     // Do NOT call get_token() here - far_parse_asm reads the body raw
     // starting from code which already points past '{'
     enter_asm_block();
-    parse_asm_block();
+    emit_strln(";#OPT_OFF");
+    parse_asm_block();    
+    emit_strln(";#OPT_ON");
     exit_asm_block();
 }
 
