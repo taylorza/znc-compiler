@@ -40,6 +40,7 @@
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/regex.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/sprite.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/string.znc /zdev/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/format.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/printf.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/sprintf.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/kbd.znc /zdev/
