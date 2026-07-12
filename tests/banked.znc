@@ -1,6 +1,6 @@
 make dot "banked.dot";
 
-include "dotn.znc"
+include "../dotn.znc"
 
 // Forward declaration of banked functions
 void greet(char *msg) bank(1);
@@ -10,7 +10,7 @@ greet("World!");
 greet2("World2!");
 
 bank(1) {
-  org(0xc000);
+  org(0x8000);
   
   void greet(char *msg) {
     puts(msg);putc('\r');
@@ -18,7 +18,7 @@ bank(1) {
 }
 
 bank(2) {
-  org(0xc000);
+  org(0x8000);
 
   void greet2(char *msg) {
     greet(msg);

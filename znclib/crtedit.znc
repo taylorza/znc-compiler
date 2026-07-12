@@ -14,11 +14,13 @@ void _crt_edt_puts(char *text, int editwidth) {
 }
 
 char crt_edit(char *text, char *alphabet, int maxlen, int editwidth) {
+  const byte pad = 1;
+
   byte x = _crt_x;
   byte y = _crt_y;
 
   if (editwidth == 0 || editwidth > maxlen+1) editwidth = maxlen+1;
-
+  
   byte redraw = 1;
   int len = strlen(text);  
   int i = len;
@@ -26,8 +28,18 @@ char crt_edit(char *text, char *alphabet, int maxlen, int editwidth) {
 
   char exitkey = 0;
   while(!exitkey) {
-    if (i >= offset + editwidth) { offset = i - (editwidth - 1); redraw = 1; }
-    if (i < offset) { offset = i; redraw = 1; }
+    if (editwidth < maxlen) {
+      byte rightpad = (i < len - 1) ? pad : 0;
+      if (i >= offset + editwidth - rightpad) { 
+        offset = i - (editwidth - rightpad - 1); 
+        redraw = 1; 
+      }
+      if (i < offset + pad) { 
+        offset = i - pad; 
+        if (offset < 0) offset = 0; 
+        redraw = 1; 
+      }
+    }
 
     if (redraw) {
       crt_gotoxy(x, y);

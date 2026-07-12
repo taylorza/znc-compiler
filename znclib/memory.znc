@@ -10,8 +10,8 @@ void memcpy(void *dst, void *src, int len) __asm__ {
   ld c,(ix+4)
 
   ld a,b
-  or a
-  jp z,.done
+  or c
+  jr z,.done
       
   ld d,(ix+9)
   ld e,(ix+8)
@@ -36,7 +36,7 @@ void memmove(void *dst, void *src, int len) __asm__ {
 
   ld a,b
   or c
-  jp z,.done
+  jr z,.done
 
   ld d,(ix+9)
   ld e,(ix+8)
@@ -46,13 +46,13 @@ void memmove(void *dst, void *src, int len) __asm__ {
 
   ld a,d
   cp h
-  jp c,_memcpy.cpy
+  jr c,_memcpy.cpy
 
   ld a,e
   cp l
-  jp c,_memcpy.cpy
+  jr c,_memcpy.cpy
 
-  jp z,.done
+  jr z,.done
 
   dec bc
   add hl,bc
@@ -78,7 +78,7 @@ void memset(void *dst, char b, int len) __asm__ {
 
   ld a,b
   or c
-  jp z,.done
+  jr z,.done
 
   ld h,(ix+9)
   ld l,(ix+8)

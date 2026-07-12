@@ -11,33 +11,82 @@ void puthex(byte b) {
   crt_putc(hex[b & 0x0f]);
 }
 
+void header(char *title) {
+  byte bg = crt_getbg();
+  byte fg = crt_getfg();
+
+  crt_setbg(1);
+  crt_setfg(6);
+  byte cx = (CRT_WIDTH - strlen(title)) / 2;
+  for (byte i=0; i < cx; ++i) crt_putc(' ');
+  crt_puts(title);
+  for (byte i=cx+strlen(title); i < CRT_WIDTH-1; ++i) crt_putc(' ');
+  
+  crt_setbg(bg);
+  crt_setfg(fg);
+}
+
+void input(char *prompt, char *buf, int maxlen, int editwidth) {
+  byte bg = crt_getbg();
+  byte fg = crt_getfg();
+
+  crt_setbg(1);
+  crt_setfg(6);
+  crt_puts(prompt); crt_puts(": ");
+  crt_setbg(0);
+  crt_setfg(7);
+  crt_edit(buf, 0, maxlen, editwidth);
+
+  crt_setbg(bg);
+  crt_setfg(fg);
+}
+
+void input_int(char *prompt, char *buf, int maxlen, int editwidth) {
+  byte bg = crt_getbg();
+  byte fg = crt_getfg();
+
+  crt_setbg(1);
+  crt_setfg(6);
+  crt_puts(prompt); crt_puts(": ");
+  crt_setbg(0);
+  crt_setfg(7);
+  crt_edit(buf, "0123456789", maxlen, editwidth);
+
+  crt_setbg(bg);
+  crt_setfg(fg);
+}
+
+header("Key Tester");
+crt_gotoxy((CRT_WIDTH - 6)/2, CRT_HEIGHT/2);
+crt_puts("Key: ");
+byte x = crt_wherex();
+byte y = crt_wherey(); 
+crt_gotoxy(0,CRT_HEIGHT-1);
+header("Press any key to see its hex value. Press Enter to exit.");
+
 for(;;) {
     char k;
     while ((k = crt_inkey()) == 0);
     if (k == KEY_ENTER) break;
-    crt_gotoxy(0,0);
-    crt_puts("Key: ");
+    crt_gotoxy(x,y);
     puthex(k);
 }
 
 crt_setbg(1);
 crt_setfg(6);
 crt_cls();
+header("Line Editor Test");
 
-crt_gotoxy(10,5);
-crt_puts("Enter name: ");
+crt_gotoxy(1,5);
+input("Enter your name", buf, 31, 11);
+crt_gotoxy(1,6);
+crt_puts("Hello, ");crt_puts(buf);
 
-crt_setbg(0);
-crt_setfg(7);
-char k = crt_edit(buf, 0, 31, 11);
-crt_setbg(1);
-crt_setfg(6);
+crt_gotoxy(1,8);
+buf[0] = '\0';
+input_int("Enter your age", buf, 3, 3);
+crt_gotoxy(1,9);
+crt_puts("You are ");crt_puts(buf);crt_puts(" years old.");
 
-if (k == KEY_ENTER) {
-    crt_gotoxy(10,6);
-    crt_puts("Hello ");
-    crt_puts(buf);
-    crt_getch();
-}
-
+crt_getch();
 crt_restore();

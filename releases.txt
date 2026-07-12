@@ -3,6 +3,9 @@
 - Fix - NEX builds emitted __exitfn prolog (reported by Ray Couzens)
 - Enhancement - make/raw/dot/next/org/bank are no longer reserved words
 - Enhancement - make nex support specifying the stack base address (e.g., make nex "myprog.nex",0xBFFF)
+- Enhancement - includes look in the current directory then C:/ZDEV/ to resolve the include file
+- Enhancement - zopt looks for the rule file in the current directory then C:/ZDEV/ to resolve the rule file
+- Enhancement - Examples are moved to C:/ZDEV/examples/ folder
 - Added - dirinfo.znc a library of functions for directory access, fopendir, freaddir
 - Added - ctype.znc a library of utility functions for text data, isdigit, isalpha, isalnum, to_lower, to_upper etc.
 - Added - crt.znc 80x32 16 color

@@ -35,6 +35,7 @@ typedef struct KEYWORD {
  * which is compiled into BANK_42. The shared-memory wrapper below switches
  * to BANK_42, calls the banked function, and returns the result.
  */
+
 TOKEN far_lookup_keyword(const char* ident) MYCC;
 TOKEN far_ident_token(const char* ident) MYCC;
 
@@ -52,6 +53,28 @@ TOKEN lookup_ident_token(const char* ident) MYCC {
     EPILOG_RETURN(t)
 }
 
+uint8_t far_src_open(const char* filename) MYCC;
+void far_src_close(void) MYCC;
+void far_src_closeall(void) MYCC;
+
+uint8_t src_open(const char* filename) MYCC {
+    PROLOG(42)
+    uint8_t result = far_src_open(filename);
+    EPILOG_RETURN(result)
+}
+
+void src_close(void) MYCC {
+    PROLOG(42)
+    far_src_close();
+    EPILOG
+}
+
+void src_closeall(void) MYCC {
+    PROLOG(42)
+    far_src_closeall();
+    EPILOG
+}
+
 uint8_t src_read(void) MYCC {
     SOURCEPOS *src = &loc[fileid];
     errno = 0;
@@ -66,55 +89,6 @@ uint8_t src_read(void) MYCC {
     return errno == 0;
 }
 
-uint8_t src_open(const char* filename) MYCC {
-    if (fileid + 1 == MAX_NEST_FILE) return 0;
-
-    errno = 0;
-#ifdef __ZXNEXT
-    uint8_t handle = esxdos_f_open(filename, ESXDOS_MODE_R | ESXDOS_MODE_OE);
-    if (errno) return 0;
-#else
-    FILE *handle = fopen(filename, "r");
-    if (!handle) return 0;
-#endif
-    
-    SOURCEPOS* src = &loc[++fileid];
-    src->arena_marker = arena_get_marker(); // Save marker; filename+buf freed together on src_close
-    src->filename = arena_strdup(filename, strlen(filename));
-    src->buf = (char*)arena_alloc(MAX_READ_BUF);
-    src->handle = handle;
-    src->line = 1;
-    src->ofs = 0;
-    src->col = 1;
-
-    curr_line = 1;
-    curr_col = 1;
-
-    return src_read();
-}
-
-void src_close(void) MYCC {
-    SOURCEPOS *src = &loc[fileid--];
-    arena_free_to_marker(src->arena_marker);
-#ifdef __ZXNEXT
-    esxdos_f_close(src->handle);
-#else
-    fclose(src->handle);
-#endif
-
-    src->filename = NULL;
-    src->buf = NULL;
-
-    if (fileid != 255) {
-        code = loc[fileid].buf + loc[fileid].ofs;
-        curr_line = loc[fileid].line;
-        curr_col = loc[fileid].col;
-    }
-}
-
-void src_closeall(void) MYCC {
-    while (fileid != 255) src_close();
-}
 
 TOKEN_TYPE far_get_token(void) MYCC;
 

@@ -170,8 +170,16 @@ void crt_scroll(char lines) {
   if (_crt_y > 0) crt_gotoxy(_crt_x, _crt_y - 1);
 }
 
+byte crt_getbg() __znccall(1) {
+  return (_crt_attr >> 5);
+}
+
 void crt_setbg(byte color) __znccall(1) {
   _crt_attr = (_crt_attr & 0b00011110) | (color << 5);
+}
+
+byte crt_getfg() __znccall(1) {
+  return (_crt_attr >> 1) & 0x0f;
 }
 
 void crt_setfg(byte color) __znccall(1) {
@@ -180,9 +188,10 @@ void crt_setfg(byte color) __znccall(1) {
 
 void crt_putc(byte ch) __znccall(1) {
   if (ch < 32) {    
-    if (ch == 13) {
+    if (ch == 13 || ch == 10) {
       _crt_x = 0;
       ++_crt_y;
+      if (_crt_y < CRT_HEIGHT) crt_gotoxy(_crt_x, _crt_y);
     }
   } else {
     *_crt_p++ = ch - 32;
@@ -207,11 +216,6 @@ int crt_puts(char *s) __znccall(1) {
     crt_putc(*s++);  
   }
   return n;
-}
-
-byte crt_getattr(byte x, byte y) __znccall(1) {
-  byte *p = CRT_TILEMAP + (((_crt_y * CRT_WIDTH) + _crt_x) << 1);
-  return *(p+1);
 }
 
 void crt_setattr(byte x, byte y, byte attr) __znccall(1) {
