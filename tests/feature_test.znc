@@ -89,6 +89,11 @@ struct FxPair {
     int      tag;
 };
 
+struct StrBox {
+    char *p;
+    int   n;
+};
+
 enum Color { RED, GREEN, BLUE };
 enum Dir   { NORTH, SOUTH, EAST, WEST };
 
@@ -959,6 +964,20 @@ void test_par_unop() {
     chk("par_unop_neg", r == -2);
     chk("par_unop_cmpl", ~(C - v) == -3);
 }
+
+void test_arrdec() {
+    // Nested array subscripting should preserve the inner array/pointer type
+    char[4][] e4 = { {1, 2, 3, 0}, {4, 5, 6, 0} };
+    chk("ad_e4_0", e4[0][0] == 1);
+    chk("ad_e4_1", e4[1][1] == 5);
+    chk("ad_e4_2", e4[1][2] == 6);
+
+    // Array-of-struct initializers with pointer fields should keep string refs
+    StrBox[2] sb = { {"ab", 1}, {"cd", 2} };
+    chk("ad_sb0", sb[0].p[0] == 'a');
+    chk("ad_sb1", sb[1].p[1] == 'd');
+    chk("ad_sbn", sb[0].n == 1 && sb[1].n == 2);
+}
 #endif
 
 #if TEST_TYPEMIX
@@ -1345,6 +1364,7 @@ test_mutrec();
 test_mem_ptr();
 test_par_dref();
 test_par_unop();
+test_arrdec();
 test_callconv();
 test_addrof();
 #endif

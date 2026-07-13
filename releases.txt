@@ -1,3 +1,6 @@
+2026/07/xx - Version 0.6d
+- Enhancement - Support initializers for arrays of structs and arrays of arrays
+
 2026/07/12 - Version 0.6c
 - Fix - Address of indexed pointers on the stack returning the wrong address
 - Fix - NEX builds emitted __exitfn prolog (reported by Ray Couzens)

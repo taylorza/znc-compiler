@@ -141,7 +141,44 @@ uint16_t far_parse_brace_initializer_elements(uint8_t element_type_id) MYCC {
                     uint8_t ftype     = sfi.type_id;
                     uint8_t f_is_char = type_size(ftype) == 1;
 
-                    if (type_is_array(ftype) && tok == tokLBrace) {
+                    if (tok == tokString) {
+                        uint8_t f_elem   = type_get_element_type_id(ftype);
+                        uint8_t f_is_ptr = type_is_pointer(ftype) &&
+                                           (type_is_char(f_elem) || type_is_byte(f_elem));
+                        uint8_t f_is_arr = type_is_array(ftype) &&
+                                          (type_is_char(f_elem) || type_is_byte(f_elem));
+
+                        if (f_is_ptr) {
+                            uint16_t sid = far_parse_concat_string_literal();
+                            if (counter > 0 && last_is_char) { emit_nl(); counter = 0; }
+                            if (counter++ > 0) emit_ch(','); else emit_instr("dw ");
+                            emit_strref(sid);
+                            last_is_char = 0;
+                        } else if (f_is_arr) {
+                            uint16_t arr_size = type_size(ftype);
+                            ARENA_MARKER _am = arena_get_marker();
+                            char* sbuf = NULL;
+                            size_t slen = 0;
+                            while (tok == tokString) {
+                                sbuf = arena_strappend(sbuf, slen, token, token_length);
+                                if (!sbuf) error(errArenaOutOfMemory);
+                                slen += token_length;
+                                get_token();
+                            }
+                            if (!sbuf) { sbuf = arena_strdup("", 0); slen = 0; }
+
+                            for (size_t ci = 0; ci < slen; ++ci) {
+                                EMIT_VAL(1, (uint16_t)(uint8_t)sbuf[ci]);
+                            }
+                            for (uint16_t ci = (uint16_t)slen; ci < arr_size; ++ci) {
+                                EMIT_VAL(1, 0);
+                            }
+
+                            arena_free_to_marker(_am);
+                        } else {
+                            error(errTypeError);
+                        }
+                    } else if (type_is_array(ftype) && tok == tokLBrace) {
                         /* Array member inside nested struct */
                         get_token(); /* skip '{' */
                         uint8_t  fa_elem = type_get_element_type_id(ftype);
@@ -165,7 +202,7 @@ uint16_t far_parse_brace_initializer_elements(uint8_t element_type_id) MYCC {
                     } else {
                         EXPR_RESULT selem = parse_expr_delayconst(0, ftype);
                         uint8_t selem_is_func = selem.has_sym && is_func_or_proto(&selem.sym);
-                        if (!type_is_const(selem.type_id) && !selem_is_func) error(errConstExpected);
+                        //if (!type_is_const(selem.type_id) && !selem_is_func) error(errConstExpected);
                         if (!type_check_compatible(selem.type_id, ftype) && ftype != 0) error(errTypeError);
                         uint16_t emit_val = selem.value;
                         if (type_is_fixed(ftype) && !type_is_fixed(selem.type_id) &&

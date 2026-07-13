@@ -870,7 +870,13 @@ static void postfix_subscript(EXPR_RESULT* result, uint8_t* dereference, uint8_t
     }
 
     result->type_id = elemtype_id;
-    *dereference = 1;
+    if (type_is_array(result->type_id)) {
+        uint8_t elem_id = type_get_element_type_id(result->type_id);
+        result->type_id = type_make_pointer(elem_id, 1);
+        *dereference = 0;
+    } else {
+        *dereference = 1;
+    }
     *addr_in_hl = 1;
 }
 

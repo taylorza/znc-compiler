@@ -1,0 +1,106 @@
+make dot "configtst.dot";
+
+include "string.znc"
+include "fileio.znc"
+
+delegate void PFN_CFG(void* cfg, char* value);
+struct cfg_entry {
+  char* key;
+  PFN_CFG pfn_read;
+  PFN_CFG pfn_write;
+};
+
+char[80] _cfg_buf;
+char[80] _cfg_line;
+
+byte cfg_load(void *cfg, char* filename, cfg_entry* entries) {
+  byte f = fopen(filename, M_READ);
+  if (f == 0) return 0;
+  byte linepos = 0;
+  byte r;
+  while((r = fread(f, _cfg_buf, 80)) > 0) {
+    for (byte i = 0; i < r; i++) {
+      char c = _cfg_buf[i];
+      if (c == '\r') continue;
+      if (c == '\n') {
+        if (linepos > 0) {
+          if (*_cfg_line != '#') {
+            _cfg_line[linepos] = 0;            
+            char* key = _cfg_line;
+            char* value = strchr(_cfg_line, '=');
+            if (value) {
+              *value++ = 0;
+              for (byte j = 0; entries[j].key != 0; j++) {
+                if (strcmp(entries[j].key, key) == 0) {
+                  entries[j].pfn_read(cfg, value);
+                  break;
+                }
+              }
+            }
+          }
+          linepos = 0;
+        }
+      } else {
+        if (linepos < 79) _cfg_line[linepos++] = c;
+      }
+    }
+  }
+  return 1;
+}
+
+void cfg_save(void *cfg, char* filename, cfg_entry* entries) {
+  byte f = fopen(filename, M_WRITE | M_TRUNC);
+  if (f == 0) return;
+  for (byte j = 0; entries[j].key != 0; j++) {
+    _cfg_line[0] = 0;
+    entries[j].pfn_write(cfg, &_cfg_line);
+    if (*_cfg_line != 0) {
+      fwrite(f, entries[j].key, strlen(entries[j].key));
+      fwrite(f, "=", 1);
+      fwrite(f, _cfg_line, strlen(_cfg_line));
+      fwrite(f, "\r\n", 2);
+    }
+  }
+}
+
+struct Settings {
+  char[32] name;
+  char[10] color;
+}
+
+void load_name(void* cfg, char* value) {
+  Settings* s = cfg;
+  strcpy(s.name, value);
+}
+
+void load_color(void* cfg, char* value) {
+  Settings* s = cfg;
+  strcpy(s.color, value);
+}
+
+void save_name(void* cfg, char** value) {
+  Settings* s = cfg;
+  *value = s.name;
+}
+
+void save_color(void* cfg, char** value) {
+  Settings* s = cfg;
+  *value = s.color;
+}
+
+cfg_entry ce = {"name", load_name, save_name};
+
+cfg_entry[] settingstbl = {
+  {"name", load_name, save_name},
+  {"color", load_color, save_color},
+  {0, 0, 0}
+};
+
+Settings s;
+
+cfg_load(&s, "config.txt", settingstbl);
+puts(s.name);putc('\r');
+puts(s.color);putc('\r');
+
+s.name = "Chris";
+cfg_save(&s, "config.txt", settingstbl);
