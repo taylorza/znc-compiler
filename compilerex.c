@@ -321,7 +321,8 @@ void far_parse_bank(void) MYCC {
     
     expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
     if (!type_is_const(expr_result.type_id)) error(errConstExpected);
-    if (expr_result.value > 255) error(errInvalid_s, "bank");
+    /* Disallow 255 as a bank id to match checks in compiler.c */
+    if (expr_result.value >= 255) error(errInvalidBank);
     currbank = (uint8_t)expr_result.value;
     if (page_map[currbank]) error(errBankAlreadyUsed);
     page_map[currbank] = ++page_count;
