@@ -8,6 +8,7 @@ include "regex.znc"
 include "memory.znc"
 include "string.znc"
 
+void showhelp() bank(1);
 byte scan_text(char* filename, char* pattern) bank(1);
 
 const int LINE_SIZE = 8192;
@@ -75,12 +76,14 @@ char*[MAX_ARGS] argv;
 byte argc = parse_cmdline(args, argv, MAX_ARGS);
 
 if (argc < 2) {
-  puts("Usage: grep <pattern> <filename>\r");
+  showhelp();
   return 0;
 }
 
 char *pattern = argv[0];
 char *filespec = argv[1];
+
+puts(pattern);putc('\r');
 
 byte mmu6 = mmualloc();
 byte old_mmu6 = readreg(0x56);
@@ -245,5 +248,25 @@ bank(1) {
 
     fclose(hfile);
     return 1;
+  }
+
+  void showhelp() {
+    puts("Usage: grep <pattern> <filename>\r");
+    puts("Supported Regex:\r");
+    puts(" .  - any character\r");
+    puts(" ^  - start of line\r");
+    puts(" $  - end of line\r");
+    puts(" *  - zero or more\r");
+    puts(" +  - one or more\r");
+    puts(" ?  - zero or one\r");
+    puts(" |  - logical OR\r");
+    puts(" [...] - character class\r");
+    puts(" [^...] - inverted class\r");
+    puts(" a-z - character range\r");
+    puts(" \\d - digit\r");
+    puts(" \\w - word character\r");
+    puts(" \\s - whitespace character\r");
+    puts(" (?i) - case insensitivity ON\r");
+    puts(" (?-i) - case insensitivity OFF\r");
   }
 }
