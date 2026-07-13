@@ -83,8 +83,6 @@ if (argc < 2) {
 char *pattern = argv[0];
 char *filespec = argv[1];
 
-puts(pattern);putc('\r');
-
 byte mmu6 = mmualloc();
 byte old_mmu6 = readreg(0x56);
 nextreg(0x56, mmu6);
