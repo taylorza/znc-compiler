@@ -25,87 +25,159 @@ void vsprintf(PFN_PUTC sink, void* sink_ctx, char *fmt, va_list args) {
     }
 
     char pad = ' ';
-    if (code == '0') {
-      pad = '0';
-      code = fmt[++i];
+    char left = 0;
+    /* parse flags: '-' for left justify, '0' for zero pad */
+    while (code == '-' || code == '0') {
+      if (code == '-') { left = 1; code = fmt[++i]; continue; }
+      if (code == '0') { pad = '0'; code = fmt[++i]; continue; }
     }
+    if (left) pad = ' ';
 
     int width = 0;
-    while (fmt[i] != 0 && (code >='0' && code <= '9')) {
-      width = (width * 10) + (code-'0');
+    if (code == '*') {
+      width = va_arg(args, int);
+      if (width < 0) { left = 1; width = -width; pad = ' '; }
       code = fmt[++i];
+    } else {
+      while (fmt[i] != 0 && (code >='0' && code <= '9')) {
+        width = (width * 10) + (code-'0');
+        code = fmt[++i];
+      }
     }
 
     int x;
     switch (code) {
       case 'd': {
         x = va_arg(args, int);
-
-        if (x < 0) {
-          sink('-', sink_ctx);          
-          x = -x;
-          if (width) --width;
-        }
-
-        char[6] buf;
+        int val = x;
+        int neg = 0;
+        if (val < 0) { neg = 1; val = -val; }
+        char[12] buf;
         int p = 0;
-        if (x == 0) { buf[p++] = '0'; if (width) --width; }
-        else { while (x > 0) { int digit = x % 10; buf[p++] = '0' + digit; x = x / 10; if (width) --width; } }
-        while (width--) sink(pad, sink_ctx);
-        while (p > 0) sink(buf[--p], sink_ctx);
+        if (val == 0) buf[p++] = '0';
+        else { while (val > 0) { int digit = val % 10; buf[p++] = '0' + digit; val = val / 10; } }
+        int content_len = p + (neg ? 1 : 0);
+        int pad_count = 0;
+        if (width > content_len) pad_count = width - content_len;
+        if (left) {
+          if (neg) sink('-', sink_ctx);
+          while (p > 0) sink(buf[--p], sink_ctx);
+          while (pad_count--) sink(' ', sink_ctx);
+        } else {
+          if (pad == '0' && neg) {
+            sink('-', sink_ctx);
+            while (pad_count--) sink('0', sink_ctx);
+          } else {
+            while (pad_count--) sink(pad, sink_ctx);
+            if (neg) sink('-', sink_ctx);
+          }
+          while (p > 0) sink(buf[--p], sink_ctx);
+        }
         break;
       }
       case 'x':
       case 'X': {
         x = va_arg(args, int);
         int offs = 'x' - code;
-        char[4] buf;
+        char[8] buf;
         int p = 0;
         int ux = x;
-        if (ux == 0) { buf[p++] = '0'; if (width) --width; }
-        else { while (ux != 0) { int digit = ux & 0x0f; buf[p++] = (digit < 10) ? ('0' + digit) : ('a' - offs + (digit - 10)); ux = (ux >> 4) & 0x0fff; if (width) --width; } }
-        while (width--) sink(pad, sink_ctx);
-        while (p > 0) sink(buf[--p], sink_ctx);
+        if (ux == 0) buf[p++] = '0';
+        else { while (ux != 0) { int digit = ux & 0x0f; buf[p++] = (digit < 10) ? ('0' + digit) : ('a' - offs + (digit - 10)); ux = (ux >> 4) & 0x0fff; } }
+        int content_len = p;
+        int pad_count = 0;
+        if (width > content_len) pad_count = width - content_len;
+        if (left) {
+          while (p > 0) sink(buf[--p], sink_ctx);
+          while (pad_count--) sink(' ', sink_ctx);
+        } else {
+          while (pad_count--) sink(pad, sink_ctx);
+          while (p > 0) sink(buf[--p], sink_ctx);
+        }
         break;
       }
       case 'f': {
         x = va_arg(args, int);
-        if (x < 0) { sink('-', sink_ctx); x = -x; if (width) --width; }
-        int ipart = x >> 4;
-        int frac_dec = (x & 0x0f) * 625;
-        char[4] buf;
-        int p = 0;
-        if (ipart == 0) { buf[p++] = '0'; if (width) --width; }
-        else { while (ipart > 0) { buf[p++] = '0' + (ipart % 10); ipart = ipart / 10; if (width) --width; } }
-        while (width--) sink(pad, sink_ctx);
-        while (p > 0) sink(buf[--p], sink_ctx);
-        sink('.', sink_ctx);
+        int val = x;
+        int neg = 0;
+        if (val < 0) { neg = 1; val = -val; }
+        int ipart = val >> 4;
+        int frac_dec = (val & 0x0f) * 625;
+        char[12] ibuf;
+        int ip = 0;
+        if (ipart == 0) ibuf[ip++] = '0';
+        else { while (ipart > 0) { ibuf[ip++] = '0' + (ipart % 10); ipart = ipart / 10; } }
         char[4] fbuf;
         int fp = 0;
         while (fp < 4) { fbuf[fp++] = '0' + (frac_dec % 10); frac_dec = frac_dec / 10; }
         int fstart = 0;
         while (fstart < fp - 1 && fbuf[fstart] == '0') ++fstart;
-        while (fp > fstart) sink(fbuf[--fp], sink_ctx);
+        int frac_len = fp - fstart;
+        int content_len = ip + 1 + frac_len + (neg ? 1 : 0);
+        int pad_count = 0;
+        if (width > content_len) pad_count = width - content_len;
+        if (left) {
+          if (neg) sink('-', sink_ctx);
+          while (ip > 0) sink(ibuf[--ip], sink_ctx);
+          sink('.', sink_ctx);
+          while (fp > fstart) sink(fbuf[--fp], sink_ctx);
+          while (pad_count--) sink(' ', sink_ctx);
+        } else {
+          if (pad == '0' && neg) {
+            sink('-', sink_ctx);
+            while (pad_count--) sink('0', sink_ctx);
+          } else {
+            while (pad_count--) sink(pad, sink_ctx);
+            if (neg) sink('-', sink_ctx);
+          }
+          while (ip > 0) sink(ibuf[--ip], sink_ctx);
+          sink('.', sink_ctx);
+          while (fp > fstart) sink(fbuf[--fp], sink_ctx);
+        }
         break;
       }
-      case 'b':
+      case 'b': {
         x = va_arg(args, int);
         int bit = (x >= 0 && x < 256) ? 7 : 15;
-        if (width > (bit+1)) width = width - (bit+1);
-        while (width--) sink(pad, sink_ctx);
-        for (; bit >= 0; --bit) sink((x & (1 << bit)) ? '1' : '0', sink_ctx);
+        int bits = bit + 1;
+        int pad_count = 0;
+        if (width > bits) pad_count = width - bits;
+        if (left) {
+          for (; bit >= 0; --bit) sink((x & (1 << bit)) ? '1' : '0', sink_ctx);
+          while (pad_count--) sink(' ', sink_ctx);
+        } else {
+          while (pad_count--) sink(pad, sink_ctx);
+          for (; bit >= 0; --bit) sink((x & (1 << bit)) ? '1' : '0', sink_ctx);
+        }
         break;
-      case 'c':
+      }
+      case 'c': {
         x = va_arg(args, int);
-        sink(x, sink_ctx);
-        while (width--) sink(pad, sink_ctx);
+        int pad_count = 0;
+        if (width > 1) pad_count = width - 1;
+        if (left) {
+          sink(x, sink_ctx);
+          while (pad_count--) sink(' ', sink_ctx);
+        } else {
+          while (pad_count--) sink(pad, sink_ctx);
+          sink(x, sink_ctx);
+        }
         break;
+      }
       case 's': {
         char *sx = va_arg(args, char*);
         int len = 0;
-        while (*sx) { sink(*sx++, sink_ctx); ++len; }
-        if (width > len) width = width - len; else width = 0;
-        while (width--) sink(pad, sink_ctx);
+        char *siter = sx;
+        while (*siter) { ++len; ++siter; }
+        int pad_count = 0;
+        if (width > len) pad_count = width - len;
+        if (left) {
+          while (*sx) { sink(*sx++, sink_ctx); }
+          while (pad_count--) sink(' ', sink_ctx);
+        } else {
+          while (pad_count--) sink(pad, sink_ctx);
+          while (*sx) { sink(*sx++, sink_ctx); }
+        }
         break;
       }
       default:

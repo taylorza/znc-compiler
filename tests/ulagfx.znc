@@ -1,7 +1,51 @@
 //make dot "/dot/ulagfx";
 make dot "ulagfx.dot";
 
+include "io.znc"
+include "printf.znc"
 include "memory.znc"
+
+void wait_scanline(int line) __znccall(1) __asm__ {
+  pop hl
+  pop de
+  push hl
+
+  ld bc,0x243b        ; B = 0x24 (NextReg select), C = 0x3B (NextReg data)
+
+  ; Select Active video line LSB (0x1F)
+  ld a,0x1f
+  out (c),a
+  inc b               ; B = 0x25 → data port
+
+  ; If we're already on the target line, skip this occurrence:
+  ; stay in this loop while LSB == E, i.e. until we leave that line.
+.skip
+  in a,(c)
+  cp e
+  jr z,.skip          ; wait while LSB == target
+
+  ; Main wait: find next time (MSB,LSB) == (D,E)
+.wait:
+  dec b               ; select port
+  ld a,0x1f           ; LSB register
+  out (c),a
+  inc b               ; data port
+.lsb:
+  in a,(c)
+  cp e
+  jr nz,.lsb          ; wait for LSB == E
+
+  dec b               ; select port
+  ld a,0x1e           ; MSB register
+  out (c),a
+  inc b               ; data port
+.msb:
+  in a,(c)
+  cp d
+  jr nz,.wait         ; if MSB != D, start over with LSB
+
+  ret
+}
 
 void setpixel(int x, int y) __znccall(1) __asm__ {
   pop hl
@@ -74,20 +118,26 @@ nextreg(7,3);
 memset(16384,0,6144);
 
 // draw the ruler markings
-for(int y=0;y<190;y=y+10) {
+for(int y=0;y<160;y=y+10) {
   line(0,y,25,y);
   for (int yy=y+2;yy<y+10 && yy<192;yy=yy+2) {
     line(0,yy,10,yy);
   }
 }
 
+byte scanline = 0;
+void update_view() {
+  gotoxy(5,0);
+  printf("Scanline: %d   ", scanline);
+}
+
+__asm__{
+    di
+ }
+gotoxy(0,21); puts("Q/A-change scanline   SPACE-exit");
+update_view();
 for(;;) {
-  __asm__{
-    ei
-    halt
-    di    
-  }
-  for(int i=0;i<280;i=i+1);
+  wait_scanline(scanline);
   out(0xfe,1);
   circle(88,80,30);
   out(0xfe,2);
@@ -96,6 +146,15 @@ for(;;) {
   line(30,30,46,19);
 
   out(0xfe,7);
+  if ((in(0xfbfe) & 0x01) == 0) {
+    // 'Q' pressed
+    --scanline;
+    update_view();
+  } else if ((in(0xfdfe) & 0x01) == 0) {
+    // 'A' pressed
+    ++scanline;
+    update_view();
+  }
   if ((in(0x7ffe) & 0x01) == 0) break;
 }
  __asm__{
