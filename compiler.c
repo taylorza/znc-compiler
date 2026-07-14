@@ -866,7 +866,26 @@ void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc, uint8_t callee_type_id) M
             emit_ch(' ');
 
             if (arg_is_struct) {
-                parse_struct_initializer_fields(elem_type_id);
+                /* Decide: array-of-structs vs single-struct literal.
+                 * If tok == '{' AND the struct's first field is a scalar/pointer
+                 * (i.e. doesn't itself need a '{'), then the outer braces wrap an
+                 * array of structs.  Otherwise parse as fields of a single struct.
+                 */
+                uint8_t is_array_of_structs = 0;
+                if (tok == tokLBrace) {
+                    int s_id = (int)type_get_struct_id(elem_type_id) - 1;
+                    if (get_field_count(s_id) > 0) {
+                        FIELDINFO first_fi = get_struct_field(s_id, 0);
+                        uint8_t ft = first_fi.type_id;
+                        /* First field is scalar/pointer — cannot start with '{', so '{' means array */
+                        if (!type_is_array(ft) && !type_is_struct(ft)) is_array_of_structs = 1;
+                    }
+                }
+                if (is_array_of_structs) {
+                    parse_brace_initializer_elements(elem_type_id, expected_arr_len);
+                } else {
+                    parse_struct_initializer_fields(elem_type_id);
+                }
             } else {
                 uint16_t actual_count = parse_brace_initializer_elements(elem_type_id, expected_arr_len);
                 /* Validate element count against a fixed-size array parameter */
