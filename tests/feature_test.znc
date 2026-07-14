@@ -946,6 +946,10 @@ int fxsum(FxPair* fp) {
     return fp.pts[0] + fp.pts[1] + fp.tag;
 }
 
+int spsum(SpriteInit* s) {
+    return s[0].x + s[1].y + s[2].vel + s[0].pixels[2] + s[1].pixels[1] + s[2].pixels[0];
+}
+
 // Parenthesized dereference coverage for symbol, const address, prefix-inc and expression forms
 void test_par_dref() {
     byte[3] arr;
@@ -996,6 +1000,46 @@ void test_arrdec() {
 
     // Brace-initializer passed directly to a function argument
     chk("ad_fcall", fxsum({{7, 8}, 9}) == 24);
+}
+
+void test_brinit() {
+    // --- Padding: fewer elements than the declared array size ---
+    // Missing elements must be zero-filled.
+    int[4] pi = {1, 2};
+    chk("bi_pad_i0", pi[0] == 1);
+    chk("bi_pad_i1", pi[1] == 2);
+    chk("bi_pad_i2", pi[2] == 0);
+    chk("bi_pad_i3", pi[3] == 0);
+
+    byte[4] pb = {10, 20};
+    chk("bi_pad_b2", pb[2] == 0);
+    chk("bi_pad_b3", pb[3] == 0);
+
+    // --- Padding: struct with fewer fields than members ---
+    // Missing struct fields must also be zero-filled.
+    FxPair fp2 = {{1}};
+    chk("bi_pad_fp0", fp2.pts[0] == 1.0);
+    chk("bi_pad_fp1", fp2.pts[1] == 0.0);
+    chk("bi_pad_fpt", fp2.tag == 0);
+
+    // --- Single struct with array-member passed to pointer param ---
+    // First field is fixed[2] (needs '{'), so brace disambiguation
+    // correctly identifies this as a single-struct literal.
+    chk("bi_fc_fx", fxsum({{3, 5}, 2}) == 10);
+
+    // --- Array-of-structs passed to pointer param ---
+    // First field is scalar (byte x), so brace disambiguation
+    // correctly identifies this as an array-of-structs literal.
+    chk("bi_fc_sp", spsum({
+        {1, 2, 10, {4, 5, 6}},
+        {3, 4, 20, {7, 8, 9}},
+        {5, 6, 30, {1, 2, 3}}
+    }) == 50);
+
+    // --- FxPair[] (pointer to FxPair) assignment from array-of-structs ---
+    FxPair[] fpa = { {{2, 4}, 1}, {{6, 8}, 2} };
+    chk("bi_fpa0", fpa[0].pts[0] == 2.0 && fpa[0].tag == 1);
+    chk("bi_fpa1", fpa[1].pts[1] == 8.0 && fpa[1].tag == 2);
 }
 #endif
 
@@ -1384,6 +1428,7 @@ test_mem_ptr();
 test_par_dref();
 test_par_unop();
 test_arrdec();
+test_brinit();
 test_callconv();
 test_addrof();
 #endif

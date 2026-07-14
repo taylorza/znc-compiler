@@ -831,21 +831,10 @@ void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc, uint8_t callee_type_id) M
             /* Brace-initializer literal passed as argument.
              * Emit it as inline static data and pass its address in HL. */
             uint8_t elem_type_id = TYPE_ID_CHAR; /* default: byte */
-            uint8_t arg_is_struct = 0;
-            uint16_t expected_arr_len = 0; /* 0 = no fixed-size constraint */
+            uint16_t expected_arr_len = 0;
             if (sig_id != 0xFF && argcount < expected_count) {
                 uint8_t expected_type = signature_get_arg_type(sig_id, argcount);
-                if (type_is_struct(expected_type) && !type_is_pointer(expected_type)) {
-                    /* struct by value (unusual, but handle it) */
-                    elem_type_id = expected_type;
-                    arg_is_struct = 1;
-                } else if (type_is_pointer(expected_type) &&
-                           type_is_struct(type_get_element_type_id(expected_type)) &&
-                           type_get_indirection(expected_type) == 1) {
-                    /* pointer to struct: brace-init emits the struct data and passes its address */
-                    elem_type_id = type_get_element_type_id(expected_type);
-                    arg_is_struct = 1;
-                } else if (type_is_array(expected_type) || type_is_pointer(expected_type)) {
+                if (type_is_array(expected_type) || type_is_pointer(expected_type)) {
                     elem_type_id = type_get_element_type_id(expected_type);
                     if (type_is_array(expected_type))
                         expected_arr_len = type_get_array_length(expected_type);
@@ -865,30 +854,25 @@ void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc, uint8_t callee_type_id) M
             emit_lbl(datalbl);
             emit_ch(' ');
 
-            if (arg_is_struct) {
-                /* Decide: array-of-structs vs single-struct literal.
-                 * If tok == '{' AND the struct's first field is a scalar/pointer
-                 * (i.e. doesn't itself need a '{'), then the outer braces wrap an
-                 * array of structs.  Otherwise parse as fields of a single struct.
-                 */
-                uint8_t is_array_of_structs = 0;
-                if (tok == tokLBrace) {
-                    int s_id = (int)type_get_struct_id(elem_type_id) - 1;
-                    if (get_field_count(s_id) > 0) {
-                        FIELDINFO first_fi = get_struct_field(s_id, 0);
-                        uint8_t ft = first_fi.type_id;
-                        /* First field is scalar/pointer — cannot start with '{', so '{' means array */
-                        if (!type_is_array(ft) && !type_is_struct(ft)) is_array_of_structs = 1;
-                    }
+            /* Mirror the assignment side: plain struct element -> parse fields directly;
+             * anything else (array, scalar) -> parse as brace-element sequence. */
+            if (type_is_struct(elem_type_id) && tok != tokLBrace) {
+                parse_struct_initializer_fields(elem_type_id);
+            } else if (type_is_struct(elem_type_id)) {
+                /* tok == '{': first field needs a brace iff it is an array/struct.
+                 * If it doesn't (scalar/pointer), then '{' opens an array element. */
+                int s_id = (int)type_get_struct_id(elem_type_id) - 1;
+                uint8_t first_needs_brace = 0;
+                if (get_field_count(s_id) > 0) {
+                    uint8_t ft = get_struct_field(s_id, 0).type_id;
+                    first_needs_brace = type_is_array(ft) || type_is_struct(ft);
                 }
-                if (is_array_of_structs) {
-                    parse_brace_initializer_elements(elem_type_id, expected_arr_len);
-                } else {
+                if (first_needs_brace)
                     parse_struct_initializer_fields(elem_type_id);
-                }
+                else
+                    parse_brace_initializer_elements(elem_type_id, expected_arr_len);
             } else {
                 uint16_t actual_count = parse_brace_initializer_elements(elem_type_id, expected_arr_len);
-                /* Validate element count against a fixed-size array parameter */
                 if (expected_arr_len > 0 && actual_count != expected_arr_len)
                     error(errArgMismatch);
             }
