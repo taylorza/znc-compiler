@@ -656,6 +656,18 @@ EXPR_RESULT far_parse_expr(uint8_t minprec, uint8_t expected_type_id) MYCC {
 EXPR_RESULT far_parse_expr_delayconst(uint8_t minprec, uint8_t expected_type_id) MYCC {
     EXPR_RESULT expr_result = parse_factor(0, expected_type_id);
     parse_op_right(&expr_result, minprec, expected_type_id);
+    /* Coerce constant result to expected fixed/int when requested (mirror far_parse_expr behavior) */
+    if (type_is_const(expr_result.type_id)) {
+        if (expected_type_id != 0 && type_is_fixed(expected_type_id) && !type_is_fixed(expr_result.type_id) &&
+            type_is_integral(expr_result.type_id)) {
+            expr_result.value = (uint16_t)((int16_t)expr_result.value << 4);
+            expr_result.type_id = type_make_fixed(1);
+        } else if (expected_type_id != 0 && !type_is_fixed(expected_type_id) && type_is_fixed(expr_result.type_id) &&
+                   type_is_integral(expected_type_id)) {
+            expr_result.value = (uint16_t)((int16_t)expr_result.value >> 4);
+            expr_result.type_id = type_make_int(1);
+        }
+    }
     return expr_result;
 }
 
@@ -1055,7 +1067,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             uint16_t tmplbl = newlbl();
             emit_lbl(tmplbl);
                         
-            parse_brace_initializer_elements(expected_type_id);
+            parse_brace_initializer_elements(expected_type_id, 0);
             
             expect_RBrace();
             emit_lbl(skiplbl);

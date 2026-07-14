@@ -942,6 +942,10 @@ void test_mem_ptr() {
 #endif
 
 #if TEST_G3
+int fxsum(FxPair* fp) {
+    return fp.pts[0] + fp.pts[1] + fp.tag;
+}
+
 // Parenthesized dereference coverage for symbol, const address, prefix-inc and expression forms
 void test_par_dref() {
     byte[3] arr;
@@ -977,6 +981,21 @@ void test_arrdec() {
     chk("ad_sb0", sb[0].p[0] == 'a');
     chk("ad_sb1", sb[1].p[1] == 'd');
     chk("ad_sbn", sb[0].n == 1 && sb[1].n == 2);
+
+    // Struct with fixed-size array member
+    FxPair fp = {{3, 4}, 99};
+    chk("ad_fp0", fp.pts[0] == 3.0);
+    chk("ad_fp1", fp.pts[1] == 4.0);
+    chk("ad_fpt", fp.tag == 99);
+
+    // Array of structs with array members
+    FxPair[2] fpa = { {{1, 2}, 10}, {{5, 6}, 20} };
+    chk("ad_fpa0", fpa[0].pts[1] == 2.0);
+    chk("ad_fpa1", fpa[1].pts[0] == 5.0);
+    chk("ad_fpat", fpa[1].tag == 20);
+
+    // Brace-initializer passed directly to a function argument
+    chk("ad_fcall", fxsum({{7, 8}, 9}) == 24);
 }
 #endif
 

@@ -1,6 +1,7 @@
 #include "znc.h"
 #include "struct.h"
 #include "shared.h"
+#include "initializer.h"
 
 char* rtlfilename;          // filename for RTL include
 uint16_t retlbl = 0;        // function exit label
@@ -830,13 +831,25 @@ void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc, uint8_t callee_type_id) M
             /* Brace-initializer literal passed as argument.
              * Emit it as inline static data and pass its address in HL. */
             uint8_t elem_type_id = TYPE_ID_CHAR; /* default: byte */
+            uint8_t arg_is_struct = 0;
             uint16_t expected_arr_len = 0; /* 0 = no fixed-size constraint */
             if (sig_id != 0xFF && argcount < expected_count) {
                 uint8_t expected_type = signature_get_arg_type(sig_id, argcount);
-                if (type_is_array(expected_type) || type_is_pointer(expected_type))
+                if (type_is_struct(expected_type) && !type_is_pointer(expected_type)) {
+                    /* struct by value (unusual, but handle it) */
+                    elem_type_id = expected_type;
+                    arg_is_struct = 1;
+                } else if (type_is_pointer(expected_type) &&
+                           type_is_struct(type_get_element_type_id(expected_type)) &&
+                           type_get_indirection(expected_type) == 1) {
+                    /* pointer to struct: brace-init emits the struct data and passes its address */
                     elem_type_id = type_get_element_type_id(expected_type);
-                if (type_is_array(expected_type))
-                    expected_arr_len = type_get_array_length(expected_type);
+                    arg_is_struct = 1;
+                } else if (type_is_array(expected_type) || type_is_pointer(expected_type)) {
+                    elem_type_id = type_get_element_type_id(expected_type);
+                    if (type_is_array(expected_type))
+                        expected_arr_len = type_get_array_length(expected_type);
+                }
             }
 
             get_token(); /* skip '{' */
@@ -852,12 +865,15 @@ void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc, uint8_t callee_type_id) M
             emit_lbl(datalbl);
             emit_ch(' ');
 
-            uint16_t actual_count = parse_brace_initializer_elements(elem_type_id);
+            if (arg_is_struct) {
+                parse_struct_initializer_fields(elem_type_id);
+            } else {
+                uint16_t actual_count = parse_brace_initializer_elements(elem_type_id, expected_arr_len);
+                /* Validate element count against a fixed-size array parameter */
+                if (expected_arr_len > 0 && actual_count != expected_arr_len)
+                    error(errArgMismatch);
+            }
             expect(tokRBrace, '}');
-
-            /* Validate element count against a fixed-size array parameter */
-            if (expected_arr_len > 0 && actual_count != expected_arr_len)
-                error(errArgMismatch);
 
             emit_lbl(skiplbl);
 

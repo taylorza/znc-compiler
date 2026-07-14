@@ -216,7 +216,16 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
             element_type_id = type_get_element_type_id(type_id);
         }
 
-        elementcount = parse_brace_initializer_elements(element_type_id);
+        if (type_is_struct(type_id) && !type_is_array(type_id)) {
+            /* Single struct variable: fields are listed directly inside the braces */
+            elementcount = parse_struct_initializer_fields(type_id);
+        } else {
+            uint16_t arrlen = type_is_array(type_id) ? type_get_array_length(type_id) : 0;
+            elementcount = parse_brace_initializer_elements(element_type_id, type_is_array(type_id) ? type_get_array_length(type_id) : 0);
+            if (arrlen > 0 && elementcount != arrlen) {
+                error(errTypeError);
+            }
+        }
 
         if (datalen != NO_LABEL) {
             uint16_t data_size;
