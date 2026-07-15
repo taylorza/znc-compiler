@@ -951,8 +951,16 @@ static void postfix_member(EXPR_RESULT* result, uint8_t* dereference, uint8_t* a
         uint16_t total_offset = offset;
         uint8_t cur_type = fold_struct_members(fi.type_id, &total_offset);
         emit_sym_address_with_offset(&base_sym, total_offset);
-        *addr_in_hl = 1;
         result->type_id = cur_type;
+        /* If caller requested immediate dereference and member is a pointer,
+         * load pointer value now so HL holds pointee address. */
+        if (*dereference && type_is_pointer(cur_type) && tok != tokInc && tok != tokDec) {
+            emit_load(cur_type);
+            *addr_in_hl = 0;
+            *dereference = 0;
+            return;
+        }
+        *addr_in_hl = 1;
         if (type_is_array(result->type_id)) {
             uint8_t elem_id = type_get_element_type_id(result->type_id);
             result->type_id = type_make_pointer(elem_id, 1);
@@ -967,8 +975,8 @@ static void postfix_member(EXPR_RESULT* result, uint8_t* dereference, uint8_t* a
         if (had_sym) {
             if (type_is_pointer(result->type_id)) {
                 emit_ld_symval(&base_sym);
-                *addr_in_hl = 1;
                 if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
+                *addr_in_hl = 1;
             } else {
                 emit_sym_address_with_offset(&base_sym, offset);
                 *addr_in_hl = 1;
