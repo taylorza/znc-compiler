@@ -26,6 +26,7 @@
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/hexedit.znc /zdev/examples/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/font.inc /zdev/examples/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/crttst.znc /zdev/examples/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/fmttst.znc /zdev/examples/
 
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/ay.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/crt.znc /zdev/

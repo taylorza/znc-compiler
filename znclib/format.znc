@@ -6,178 +6,119 @@ const byte FORMAT__=0x01;
 
 delegate void PFN_PUTC(char ch, void* ctx);
 
-void vsprintf(PFN_PUTC sink, void* sink_ctx, char *fmt, va_list args) {
+/* shared scratch buffers moved to file scope to avoid allocating on the stack
+   for each vsprintf call; reduces stack frame size and codegen. */
+char[6] _buf_g;
+char[4] _hbuf_g;
+char[4] _fbuf_g;
+
+void emit_pad(PFN_PUTC sink, void* ctx, char ch, int count) __znccall(1) {
+  while (count > 0) { sink(ch, ctx); --count; }
+}
+
+void emit_rev_buf(PFN_PUTC sink, void* ctx, char *buf, int count) __znccall(1) {
+  while (count > 0) { --count; sink(buf[count], ctx); }
+}
+
+void vsprintf(PFN_PUTC sink, void* sink_ctx, char *fmt, va_list args) __znccall(1) {
   int i = 0;
+  /* use file-scope shared buffers directly to avoid per-call locals */
+
+  /* common temporaries reused across format cases */
+  int x, neg, p, content_len, pad_count, bit, bits, len;
+  char *sx;
+
   while (fmt[i] != 0) {
     char ch = fmt[i];
-
-    if (ch != '%') {
-      sink(ch, sink_ctx);
-      ++i;
-      continue;
-    }
+    if (ch != '%') { sink(ch, sink_ctx); ++i; continue; }
 
     char code = fmt[++i];
-    if (code == '%') {
-      sink('%', sink_ctx);
-      ++i;
-      continue;
-    }
+    if (code == '%') { sink('%', sink_ctx); ++i; continue; }
 
+    /* flags */
     char pad = ' ';
-    char left = 0;
-    /* parse flags: '-' for left justify, '0' for zero pad */
-    while (code == '-' || code == '0') {
-      if (code == '-') { left = 1; code = fmt[++i]; continue; }
-      if (code == '0') { pad = '0'; code = fmt[++i]; continue; }
-    }
-    if (left) pad = ' ';
+    while (code == '0') { pad = '0'; code = fmt[++i]; }
 
+    /* width (no dynamic '*' support) */
     int width = 0;
-    if (code == '*') {
-      width = va_arg(args, int);
-      if (width < 0) { left = 1; width = -width; pad = ' '; }
-      code = fmt[++i];
-    } else {
-      while (fmt[i] != 0 && (code >='0' && code <= '9')) {
-        width = (width * 10) + (code-'0');
-        code = fmt[++i];
-      }
-    }
+    while (fmt[i] != 0 && (code >= '0' && code <= '9')) { width = (width * 10) + (code - '0'); code = fmt[++i]; }
 
-    int x;
     switch (code) {
       case 'd': {
         x = va_arg(args, int);
-        int val = x;
-        int neg = 0;
-        if (val < 0) { neg = 1; val = -val; }
-        char[12] buf;
-        int p = 0;
-        if (val == 0) buf[p++] = '0';
-        else { while (val > 0) { int digit = val % 10; buf[p++] = '0' + digit; val = val / 10; } }
-        int content_len = p + (neg ? 1 : 0);
-        int pad_count = 0;
-        if (width > content_len) pad_count = width - content_len;
-        if (left) {
-          if (neg) sink('-', sink_ctx);
-          while (p > 0) sink(buf[--p], sink_ctx);
-          while (pad_count--) sink(' ', sink_ctx);
-        } else {
-          if (pad == '0' && neg) {
-            sink('-', sink_ctx);
-            while (pad_count--) sink('0', sink_ctx);
-          } else {
-            while (pad_count--) sink(pad, sink_ctx);
-            if (neg) sink('-', sink_ctx);
-          }
-          while (p > 0) sink(buf[--p], sink_ctx);
-        }
+        int ux;
+        if (x < 0) { neg = 1; ux = -x; } else { neg = 0; ux = x; }
+        p = 0;
+        if (ux == 0) { _buf_g[p++] = '0'; }
+        else { int tmp = ux; while (tmp != 0) { _buf_g[p++] = '0' + (tmp % 10); tmp = tmp / 10; } }
+        content_len = p + (neg ? 1 : 0);
+        pad_count = (width > content_len) ? width - content_len : 0;
+        if (pad == '0' && neg) { sink('-', sink_ctx); emit_pad(sink, sink_ctx, '0', pad_count); }
+        else { emit_pad(sink, sink_ctx, pad, pad_count); if (neg) sink('-', sink_ctx); }
+        emit_rev_buf(sink, sink_ctx, _buf_g, p);
         break;
       }
       case 'x':
       case 'X': {
         x = va_arg(args, int);
-        int offs = 'x' - code;
-        char[8] buf;
-        int p = 0;
-        int ux = x;
-        if (ux == 0) buf[p++] = '0';
-        else { while (ux != 0) { int digit = ux & 0x0f; buf[p++] = (digit < 10) ? ('0' + digit) : ('a' - offs + (digit - 10)); ux = (ux >> 4) & 0x0fff; } }
-        int content_len = p;
-        int pad_count = 0;
-        if (width > content_len) pad_count = width - content_len;
-        if (left) {
-          while (p > 0) sink(buf[--p], sink_ctx);
-          while (pad_count--) sink(' ', sink_ctx);
-        } else {
-          while (pad_count--) sink(pad, sink_ctx);
-          while (p > 0) sink(buf[--p], sink_ctx);
+        p = 0;
+        if (x == 0) { _hbuf_g[p++] = '0'; }
+        else {
+          int ux = x;
+          while (ux != 0) {
+            int digit = ux & 0x0f;
+            if (digit < 10) _hbuf_g[p++] = '0' + digit;
+            else _hbuf_g[p++] = (code == 'X' ? 'A' : 'a') + (digit - 10);
+            ux = (ux >> 4) & 0x0fff;
+          }
         }
+        content_len = p;
+        pad_count = (width > content_len) ? width - content_len : 0;
+        emit_pad(sink, sink_ctx, pad, pad_count); emit_rev_buf(sink, sink_ctx, _hbuf_g, p);
         break;
       }
       case 'f': {
+        int ip_len, fp_len, fstart;
         x = va_arg(args, int);
-        int val = x;
-        int neg = 0;
-        if (val < 0) { neg = 1; val = -val; }
-        int ipart = val >> 4;
-        int frac_dec = (val & 0x0f) * 625;
-        char[12] ibuf;
-        int ip = 0;
-        if (ipart == 0) ibuf[ip++] = '0';
-        else { while (ipart > 0) { ibuf[ip++] = '0' + (ipart % 10); ipart = ipart / 10; } }
-        char[4] fbuf;
-        int fp = 0;
-        while (fp < 4) { fbuf[fp++] = '0' + (frac_dec % 10); frac_dec = frac_dec / 10; }
-        int fstart = 0;
-        while (fstart < fp - 1 && fbuf[fstart] == '0') ++fstart;
-        int frac_len = fp - fstart;
-        int content_len = ip + 1 + frac_len + (neg ? 1 : 0);
-        int pad_count = 0;
-        if (width > content_len) pad_count = width - content_len;
-        if (left) {
-          if (neg) sink('-', sink_ctx);
-          while (ip > 0) sink(ibuf[--ip], sink_ctx);
-          sink('.', sink_ctx);
-          while (fp > fstart) sink(fbuf[--fp], sink_ctx);
-          while (pad_count--) sink(' ', sink_ctx);
-        } else {
-          if (pad == '0' && neg) {
-            sink('-', sink_ctx);
-            while (pad_count--) sink('0', sink_ctx);
-          } else {
-            while (pad_count--) sink(pad, sink_ctx);
-            if (neg) sink('-', sink_ctx);
-          }
-          while (ip > 0) sink(ibuf[--ip], sink_ctx);
-          sink('.', sink_ctx);
-          while (fp > fstart) sink(fbuf[--fp], sink_ctx);
-        }
+        int v = x; int negf = 0;
+        if (v < 0) { negf = 1; v = -v; }
+        int ipart = v >> 4;
+        int frac_dec = (v & 0x0f) * 625;
+        ip_len = 0;
+        if (ipart == 0) { _buf_g[ip_len++] = '0'; }
+        else { while (ipart > 0) { _buf_g[ip_len++] = '0' + (ipart % 10); ipart = ipart / 10; } }
+        fp_len = 0; while (fp_len < 4) { _fbuf_g[fp_len++] = '0' + (frac_dec % 10); frac_dec = frac_dec / 10; }
+        neg = negf;
+        fstart = 0; while (fstart < fp_len - 1 && _fbuf_g[fstart] == '0') ++fstart;
+        int frac_len = fp_len - fstart;
+        content_len = ip_len + 1 + frac_len + (neg ? 1 : 0);
+        pad_count = (width > content_len) ? width - content_len : 0;
+        if (pad == '0' && neg) { sink('-', sink_ctx); emit_pad(sink, sink_ctx, '0', pad_count); }
+        else { emit_pad(sink, sink_ctx, pad, pad_count); if (neg) sink('-', sink_ctx); }
+        emit_rev_buf(sink, sink_ctx, _buf_g, ip_len);
+        sink('.', sink_ctx);
+        emit_rev_buf(sink, sink_ctx, _fbuf_g + fstart, fp_len - fstart);
         break;
       }
       case 'b': {
         x = va_arg(args, int);
-        int bit = (x >= 0 && x < 256) ? 7 : 15;
-        int bits = bit + 1;
-        int pad_count = 0;
-        if (width > bits) pad_count = width - bits;
-        if (left) {
-          for (; bit >= 0; --bit) sink((x & (1 << bit)) ? '1' : '0', sink_ctx);
-          while (pad_count--) sink(' ', sink_ctx);
-        } else {
-          while (pad_count--) sink(pad, sink_ctx);
-          for (; bit >= 0; --bit) sink((x & (1 << bit)) ? '1' : '0', sink_ctx);
-        }
+        bit = (x >= 0 && x < 256) ? 7 : 15; bits = bit + 1;
+        pad_count = (width > bits) ? width - bits : 0;
+        emit_pad(sink, sink_ctx, pad, pad_count); for (; bit >= 0; --bit) sink((x & (1 << bit)) ? '1' : '0', sink_ctx);
         break;
       }
       case 'c': {
         x = va_arg(args, int);
-        int pad_count = 0;
-        if (width > 1) pad_count = width - 1;
-        if (left) {
-          sink(x, sink_ctx);
-          while (pad_count--) sink(' ', sink_ctx);
-        } else {
-          while (pad_count--) sink(pad, sink_ctx);
-          sink(x, sink_ctx);
-        }
+        pad_count = (width > 1) ? width - 1 : 0;
+        emit_pad(sink, sink_ctx, pad, pad_count); sink(x, sink_ctx);
         break;
       }
       case 's': {
-        char *sx = va_arg(args, char*);
-        int len = 0;
-        char *siter = sx;
-        while (*siter) { ++len; ++siter; }
-        int pad_count = 0;
-        if (width > len) pad_count = width - len;
-        if (left) {
-          while (*sx) { sink(*sx++, sink_ctx); }
-          while (pad_count--) sink(' ', sink_ctx);
-        } else {
-          while (pad_count--) sink(pad, sink_ctx);
-          while (*sx) { sink(*sx++, sink_ctx); }
-        }
+        sx = va_arg(args, char*);
+        len = 0; char *siter = sx; while (*siter) { ++len; ++siter; }
+        pad_count = (width > len) ? width - len : 0;
+        if (pad_count) emit_pad(sink, sink_ctx, pad, pad_count);
+        while (*sx) { sink(*sx++, sink_ctx); }
         break;
       }
       default:

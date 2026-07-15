@@ -1,0 +1,83 @@
+make dot "fmttst.dot";
+include "string.znc"
+include "format.znc"
+include "printf.znc"
+
+struct buf_ctx {
+  char* pos;
+}
+
+// Simple sink that writes into a buffer.
+void buf_putc(char ch, void* ctx) {
+   buf_ctx* c = ctx;
+  *c.pos++ = ch;
+}
+
+// Runs vsprintf() and checks output against expected.
+void check(char* fmt, char* expected, ...) {
+    char[128] buf;
+    buf_ctx ctx;
+    ctx.pos = buf;
+
+    va_list args;
+    va_start(args, expected);
+    vsprintf(buf_putc, &ctx, fmt, args);
+    va_end(args);
+    
+    *ctx.pos = 0;
+    
+    if (strcmp(buf, expected) != 0) {
+        printf("FAIL fmt=\"%s\"\r", fmt);
+        printf("  got:      \"%s\"\r", buf);
+        printf("  expected: \"%s\"\r", expected);
+    } else {
+        printf("PASS fmt=\"%s\" -> \"%s\"\r", fmt, buf);
+    }
+}
+
+void run_tests() {
+    // %d — signed decimal
+    check("%d", "0", 0);
+    check("%d", "1234", 1234);
+    check("%d", "-1234", -1234);
+    check("%5d", "   42", 42);
+    check("%05d", "00042", 42);
+    
+    // %x / %X — hexadecimal
+    check("%x", "0", 0);
+    check("%x", "1234", 0x1234);
+    check("%X", "ABCD", 0xABCD);
+    check("%08x", "00000042", 0x42);
+
+    // %b — binary
+    check("%b", "00000000", 0);
+    check("%b", "01010101", 0x55);
+    check("%b", "1010101010101010", 0xAAAA);
+    check("%16b", "0001001000110100", 0x1234);
+
+    // %f — fixed‑point 12.4
+    check("%f", "0.0", 0);
+    check("%f", "1.0", 0x0010);
+    check("%f", "15.0", 0x00F0);
+    check("%f", "18.1875", 0x0123);
+    check("%f", "-18.1875", -0x0123);
+
+    // %c — character
+    check("%c", "A", 'A');
+    check("%5c", "    Z", 'Z');
+    
+    // %s — string
+    check("%s", "Hello", "Hello");
+    check("%10s", "        Hi", "Hi");
+    
+    // %% — literal percent
+    check("%%", "%");
+    check("Value: %% %d", "Value: % 42", 42);
+
+    // Mixed formatters
+    check("d=%d x=%x b=%b f=%f c=%c s=%s",
+          "d=-123 x=abcd b=01010101 f=18.1875 c=X s=test",
+          -123, 0xABCD, 0x55, 0x123, 'X', "test");
+}
+
+run_tests();

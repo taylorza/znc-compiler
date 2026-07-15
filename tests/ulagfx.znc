@@ -6,6 +6,7 @@ include "printf.znc"
 include "memory.znc"
 
 void wait_scanline(int line) __znccall(1) __asm__ {
+_
   pop hl
   pop de
   push hl
