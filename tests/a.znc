@@ -1,0 +1,26 @@
+make dot "a.dot";
+
+delegate void PFN_CFG_READ(void* cfg, char* value);
+
+void CFG_NO_READ(void* cfg, char* value) {
+  // do nothing
+}
+
+void fn_read(void* cfg, char* value) {
+  puts(value);putc('\r');
+}
+
+struct FN_TBL {
+  char* key;
+  PFN_CFG_READ pfn_read;
+};
+
+FN_TBL[] fn_tbl = {
+  {"name", fn_read},
+  {"color", fn_read},
+  {0, CFG_NO_READ}
+};
+
+for(int i=0; fn_tbl[i].key != 0; i++) {
+    fn_tbl[i].pfn_read(0, fn_tbl[i].key);
+}

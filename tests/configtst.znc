@@ -3,11 +3,16 @@ make dot "configtst.dot";
 include "string.znc"
 include "fileio.znc"
 
-delegate void PFN_CFG(void* cfg, char* value);
+delegate void PFN_CFG_READ(void* cfg, char* value);
+delegate void PFN_CFG_WRITE(void* cfg, char** value);
+
+void CFG_NO_READ(void* cfg, char* value) {}
+void CFG_NO_WRITE(void* cfg, char** value) {}
+
 struct cfg_entry {
   char* key;
-  PFN_CFG pfn_read;
-  PFN_CFG pfn_write;
+  PFN_CFG_READ pfn_read;
+  PFN_CFG_WRITE pfn_write;
 };
 
 char[80] _cfg_buf;
@@ -32,7 +37,8 @@ byte cfg_load(void *cfg, char* filename, cfg_entry* entries) {
               *value++ = 0;
               for (byte j = 0; entries[j].key != 0; j++) {
                 if (strcmp(entries[j].key, key) == 0) {
-                  entries[j].pfn_read(cfg, value);
+                  PFN_CFG_READ pfn = entries[j].pfn_read;
+                  pfn(cfg, value);
                   break;
                 }
               }
@@ -52,12 +58,12 @@ void cfg_save(void *cfg, char* filename, cfg_entry* entries) {
   byte f = fopen(filename, M_WRITE | M_TRUNC);
   if (f == 0) return;
   for (byte j = 0; entries[j].key != 0; j++) {
-    _cfg_line[0] = 0;
-    entries[j].pfn_write(cfg, &_cfg_line);
-    if (*_cfg_line != 0) {
+    char* buf = 0;
+    entries[j].pfn_write(cfg, &buf);
+    if (buf != 0 && *buf != 0) {
       fwrite(f, entries[j].key, strlen(entries[j].key));
       fwrite(f, "=", 1);
-      fwrite(f, _cfg_line, strlen(_cfg_line));
+      fwrite(f, buf, strlen(buf));
       fwrite(f, "\r\n", 2);
     }
   }
@@ -93,14 +99,22 @@ cfg_entry ce = {"name", load_name, save_name};
 cfg_entry[] settingstbl = {
   {"name", load_name, save_name},
   {"color", load_color, save_color},
-  {0, 0, 0}
+  {0,CFG_NO_READ,CFG_NO_WRITE},
 };
 
 Settings s;
+/* initialize settings to empty to avoid reading uninitialized data if file missing */
+s.name[0] = 0;
+s.color[0] = 0;
 
-cfg_load(&s, "config.txt", settingstbl);
-puts(s.name);putc('\r');
-puts(s.color);putc('\r');
+/* ensure arguments are evaluated into temporaries so the call pushes
+  the entries/filename/cfg in the correct order for the compiler */
+cfg_entry* __tbl = settingstbl;
+char* __fname = "config.txt";
+void* __cfgp = &s;
+cfg_load(__cfgp, __fname, __tbl);
+//puts(s.name);putc('\r');
+//puts(s.color);putc('\r');
 
-s.name = "Chris";
-cfg_save(&s, "config.txt", settingstbl);
+//s.name = "Chris";
+//cfg_save(&s, "config.txt", settingstbl);
