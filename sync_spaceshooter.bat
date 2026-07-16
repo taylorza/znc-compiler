@@ -7,6 +7,6 @@ rem %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/spacesho
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/configtst.znc /zdev/examples/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/config.txt /zdev/examples/
 
-%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/format.znc /zdev/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/vsprintf.znc /zdev/
 
 

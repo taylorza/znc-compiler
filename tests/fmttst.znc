@@ -1,6 +1,6 @@
 make dot "fmttst.dot";
 include "string.znc"
-include "format.znc"
+include "vsprintf.znc"
 include "printf.znc"
 
 struct buf_ctx {

@@ -1,7 +1,7 @@
 #ifndef SPRINTF__
 const byte SPRINTF__=0x01;
 
-include "format.znc"
+include "vsprintf.znc"
 
 struct sprintf_ctx {
   char* pos;

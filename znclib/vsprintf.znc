@@ -1,0 +1,186 @@
+#ifndef FORMAT__
+const byte FORMAT__ = 0x01;
+
+/* Shared formatting core with a pluggable sink function.
+PFN_PUTC is called for every output character along with a context pointer. */
+
+delegate void PFN_PUTC(char ch, void* ctx);
+
+/* shared scratch buffers moved to file scope to avoid allocating on the stack
+   for each vsprintf call; reduces stack frame size and codegen. */
+char[6] _buf_g;
+char[4] _hbuf_g;
+char[4] _fbuf_g;
+
+void _fmt_pad(PFN_PUTC sink, void* ctx, char ch, int count) __znccall(1) {
+  while (count > 0) {
+    sink(ch, ctx);
+    --count;
+  }
+}
+
+void _fmt_rev_buf(PFN_PUTC sink, void* ctx, char *buf, int count) __znccall(1) {
+  while (count > 0) {
+    --count;
+    sink(buf[count], ctx);
+  }
+}
+
+void vsprintf(PFN_PUTC sink, void* sink_ctx, char *fmt, va_list args) __znccall(1) {
+  int i = 0;
+  int x, pad_count;
+
+  while (fmt[i] != 0) {
+    if (fmt[i] != '%') {
+      sink(fmt[i], sink_ctx);
+      ++i;
+      continue;
+    }
+
+    char code = fmt[++i];
+    if (code == '%') {
+      sink('%', sink_ctx);
+      ++i;
+      continue;
+    }
+
+    char pad = ' ';
+    while (code == '0') {
+      pad = '0';
+      code = fmt[++i];
+    }
+
+    int width = 0;
+    while (fmt[i] != 0 && (code >= '0' && code <= '9')) {
+      width = (width * 10) + (code - '0');
+      code = fmt[++i];
+    }
+
+    switch (code) {
+      case 'd': {
+        int p = 0;
+        x = va_arg(args, int);
+        int neg = x < 0;
+        if (neg) x = -x;
+        if (x == 0) {
+          _buf_g[p++] = '0';
+        } else {
+          while (x != 0) {
+            _buf_g[p++] = '0' + (x % 10);
+            x = x / 10;
+          }
+        }
+        pad_count = (width > (p + neg)) ? width - (p + neg) : 0;
+        if (pad == '0' && neg) {
+          sink('-', sink_ctx);
+          _fmt_pad(sink, sink_ctx, '0', pad_count);
+        } else {
+          _fmt_pad(sink, sink_ctx, pad, pad_count);
+          if (neg) sink('-', sink_ctx);
+        }
+        _fmt_rev_buf(sink, sink_ctx, _buf_g, p);
+        break;
+      }
+
+      case 'x':
+      case 'X': {
+        int p = 0;
+        x = va_arg(args, int);
+        if (x == 0) {
+          _hbuf_g[p++] = '0';
+        } else {
+          while (x != 0) {
+            int digit = x & 0x0f;
+            if (digit < 10) {
+              _hbuf_g[p++] = '0' + digit;
+            } else {
+              _hbuf_g[p++] = (code == 'X' ? 'A' : 'a') + (digit - 10);
+            }
+            x = (x >> 4) & 0x0fff;
+          }
+        }
+        pad_count = (width > p) ? width - p : 0;
+        _fmt_pad(sink, sink_ctx, pad, pad_count);
+        _fmt_rev_buf(sink, sink_ctx, _hbuf_g, p);
+        break;
+      }
+
+      case 'f': {
+        int ip_len, fp_len, fstart;
+        x = va_arg(args, int);
+        int neg = x < 0;
+        if (neg) x = -x;
+        int ipart = x >> 4;
+        int frac_dec = (x & 0x0f) * 625;
+        ip_len = 0;
+        if (ipart == 0) {
+          _buf_g[ip_len++] = '0';
+        } else {
+          while (ipart > 0) {
+            _buf_g[ip_len++] = '0' + (ipart % 10);
+            ipart = ipart / 10;
+          }
+        }
+        fp_len = 0;
+        while (fp_len < 4) {
+          _fbuf_g[fp_len++] = '0' + (frac_dec % 10);
+          frac_dec = frac_dec / 10;
+        }
+
+        fstart = 0;
+        while (fstart < fp_len - 1 && _fbuf_g[fstart] == '0') ++fstart;
+        pad_count = (width > (ip_len + 1 + (fp_len - fstart) + neg)) ? width - (ip_len + 1 + (fp_len - fstart) + neg) : 0;
+        if (pad == '0' && neg) {
+          sink('-', sink_ctx);
+          _fmt_pad(sink, sink_ctx, '0', pad_count);
+        } else {
+          _fmt_pad(sink, sink_ctx, pad, pad_count);
+          if (neg) sink('-', sink_ctx);
+        }
+        _fmt_rev_buf(sink, sink_ctx, _buf_g, ip_len);
+        sink('.', sink_ctx);
+        _fmt_rev_buf(sink, sink_ctx, _fbuf_g + fstart, fp_len - fstart);
+        break;
+      }
+
+      case 'b': {
+        x = va_arg(args, int);
+        int bit = (x >= 0 && x < 256) ? 7 : 15; 
+        pad_count = (width > (bit + 1)) ? width - (bit + 1) : 0;
+        _fmt_pad(sink, sink_ctx, pad, pad_count);
+        for (; bit >= 0; --bit) {
+          sink((x & (1 << bit)) ? '1' : '0', sink_ctx);
+        }
+        break;
+      }
+
+      case 'c': {
+        x = va_arg(args, int);
+        pad_count = (width > 1) ? width - 1 : 0;
+        _fmt_pad(sink, sink_ctx, pad, pad_count);
+        sink(x, sink_ctx);
+        break;
+      }
+
+      case 's': {
+        char *sx = va_arg(args, char*);
+        int len = 0;
+        char *siter = sx;
+        while (*siter) { ++len; ++siter; }
+        pad_count = (width > len) ? width - len : 0;
+        if (pad_count) _fmt_pad(sink, sink_ctx, pad, pad_count);
+        while (*sx) { sink(*sx++, sink_ctx); }
+        break;
+      }
+
+      default:
+        sink('%', sink_ctx);
+        sink(code > 32 && code < 128 ? code : '?', sink_ctx);
+        break;
+    }
+
+    ++i;
+  }
+}
+
+#endif
