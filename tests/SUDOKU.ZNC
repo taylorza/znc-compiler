@@ -316,7 +316,7 @@ int try(int pos, int off, int depth) __znccall(1)
         if(result == BREAK_KEY)
         {
           /*
-           * ‘reak was pressed
+           * ï¿½reak was pressed
            */
           return BREAK_KEY;
         }
