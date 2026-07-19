@@ -1,0 +1,202 @@
+make dot "sudoku_mrv.dot";
+
+include "io.znc"
+include "printf.znc"
+include "memory.znc"
+include "datetime.znc" 
+
+// Sample Sudoku puzzle (0 = empty)
+int[9][9] puzzle = {
+  {3,0,4, 2,0,8, 0,0,0},
+  {0,9,0, 0,0,0, 0,3,0},
+  {2,0,0, 9,0,0, 0,0,0},
+
+  {0,0,0, 0,0,0, 0,9,0},
+  {7,1,0, 0,0,9, 0,2,0},
+  {0,0,0, 1,4,7, 0,0,0},
+
+  {0,0,5, 0,0,0, 6,0,0},
+  {0,6,0, 0,0,2, 0,8,0},
+  {0,0,7, 0,1,0, 0,0,2}
+};
+
+// Bitmask of used digits for each row, column, and box
+int[9] rowMask, colMask, boxMask;
+
+// Board stored as integers 0–9 (0 = empty)
+int[9][9] board;
+
+byte[] l_div3 = {0,0,0,1,1,1,2,2,2};    // Precomputed division by 3
+byte[] l_divmul3 = {0,0,0,3,3,3,6,6,6}; // Precomputed n/3*3
+
+void cls() {
+  memset(0x4000, 0, 6144);
+  memset(0x5800, 7<<3, 768);
+  
+  ink(0);
+  paper(7);
+  gotoxy(0,0);
+}
+
+// Place digit
+void place(int r, int c, int d) {
+  int bit = 1 << d;
+  board[r][c] = d;
+  rowMask[r] |= bit;
+  colMask[c] |= bit;
+  boxMask[l_divmul3[r] + l_div3[c]] |= bit;
+
+  gotoxy(1 + c + l_div3[c], 1 + r + l_div3[r]);
+  putc(d + '0');
+}
+
+// Remove digit
+void removeDigit(int r, int c, int d) {
+  int clearbit = ~(1 << d);
+  board[r][c] = 0;
+  rowMask[r] &= clearbit;
+  colMask[c] &= clearbit;
+
+  boxMask[l_divmul3[r] + l_div3[c]] &= clearbit;
+
+  gotoxy(1 + c + l_div3[c], 1 + r + l_div3[r]);
+  putc(' ');
+}
+
+// Find cell with minimum remaining values (MRV)
+int findBestCell(int *bestR, int *bestC) {
+  int minChoices = 10;
+  int found = 0;
+
+  for (int r = 0; r < 9; ++r) {
+    for (int c = 0; c < 9; ++c) {
+      if (board[r][c] == 0) {
+        // Compute combined mask for this cell
+        int mask = rowMask[r] | colMask[c] | boxMask[l_divmul3[r] + l_div3[c]];
+        
+        // If all digits are used, this is an invalid state
+        if (mask == 0x3fe) {
+          *bestR = r;
+          *bestC = c;
+          return 1;
+        }
+
+        // Count the number of available choices for this cell
+        int count = 0;
+        count += ((mask >> 1) & 1) ^ 1;
+        count += ((mask >> 2) & 1) ^ 1;
+        count += ((mask >> 3) & 1) ^ 1;
+        count += ((mask >> 4) & 1) ^ 1;
+        count += ((mask >> 5) & 1) ^ 1;
+        count += ((mask >> 6) & 1) ^ 1;
+        count += ((mask >> 7) & 1) ^ 1;
+        count += ((mask >> 8) & 1) ^ 1;
+        count += ((mask >> 9) & 1) ^ 1;
+        
+        // Update best cell if this one has fewer choices
+        if (count < minChoices) {
+          minChoices = count;
+          *bestR = r;
+          *bestC = c;          
+          found = 1;
+          if (count == 1) return 1; // best possible
+        }
+      }
+    }
+  }
+  return found;
+}
+
+// Backtracking solver
+int solve() {
+  int r, c;
+  
+  if (!findBestCell(&r, &c))
+    return 1; // solved
+
+  // Precompute combined mask for this cell
+  int mask = rowMask[r] | colMask[c] | boxMask[l_divmul3[r] + l_div3[c]];
+  if (mask == 0x3fe) return 0; // no valid digits
+  
+  for (int d = 1; d <= 9; ++d) {
+    if (mask & (1 << d)) continue; // digit already used
+
+    place(r, c, d);
+    if (solve()) return 1;
+    removeDigit(r, c, d);
+    
+    if ((in(0x7ffe)&0x01)==0) return 0;
+  }
+  return 0;
+}
+
+// Display the board
+void showBoard() {
+  gotoxy(0, 0);
+  for (int r = 0; r < 9; ++r) {
+    if (r % 3 == 0)
+      puts("+---+---+---+\r");
+    for (int c = 0; c < 9; ++c) { 
+      if (c % 3 == 0)
+        putc('|');
+      if (board[r][c]){
+        ink(4);
+        putc(board[r][c] + '0');      
+      } else {        
+        putc(' ');
+      }
+      ink(0);
+    }
+    puts("|\r");
+  }
+  puts("+---+---+---+");
+}
+
+// Get timestamp
+int timestamp() {
+  int[6] dt;
+  int  ts;
+
+  getDateTime(dt);
+
+  ts=dt[DT_SECS];
+  ts=ts+60*dt[DT_MINS];
+
+  return ts;
+}
+
+//------------------------------------------------------------------------------
+// Main program - Entry point
+//------------------------------------------------------------------------------
+
+// Initialize board + masks
+for (int r = 0; r < 9; ++r) {
+  for (int c = 0; c < 9; ++c) {
+    int d = puzzle[r][c];
+    board[r][c] = d;
+    if (d) {
+      int bit = 1 << d;
+      rowMask[r] |= bit;
+      colMask[c] |= bit;
+      boxMask[l_divmul3[r] + l_div3[c]] |= bit;
+    }
+  }
+}
+
+// Show the initial board
+cls();
+showBoard();
+
+// Solve the puzzle
+int start = timestamp();
+int result = solve();
+int end = timestamp();
+
+// Show the result
+gotoxy(0,13);
+if (result) {
+  puts("Solved!\r");
+} else {
+  puts("No solution\r");
+}
+printf("Solve/run time %d seconds\r",end-start);

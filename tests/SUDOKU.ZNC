@@ -11,509 +11,659 @@ make dot "sudoku.dot";
  * Public Domain AS IS
  */
 /*
- * Includes
+ * Includes - In divmmc memory
  */
-include "io.znc";
-include "fileio.znc";
-include "printf.znc";
-include "memory.znc";
+include "dotn.znc" // CT - Enable automatic banking
+include "io.znc"
+include "fileio.znc"
+include "printf.znc"
 
-/*
- * Kind of enummeration definitions
- */
-const byte FAILED=0;
-const byte SUCCES=1;
-const byte PUZZLE_ERROR=2;
-const byte BREAK_KEY=3;
+// CT - Forward reference to main() in bank 1, so that the compiler knows where it is.
+int main() bank(1);
 
-/*
- * Option flag
- */
-byte verbose=0;
+/* ZNC Start */
+int ret;
+ret = main(); // Call main() in bank 1
+waitkey();
+exit(ret);
 
-/*
- * Global variables
- */
-byte[81] grid;
-int      count1;
-int      count2;
-
-/*
- * clear screen
- */
-void cls()
-{
-  memset(16384, 255, 6144);
-  memset(22528, 0, 768);
-  ink(7);
-  paper(0); 
-  gotoxy(0,0);
-}
-
-/*
- * Read puzzle from file
- */
-byte read_puzzle(char *filename)
-{
-  byte fd;
-  int  pos;
-  char p;
-
-  printf("Assignment: %s\r", filename);
+// CT - Put rest of the code in an 8K bank
+bank(1) {
+  // If only needed in the bank, include it here to save memory in the main bank
+  include "datetime.znc" 
 
   /*
-   * Open file for reading
-   */
-  fd = fopen(filename, M_READ);
-  if(fd == 255)
-  {
-    /*
-     * Open failed, give error and return FAILED
-     */
-    printf("Can't open file \"%s\" (errno=%d)\r", filename, errno); 
-    return FAILED;
-  }
+  * Result values
+  */
+  enum Result {FAILED,SUCCES,PUZZLE_ERROR,BREAK_KEY};
+  enum Colour {BLACK,BLUE,RED,MAGENTA,GREEN,CYAN,YELLOW,WHITE};
 
   /*
-   * File is open, read contents and get the numbers one by one
-   */
-  pos = 0;
-  
-  while(fread(fd,&p,1) == 1)
-  {
-    if((p>='1' && p<='9') || p=='.' || p=='_')
+  * Option flag
+  */
+  byte verbose;
+
+  /*
+  * Start and end date time
+  */
+  int start;
+  int end;
+
+  /*
+  * Global variables
+  */
+  byte[81] grid;
+  int      count1;
+  int      count2;
+
+  /*
+  * clear screen
+  */
+  void cls() {
+    char *x;
+    for(x=16384;x<22528;x++)
     {
-      if(p>='1' && p<='9')
-      {
-        grid[pos] = p;
-      }
-      else
-      {
-        grid[pos] = ' ';
-      }
-      pos++;
+      *x=255;
     }
-    /*
-     * If we are at the end then quit, the remainder
-     * is not interesting
-     */
-    if(pos == 81)
+    for(x=22528;x<23296;x++)
     {
-      /* Exit the loop */
-      break;
+      *x=0;
     }
+    out(0x7ffe, Colour.BLUE);
+    ink(Colour.WHITE);
+    paper(Colour.BLACK);
+    gotoxy(0,0);
   }
 
   /*
-   * We are ready, file can be closed
-   */
-  fclose(fd);
+  * Get timestamp
+  */
+  int timestamp() {
+    int[6] dt;
+    int    ts;
+
+    getDateTime(dt);
+
+    ts=dt[DT_SECS];
+    ts=ts+60*dt[DT_MINS];
+
+    return ts;
+  }
 
   /*
-   * Check if everything was filled
-   */
-  if(pos == 81)
+  * Read puzzle from file
+  */
+  Result read_puzzle(char *filename)
   {
+    byte fd;
+    byte pos;
+    char p;
+
+    printf("Assignment: %s\r", filename);
+
     /*
-     * Puzzle successful read
-     */
-    return SUCCES;
-  }
-  else
-  {
-    /*
-     * Puzzle is incomplete
-     */
-    printf("Reading failed: puzzle is incomplete\r");
-    return FAILED;
-  }
-}
-
-/*
- * Dump the grid on the screen. Format it a little...
- */
-void dump()
-{
-  int pos;
-
-  /*
-   * Wel, just print and every 3 rows and every 3  columns
-   * add a line to finish it off...
-   */
-  for(pos = 0; pos < 81; pos++)
-  {
-    if(((pos % 9) == 0) && (pos != 0))
-      puts("|\r");
-      
-    if((pos % 27) == 0)
-      puts("+-----+-----+-----+\r");
-  
-    if((pos % 3) == 0)
-      putc('|');
-    else
-      putc(' ');
-
-    putc(grid[pos]);  
-  }
-
-  puts("|\r+-----+-----+-----+\r");
-}
-
-/*
- * Check if 'n' can be put on (row, col) position without causing issues
- */
-int okay(int pos, byte n)
-{
-  int i, j;
-  int rowpos;
-  int colpos;
-  int square_pos;
-
-  if(verbose)
-    printf("check %c at (%d,%d)...", n, (pos/9)+1, (pos%9)+1);
-
-  /*
-   * Check if the number already exists in the same row, column
-   * or 3x3 square
-   */
-  rowpos = 9 * (pos/9); /* row position of column 1 */
-  colpos = pos % 9;     /* col position of row 1 */
-  for(i = 0; i < 9; i++)
-  {
-    /* Does the number already exist in another column of this row? */
-    if(grid[rowpos+i] == n)
-    {
-      /* Bummer, number is already present on this row */
-      if(verbose)
-        printf("no:(%d,%d)\r", (rowpos/9)+1, i+1);
-      return FAILED;
-    }
-    if(grid[9*i+colpos] == n)
-    {
-      /* Bummer, number is already present on this column */
-      if(verbose)
-        printf("no:(%d,%d)\r", i+1, colpos+1);
-      return FAILED;
-    }
-  }
-
-  /*
-   * Calculate the corner of the 3x3 square to which this position belongs
-   */
-  square_pos=27*(pos/27)+3*((pos%9)/3);
-  
-  for(i = 0; i < 27; i+=9)
-  {
-    for(j = 0; j < 3; j++)
-    {
-      if(grid[i+square_pos+j] == n)
-      {
-        /* Bummer, number is already present on the 3x3 square */
-        if(verbose)
-          printf("no: (%d,%d)\r",((i+square_pos)/9)+1,j+1);
-        return FAILED;
-      }
-    }
-  }
-
-  /* Hurray, number does not give problems (yet) */
-  if(verbose)
-    printf("yes\r");
-
-  return SUCCES;
-}
-
-/*
- * Try to fill the matrix at position (row, col) and all subsequent
- * positions. For filling subsequent positions the same function
- * is called (recursive call).
- */
-int maxdepth = 0;
-int try(int pos, int off, int depth) __znccall(1)
-{
-  byte i;
-  int  result;
-  int  vpos;
-  
-  if (depth>maxdepth) maxdepth=depth; 
-  /*
-   * If we end up at position 81, then we are finished. The matrix
-   * only has 81 positions and those are aparently all full now.
-   */
-  if(pos == 81)
-  {
-    return SUCCES;
-  }
-  
-  if((in(0x7ffe)&0x01)==0)
-  {
-    return BREAK_KEY;
-  }
-
-  /*
-   * vpos is the position + offset to start at a row with the
-   * most given numbers in the puzzle
-   */
-  vpos = (pos + off) % 81;
-
-  /*
-   * check if there is already something at this matrix position...
-   */
-  if(grid[vpos] == ' ')
-  {
-    /*
-     * Position has space, try to place all numbers from '1' through '9'
-     */
-    for(i = '1'; i <= '9'; i++)
+    * Open file for reading
+    */
+    fd = fopen(filename, M_READ);
+    if(fd == 255)
     {
       /*
-       * Try number 'i'
-       */
-      if(okay(vpos, i) == SUCCES)
+      * Open failed, give error and return FAILED
+      */
+      printf("Can't open file \"%s\" (errno=%d)\r", filename, errno);
+      return Result.FAILED;
+    }
+
+    /*
+    * File is open, read contents and get the numbers one by one
+    */
+    pos = 0;
+
+    while(fread(fd,&p,1) == 1)
+    {
+      if((p>='1' && p<='9') || p=='.' || p=='_')
+      {
+        if(p>='1' && p<='9')
+        {
+          grid[pos] = p;
+        }
+        else
+        {
+          grid[pos] = ' ';
+        }
+        pos++;
+      }
+      /*
+      * If we are at the end then quit, the remainder
+      * is not interesting
+      */
+      if(pos == 81)
+      {
+        /* Exit the loop */
+        break;
+      }
+    }
+
+    /*
+    * We are ready, file can be closed
+    */
+    fclose(fd);
+
+    /*
+    * Check if everything was filled
+    */
+    if(pos == 81)
+    {
+      /*
+      * Puzzle successful read
+      */
+      return Result.SUCCES;
+    }
+    else
+    {
+      /*
+      * Puzzle is incomplete
+      */
+      printf("Reading failed: puzzle is incomplete\r");
+      return Result.FAILED;
+    }
+  }
+
+  /*
+  * Dump the grid on the screen. Format it a little...
+  */
+  void dump(Colour col)
+  {
+    byte i,j,k,p;
+    char *l="+-----+-----+-----+\r";
+    char *f="%c %c %c";
+
+    /*
+    * Wel, just print the grid
+    */
+    p=0;
+    for(i = 0;i < 3;i++) {
+      puts(l);
+      for(j = 0;j < 3;j++) {
+        for(k = 0;k < 3;k++) {
+          putc('|');
+          ink(col);
+          printf(f,grid[p],grid[p+1],grid[p+2]);
+          ink(Colour.WHITE);
+          p+=3;
+        }
+        puts("|\r");
+      }
+    }
+    puts(l);
+  }
+
+  // CT - Moved initialization to bank1_init() to be called from main() in bank 1
+  // Banked top-level code does not run automatically.
+  /*
+  * Instead of  divide by 9 do a lookup
+  * Not sure if it is faster...
+  */
+  byte[81] l_div9;
+
+  /* Same for divide by 3 lookup... */
+  byte[9]  l_div3;
+
+  /*
+  * Cache if ok_pos is the same as the
+  * previous position, do not calculate
+  * but reuse the previous calculation
+  * 81 is outside the sudoku grid, will
+  * always cause a calculation
+  */
+  byte ok_pos;
+  byte ok_row;
+  byte ok_row9;
+  byte ok_col;
+
+  /*
+  * Same for ok_sq for the 3x3 square corner
+  * 81 (outside the sudoku grid) always
+  * causes a calculation
+  * When the previous step calculated then
+  * ok_sq is reset to 81 to force the
+  * calculation, if it gets that far...
+  */
+  byte ok_sq;
+  byte ok_row3;
+  byte ok_col3;
+
+  /*
+  * Check if 'n' can be put on (row, col) position without causing issues
+  *
+  * Uses cached caluclations if pos it the same as last time
+  */
+  Result okay(byte pos, byte n)
+  {
+    byte i, j;
+    byte chk;
+
+    if(verbose)
+      printf("check %c at (%d,%d)...", n, (pos/9)+1, (pos%9)+1);
+
+    /*
+    * Check if the number already exists in the same row, column
+    * or 3x3 square. Use bit shift to mutliply...
+    */
+    if(pos != ok_pos) {
+      ok_pos  = pos;
+      ok_row  = l_div9[ok_pos];     /* ok_row */
+      ok_row9 = (ok_row<<3)+ok_row; /* ok_row times 9 */
+      ok_col  = ok_pos - ok_row9;   /* ok_col position of row 1 */
+      ok_sq   = 81;
+    }
+
+    chk = 0;
+    for(i = 0; i < 9; i++)
+    {
+      /* Does the number already exist in another column of this row? */
+      if(grid[ok_row9+i] == n)
+      {
+        /* Bummer, number is already present on this row */
+        if(verbose)
+          printf("no:R(%d,%d)\r", ok_row+1, i+1);
+        return Result.FAILED;
+      }
+      if(grid[chk+ok_col] == n)
+      {
+        /* Bummer, number is already present on this column */
+        if(verbose)
+          printf("no:C(%d,%d)\r", i+1, ok_col+1);
+        return Result.FAILED;
+      }
+      chk+=9;
+    }
+
+    /*
+    * Calculate the corner of the 3x3 square to which this position belongs
+    * Use bit shifts to multiply by 27
+    */
+    if(ok_sq == 81) {
+      ok_row3 = l_div3[ok_row]; /* ok_row / 3 */
+      ok_col3 = l_div3[ok_col]; /* ok_col / 3 */
+      ok_sq   = (ok_row3<<4)+(ok_row3<<3)+(ok_row3<<1)+ok_row3 /* ok_row3 * 27 */
+              + (ok_col3<<1)+ok_col3;                          /* ok_col3 * 3  */
+    }
+
+    for(i = 0; i < 27; i+=9)
+    {
+      for(j = 0; j < 3; j++)
+      {
+        if(grid[ok_sq+i+j] == n)
+        {
+          /* Bummer, number is already present on the 3x3 square */
+          if(verbose)
+            printf("no:S(%d,%d)\r",((ok_sq+i)/9)+1,j + 1);
+          return Result.FAILED;
+        }
+      }
+    }
+
+    /* Hurray, number does not give problems (yet) */
+    if(verbose)
+      printf("yes\r");
+
+    return Result.SUCCES;
+  }
+
+  /*
+  * Check puzzle to solve
+  */
+  Result check()
+  {
+    byte i,c;
+
+    /* Get position with occupied positions */
+    for(i = 0; i < 81; i++)
+    {
+      c=grid[i];
+      if(c != ' ')
+      {
+        /* Test if c fits here */
+        grid[i] = ' ';
+
+        if(okay(i, c) == Result.SUCCES)
+        {
+          /* Yes */
+          grid[i] = c; /* restore */
+        }
+        else
+        {
+          /* No, c conficts with other given values */
+          grid[i] = c; /* restore */
+          return Result.PUZZLE_ERROR;
+        }
+      }
+    }
+    return Result.SUCCES;
+  }
+
+  /*
+  * Next position to solve
+  * Pick the one with the least options
+  */
+  byte g_next = 0; /* position last time */
+  char next()
+  {
+    byte pos,i,c;
+    byte cnt;
+    byte min;
+
+    pos = 81;
+    min = 10;
+
+    /* Get position with the least available options */
+    for(i = 0; i < 81; i++)
+    {
+      cnt = 0;
+      if(grid[g_next] == ' ')
+      {
+        for(c = '1'; c <= '9'; c++)
+        {
+          if(okay(g_next, c) == Result.SUCCES)
+          {
+            cnt++;
+          }
+        }
+        if(cnt < min)
+        {
+          min = cnt;
+          pos = g_next;
+          if(min==0)
+            return 82; /* Return 82 to report problem */
+          if(min==1)
+            return pos; /* Will not get much lower, go! */
+        }
+      }
+      g_next++;
+      if(g_next==81)
+        g_next=0;
+    }
+    return pos;
+  }
+
+  /*
+  * Try to fill the matrix at position (row, col) and all subsequent
+  * positions. For filling subsequent positions the same function
+  * is called (recursive call).
+  */
+  Result try(byte pos)
+  {
+    byte   c;
+    Result result;
+    byte   x, y;
+    byte   next_pos;
+
+    /*
+    * If 82 then we have a number without options left
+    * That can't be right
+    */
+    if(pos == 82)
+    {
+      return Result.FAILED;
+    }
+
+    /*
+    * If we end up at position 81, then we are finished. The matrix
+    * only has 81 positions and those are aparently all full now.
+    */
+    if(pos == 81)
+    {
+      return Result.SUCCES;
+    }
+
+    if((in(0x7ffe)&0x01)==0)
+    {
+      return Result.BREAK_KEY;
+    }
+
+    /*
+    * Print position in the grid
+    */
+    if(!verbose) {
+      x = 2*(pos % 9) + 1;
+      y = 2+(pos / 9) + (pos / 27);
+    }
+
+    /*
+    * Try to place all numbers from '1' through '9'
+    */
+    for(c = '1'; c <= '9'; c++)
+    {
+      /*
+      * Try number 'c'
+      */
+      if(okay(pos, c) == Result.SUCCES)
       {
         /*
-         * 'i' does not pose a problem with the existing numbers
-         * try it...
-         */
-        grid[vpos] = i;
+        * 'c' does not pose a problem with the existing numbers
+        * try it...
+        */
+        grid[pos] = c;
         count1++;
         if(count1 == 10000) {
           count1=0;
           count2++;
         }
-        
+
         if(verbose)
-          dump();
+          dump(Colour.WHITE);
         else
         {
-          gotoxy(2*(vpos%9)+1,2+(vpos/9)+(vpos/27));
-          putc(i);
+          gotoxy(x, y);
+          putc(c);
         }
 
         /*
-         * Attempt to fill the next position in the matrix
-         */
-        result = try(pos+1, off, depth+1);
+        * Get next position to fill in the matrix
+        */
+        next_pos = next();
 
-        if(result == SUCCES)
-        {
+        result = try(next_pos);
+
+        if(result == Result.SUCCES) {
           /*
-           * The subsequent posititions could also be filled
-           * 'i' was the correct choice, we are done!
-           */
-          return SUCCES;
+          * The subsequent posititions could also be filled
+          * 'c' was the correct choice, we are done!
+          */
+          return Result.SUCCES;
         }
 
-        if(result == PUZZLE_ERROR)
-        {
-          /*
-           * A given value from the puzzle does not fit,
-           * that can't be right, the puzzle is invalid
-           */
-          return PUZZLE_ERROR;
-        }
+        if(result != Result.FAILED) {
+          if(result == Result.PUZZLE_ERROR) {
+            /*
+            * A given value from the puzzle does not fit,
+            * that can't be right, the puzzle is invalid
+            */
+            return Result.PUZZLE_ERROR;
+          }
 
-        if(result == BREAK_KEY)
-        {
-          /*
-           * �reak was pressed
-           */
-          return BREAK_KEY;
-        }
-
-        /*
-         * 'i' is aparently not correct because we can't fill the rest.
-         * We remove it again and try the next number.
-         */
-        grid[vpos] = ' ';
-        if(!verbose)
-        {
-          gotoxy(2*(vpos%9)+1,2+(vpos/9)+(vpos/27));
-          putc(' ');
+          if(result == Result.BREAK_KEY) {
+            /*
+            * Break was pressed
+            */
+            return Result.BREAK_KEY;
+          }
         }
       }
     }
     /*
-     * All numbers from 1 t/m 9 were attempted, but the all failed
-     * unfortunately, better luck next time
-     */
-  }
-  else
-  {
-    /*
-     * Position alreay has a number, why not just proceed to the next?
-     * But check anyway to ensure the puzzle is valid
-     */
-    i = grid[vpos];
-    grid[vpos] = ' ';
-    if(okay(vpos, i) == SUCCES)
+    * All numbers from 1 t/m 9 were attempted, but the all failed
+    * unfortunately, better luck next time
+    *
+    * Make sure the position is cleared and return FAILED.
+    */
+    grid[pos] = ' ';
+    if(!verbose)
     {
-      /* Fake assignment (because was already given in the puzzle... */
-      grid[vpos] = i;
-      result = try(pos+1, off, depth+1);
-      if(result == SUCCES)
-      {
-        /*
-         * The subsequent positions could also be filles, we are done!
-         */
-        return SUCCES;
-      }
-      else
-      {
-        /*
-         * Otherwise propagate upwards
-         */
-        return result;
-      } 
-      /*
-       * Completing the matrix failed unfortunaty, better luck next time...
-       */
+      gotoxy(x, y);
+      putc(' ');
+    }
+
+    return Result.FAILED;
+  }
+
+  /*
+  * Initialize Bank Globals
+  */
+  void bank1_init() {
+    verbose=0;
+    
+    l_div9 = {0,0,0,0,0,0,0,0,0
+             ,1,1,1,1,1,1,1,1,1
+             ,2,2,2,2,2,2,2,2,2
+             ,3,3,3,3,3,3,3,3,3
+             ,4,4,4,4,4,4,4,4,4
+             ,5,5,5,5,5,5,5,5,5
+             ,6,6,6,6,6,6,6,6,6
+             ,7,7,7,7,7,7,7,7,7
+             ,8,8,8,8,8,8,8,8,8};
+
+    l_div3={0,0,0,1,1,1,2,2,2};
+
+    ok_pos = 81;
+    ok_sq = 81;
+  }
+
+  /*
+  * Entry point
+  */
+  int main()
+  {
+    char*  argp;
+    byte   perr;
+    byte   pos;
+    Result result;
+
+    count1 = 0;
+    count2 = 0;
+
+    /*
+    * Initialize bank globals
+    */
+    bank1_init();
+
+    /*
+    * An argument is expected: the name of the file with the puzzle assignment
+    * and optionally -v for verbose output
+    */
+    perr=0;
+    argp=args;
+    if(argp[0]=='\0')
+      perr=1; /* no argument */
+    else
+      if(argp[0]=='-')
+        if((argp[1]=='v') && (argp[2]==' '))
+        {
+          verbose=1;
+          argp+=3;
+        }
+        else
+        {
+          perr=1; /* Option present but not a single -v */
+        };
+
+    /* Parameter error */
+    if(perr)
+    {
+      puts("Usage: sudoku [-v] <filename>\r\r");
+
+      puts("<filename> is the name of a\r");
+      puts("text file containing the puzzle\r");
+      puts("assignment\r");
+      puts("Option -v for verbose output\r");
+
+      /* exit code 1 */
+      return 1;
+    }
+
+    cls();
+
+    result = read_puzzle(argp);
+    if(result == Result.FAILED)
+    {
+      /* exit code 2 */
+      return 2;
+    }
+
+    gotoxy(0,1);
+    dump(Colour.GREEN);
+
+    /* Determine on which position */
+    pos = next();
+
+    if(pos == 81) {
+      printf("No solution.\r");
+      printf("No position accepts number\r");
+      printf("Is the puzzle correct?\r");
+      return -1;
+    }
+
+    /*
+    * Try to fill position subsequent positions of the matrix
+    */
+    start = timestamp();
+    /*
+    * Check puzzle
+    */
+    
+    result = check();
+    if(result == Result.SUCCES) {
+      /* Passed, solve puzzle */
+      result = try(pos);
+    }
+    end=timestamp();
+
+    if(end<start)
+      end+=3600;/* Crossed hour transition */
+
+    /*
+    * If filling position 0 (= 0,0) fails, then the puzzle can
+    * not be solved. If filling position 0,0 succeeds then the
+    * puzzle is solved.
+    */
+    if(!verbose)
+      gotoxy(0,14);
+
+    if(result == Result.FAILED)
+    {
+      printf("Bummer, no solution.\r");
+      printf("Is the puzzle correct?\r");
+    }
+    else if(result == Result.PUZZLE_ERROR)
+    {
+      printf("Error, the given values do not fit.\r");
+      printf("The puzzle is invalid.\r");
+    }
+    else if(result == Result.BREAK_KEY)
+    {
+      printf("Break, solving is aborted.\r");
     }
     else
     {
-      /*
-       * A given value from the puzzle does not fit,
-       * that can't be right, the puzzle is invalid
-       */
-      grid[vpos] = i; /* restore puzzle... */
-      return PUZZLE_ERROR;
+      printf("Finished!\r");
     }
-  }
 
-  return FAILED;
+    if(count2 > 0)
+    {
+      printf("(%d%04d placements tested)\r", count2, count1);
+    }
+    else
+    {
+      printf("(%d placements tested)\r", count1);
+    }
+
+    printf("Solve/run time %d seconds\r",end-start);
+
+    /*
+    * Finished, leave the program with exit code 0
+    */
+    gotoxy(0,20);
+    return 0;
+  }
 }
-
-/*
- * Entry point
- */
-int main()
-{
-  int   result;
-  int   i, j;
-  int   off;
-  int   max;
-  int   cnt;
-  char* argp;
-  byte  perr;
-
-  count1 = 0;
-  count2 = 0;
-  /*
-   * An argument is expected: the name of the file with the puzzle assignment
-   * and optionally -v for verbose output
-   */
-  perr=0;
-  argp=args;
-  if(argp[0]=='\0')
-    perr=1; /* no argument */
-  else
-    if(argp[0]=='-')
-      if((argp[1]=='v') && (argp[2]==' '))
-      {
-        verbose=1;
-        argp+=3;
-      }
-      else
-      {
-        perr=1; /* Option present but not a single -v */
-      };
-
-  /* Parameter error */
-  if(perr)
-  {
-    puts("Usage: sudoku [-v] <filename>\r\r");
-
-    puts("<filename> is the name of a\r");
-    puts("text file containing the puzzle\r");
-    puts("assignment\r");
-    puts("Option -v for verbose output\r");
-  
-    /* exit code 1 */
-    return 1;
-  }
-
-  cls();
-      
-  result = read_puzzle(argp);
-  if( result == FAILED )
-  {
-    /* exit code 2 */
-    return 2;
-  }
-
-  gotoxy(0,1);
-  dump();
-
-  /* Determine on which row to start (highest amount of given numbers) */
-  off = 0;
-  max = 0;
-
-  for(i = 0; i < 81; i+=9)
-  {
-    cnt = 0;
-    for(j = 0; j < 9; j++)
-    {
-      if(grid[i+j] != ' ')
-      {
-        cnt++;
-      }
-    }
-    if(cnt > max)
-    {
-      max = cnt;
-      off = i;
-    }
-  }
-
-  /*
-   * Try to fill position 0 and all subsequent numbers of the matrix
-   */
-  result = try(0, off,1);
-
-  /*
-   * If filling position 0 (= 0,0) fails, then the puzzle can
-   * not be solved. If filling position 0,0 succeeds then the
-   * puzzle is solved.
-   */   
-  if(!verbose)
-    gotoxy(0,14);
-
-  if(result == FAILED)
-  {
-    printf("Bummer, no solution.\r");
-    printf("Is the puzzle correct?\r");
-  }
-  else if(result == PUZZLE_ERROR)
-  {
-    printf("Error, the given values do not fit.\r");
-    printf("The puzzle is invalid.\r");
-  }
-  else if(result == BREAK_KEY)
-  {
-    printf("Break, solving is aborted.\r");
-  }
-  else
-  {
-    printf("Finished!\r");
-  }
-
-  if(count2 > 0)
-  {
-    printf("(%d%04d placements tested)\r", count2, count1);
-  }
-  else
-  {
-    printf("(%d placements tested)\r", count1);
-  }
-  printf("Stack depth %d\r", maxdepth);
-  /*
-   * Finished, leave the program with exit code 0
-   */
-  return 0;
-};
-
-/* ZNC Start */
-int ret;
-ret = main();
-waitkey();
-exit(ret);
