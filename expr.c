@@ -1280,8 +1280,8 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             get_token();
             if (dereference) {
                 emit_ld_const(intval);
-                emit_load(TYPE_ID_INT);
-                factor_result.type_id = expected_type_id;
+                factor_result.type_id = TYPE_ID_INT;                
+                dereference = 0;
             } else {
                 factor_result.type_id = type_make_int(1);
                 factor_result.value = intval;
@@ -1296,9 +1296,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             }
             get_token();
             if (dereference) {
-                emit_ld_const(intval);
-                emit_load(TYPE_ID_FIXED);
-                factor_result.type_id = TYPE_ID_FIXED;
+                error(errTypeError); /* can't dereference a fixed literal */
             } else {
                 factor_result.type_id = type_make_fixed(1); /* const */
                 factor_result.value = intval;
