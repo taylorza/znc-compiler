@@ -1,10 +1,13 @@
 make dot "hexedit.dot";
 //make dot "/dot/hexedit";
 
-include "mmu.znc"
+include "dotn.znc"
 include "fileio.znc"
 include "memory.znc"
-include "font.inc"
+include "string.znc"
+
+void edit() bank(1);
+void loadfont() bank(2);
 
 const byte ROWS=28;
 const byte COLS=16;
@@ -18,6 +21,19 @@ const int SCREEN_WIDTH = 80;
 const int SCREEN_WIDTH2 = SCREEN_WIDTH << 1;
 const int SCREEN_HEIGHT = 32;
 const byte gutter = 2;
+
+const char KEY_TRUEVID = 0x04;
+const char KEY_INVVID = 0x05;
+const char KEY_CAPS = 0x06;
+const char KEY_EDIT = 0x07;
+const char KEY_LEFT = 0x08;
+const char KEY_RIGHT = 0x09;
+const char KEY_DOWN = 0x0a;
+const char KEY_UP = 0x0b;
+const char KEY_DELETE = 0x0c;
+const char KEY_ENTER = 0x0d;
+const char KEY_EXT = 0x0e;
+const char KEY_GRAPH = 0x0f;
 
 struct u32 {
   byte b0;
@@ -97,6 +113,13 @@ void gotoxy(byte x, byte y) __znccall(1) {
   cx = x;
   cy = y;
 };
+
+byte wherex() __znccall(1) {
+  return cx;
+}
+byte wherey() __znccall(1) {
+  return cy;
+}
 
 void putch(char ch) __znccall(1) {
   char *p = TILE_MAP + (((cy * SCREEN_WIDTH) + cx) << 1);
@@ -194,6 +217,41 @@ void getch() {
     setattr(0);
 }
 
+byte get_line(char *str, byte len) __znccall(1) {
+  byte i = 0;
+
+  str[len] = 0;
+  i = strlen(str);
+  
+  putstr(str);
+  
+  for(;;) {
+    getch();
+    switch(key) {
+      case KEY_EDIT: // escape (Shift+1)
+        return 0;
+      case KEY_DELETE: // backspace
+        if (i > 0) {
+          --i;
+          --cx;
+          putch(' ');
+          --cx;
+        }
+        break;
+      case KEY_ENTER: // enter
+        str[i] = 0;
+        return 1;
+      default:
+        if (i < len && key >= ' ' && key <= '~') {
+          str[i++] = key;
+          putch(key);
+        }
+        break;
+    }
+  }
+  str[i] = 0;
+}
+
 // mmu state
 byte[111] pages;
 byte pagecount;
@@ -240,7 +298,7 @@ void init() {
   nextreg(0x31, 0);               // Y Scroll offset
 
   // Copy the font to the tile definitions
-  memcpy(TILE_DEF, font, 888);
+  loadfont();
 
   // Set the border to Blue (assume the default ULA palette)
   out(0xfe,1);
@@ -255,6 +313,9 @@ void loadfile(char* file) __znccall(1) {
   errno=0;
   byte f=fopen(args,M_READ);
   if (errno != 0) error("Could not open file");
+
+  pagecount = 0;
+  lastpagesize = 0;
 
   for(;;) {
     byte page = mmualloc();
@@ -274,23 +335,25 @@ void loadfile(char* file) __znccall(1) {
   fclose(f);
 }
 
-void savefile(char *file) __znccall(1) {
+byte savefile(char *file) __znccall(1) {
   errno=0;
+  
   byte f=fopen(args, M_EXIST | M_WRITE);
   if (errno != 0) {
     if (confirm("Save failed. Exit")) {
       exit(0);
     }
-    return;
+    return 0;
   }
 
-  for(byte i=0; i < pagecount - 2; ++i) {
+  for(byte i=0; i < pagecount - 1; ++i) {
     nextreg(0x56, pages[i]);
     fwrite(f, 0xc000, 8192);
   }
-  nextreg(0x56, pages[pagecount - 2]);
+  nextreg(0x56, pages[pagecount - 1]);
   fwrite(f, 0xc000, lastpagesize);
   fclose(f);
+  return 1;
 }
 
 int pagein(u32 *addr) __znccall(1) {
@@ -302,13 +365,6 @@ int pagein(u32 *addr) __znccall(1) {
   nextreg(0x56, pages[page]);
   return offset;
 }
-
-const char KEY_LEFT = 0x08;
-const char KEY_RIGHT = 0x09;
-const char KEY_DOWN = 0x0a;
-const char KEY_UP   = 0x0b;
-
-const char KEY_EXT = 0x0e;
 
 char[COLS+1] ascii;
 byte dump(u32 *addr) {
@@ -384,29 +440,6 @@ byte goto_addr(u32 *t, byte h) __znccall(1) {
   return r;
 }
 
-void downrow() {
-  scroll_up(1);
-  u32 addr = from;
-  u32_addi(&addr, ROWS * COLS);
-  gotoxy(gutter, ROWS-1);
-  dump(&addr);  
-  u32_addi(&from, COLS);
-}
-
-void uprow() {
-  scroll_down(1);      
-  u32_addi(&from, -COLS);
-  u32 addr = from;
-  gotoxy(gutter, 0);
-  dump(&addr);
-}
-
-void moveright() {   
-  tmp = curr;
-  u32_addi(&tmp, 1);
-  if (u32_scmp(&tmp, &size) < 0) curr = tmp;  
-}
-
 void menuitem(char key, char* name, byte active) __znccall(1) {
   byte w = 10;
   if (active) inverse();
@@ -418,6 +451,7 @@ void menuitem(char key, char* name, byte active) __znccall(1) {
 
 void menu(byte active) __znccall(1) {
   gotoxy(0,29);
+  menuitem('F',"Find", active);
   menuitem('S',"Save", active);
   menuitem('Q',"Quit", active);
 }
@@ -427,115 +461,6 @@ byte confirm(char *msg) __znccall(1) {
   getch();
   gotoxy(0,28); clreol();
   return key == 'y' || key == 'Y';
-}
-
-byte running;
-byte dirty;
-void edit() {
-  byte n;
-  byte h = 0;
-  from = ZERO;
-
-  menu(0);
-  gotoxy(0,31); putstr("Filename:"); putstr(args);
-  
-  for (byte i = 0; i < ROWS; ++i) {
-    tmp = from;
-    u32_addi(&tmp, i * COLS);
-    gotoxy(gutter, i);
-    dump(&tmp);    
-    if (u32_scmp(&tmp, &size) >= 0) break;
-  }  
-
-  running = 1;
-  dirty = 0;
-  while(running) {
-    gotoxy(71,31);
-    print_u32(&curr);
-  
-    curr_row = goto_addr(&curr, h);
-    
-    getch();
-    
-    if (lastkey == KEY_EXT) {
-      menu(0);
-      switch(key) {
-        case KEY_EXT:
-          lastkey = key = 0;
-          break;
-        case 'q':
-        case 'Q':
-          if (dirty) {
-            if (!confirm("Loose changes")) continue;
-          }
-          running = 0;
-          break;
-        case 's':
-        case 'S':
-          if (dirty && confirm("Overwrite file")) {
-            savefile(args);
-            dirty = 0;
-          }
-          break;
-      }
-      continue;
-    } else if (key == KEY_EXT) {
-      menu(1);
-    }
-
-    switch(key) {
-      case KEY_LEFT:
-        if (!h) {
-          tmp = curr;
-          u32_addi(&tmp, -1);
-          if (u32_scmp(&tmp, &ZERO) >= 0) curr = tmp;
-        }
-        h ^= 1;
-        break;
-      
-      case KEY_RIGHT:
-        if (h) moveright();
-        h ^= 1;
-        break;
-
-      case KEY_DOWN:
-        tmp = curr;
-        u32_addi(&tmp, COLS);
-        if (u32_scmp(&tmp, &size) < 0) curr = tmp;
-        break;
-      
-      case KEY_UP:
-        tmp = curr;
-        u32_addi(&tmp, -COLS);        
-        if (u32_scmp(&tmp, &ZERO) >= 0) curr = tmp;
-        break;
-
-      default:
-        byte nibble = 255;
-        if (key >= '0' && key <= '9') nibble = key - '0';
-        else if (key >= 'a' && key <= 'f') nibble = key - 'a' + 10;        
-
-        if (nibble != 255) {
-          int offset = pagein(&curr);
-          byte *p = 0xC000 + offset;
-          if (!h) *p = (*p & 0x0f) | (nibble << 4);
-          else *p = (*p & 0xf0) | nibble;
-          tmp = curr;
-          tmp.b0 &= 0xf0;
-          gotoxy(gutter, curr_row); dump(&tmp);          
-          if (h) moveright();
-          h ^= 1;
-          dirty = 1;
-        }
-        break;
-    }
-    while (!inview(&curr)) {
-      if (u32_scmp(&curr, &from) < 0)
-        uprow();
-      else
-        downrow();
-    }
-  }
 }
 
 void cleanup() {
@@ -554,7 +479,7 @@ void cleanup() {
   nextreg(0x6b, old_reg_6b);
   nextreg(0x43, old_reg_43);
 
- nextreg(0x07, old_reg_07);
+  nextreg(0x07, old_reg_07);
 }
 
 void error(char *msg) __znccall(1) {
@@ -570,6 +495,268 @@ if (*args == 0) {
 
 loadfile(args);
 
+atexit(cleanup);
 init();
 edit();
-cleanup();
+
+bank(1) {
+  char[32] asciiSearch;
+
+  void jump_to(u32 *addr) __znccall(1) {
+    from = *addr;
+    from.b0 &= ~(COLS-1);
+    byte i;
+    for(i = 0; i < ROWS; ++i) {
+      u32 line = from;
+      u32_addi(&line, i * COLS);
+      gotoxy(gutter, i);
+      dump(&line);
+      if (u32_scmp(&line, &size) >= 0) break;
+    }
+    while(i < ROWS) {
+      gotoxy(gutter, i);
+      clreol();
+      ++i;
+    }
+  }
+
+  byte read_byte(u32 *addr) __znccall(1) {
+    u32 tmp = *addr;
+    int offset = pagein(&tmp);
+    return *(0xC000 + offset);
+  }
+
+  char *spinner = "|/-\\";
+
+  byte search(u32 *start, byte* pattern, byte len, u32 *result) __znccall(1) {
+    u32 pos = *start;
+    u32 begin = *start;
+    u32 end = size; 
+    byte first = pattern[0];
+    
+    for(;;) {
+      // Fast scan
+      if (read_byte(&pos) != first)  {
+        u32_addi(&pos, 1);
+        if (u32_scmp(&pos, &end) >= 0) pos = ZERO;
+        if (u32_scmp(&pos, &begin) == 0) return 0;
+        continue;
+      }
+
+      u32 p = pos;
+      byte i = 0;
+      while (i < len) {
+        if (u32_scmp(&p, &end) >= 0) break;
+        if (read_byte(&p) != pattern[i]) break;
+        u32_addi(&p, 1);
+        ++i;
+      }
+
+      if (i == len) {
+        *result = pos;
+        return 1;
+      }
+
+      u32_addi(&pos, 1);
+
+      if (u32_scmp(&pos, &end) >= 0) {
+        pos = ZERO;
+      }
+
+      if (u32_scmp(&pos, &begin) == 0) break;
+
+      gotoxy(0, 28);
+      putch(spinner[(pos.b0 >> 3) & 3]);
+    }
+
+    return 0;
+  }
+
+  void downrow() {
+    scroll_up(1);
+    u32 addr = from;
+    u32_addi(&addr, ROWS * COLS);
+    gotoxy(gutter, ROWS-1);
+    dump(&addr);  
+    u32_addi(&from, COLS);
+  }
+
+  void uprow() {
+    scroll_down(1);      
+    u32_addi(&from, -COLS);
+    u32 addr = from;
+    gotoxy(gutter, 0);
+    dump(&addr);
+  }
+
+  void moveright() {   
+    tmp = curr;
+    u32_addi(&tmp, 1);
+    if (u32_scmp(&tmp, &size) < 0) curr = tmp;  
+  }
+
+  byte findText() {
+    u32 result;
+
+    gotoxy(0, 28); putstr("Find: ");
+    if (!get_line(asciiSearch, 31)) return 0;
+
+    u32 start = curr;
+    u32_addi(&start, 1);
+
+    gotoxy(0, 28); clreol();
+    byte len = strlen(asciiSearch);
+    if (search(&start, asciiSearch, len, &result)) {
+      curr = result;      
+      if (!inview(&curr)) {
+        jump_to(&curr);
+      }
+      return 1;
+    }
+
+    gotoxy(0, 28); putstr("Not found");
+    getch();    
+    return 0;
+  }
+
+  byte running;
+  byte is_dirty;
+  byte redraw_status;
+
+  u32 result;
+
+  void update_status() {
+    redraw_status = 0;
+
+    gotoxy(0,31);
+
+    if (is_dirty)  inverse();
+    putstr("Filename:"); putstr(args);
+    putch(is_dirty ? '*' : ' ');
+    if (is_dirty) inverse();  
+  }
+
+  void edit() {
+    byte n;
+    byte h = 0;
+    from = ZERO;
+
+    menu(0);
+    update_status();
+
+    jump_to(&from);
+    
+    running = 1;
+    is_dirty = 0;
+    while(running) {
+      if (redraw_status) update_status();
+        
+      // Clear the status line
+      gotoxy(0, 28); clreol();
+
+      // Show the current address
+      gotoxy(71,31);
+      print_u32(&curr);
+    
+      curr_row = goto_addr(&curr, h);
+
+      getch();
+      
+      if (lastkey == KEY_EXT) {
+        menu(0);
+        switch(key) {
+          case KEY_EXT:
+            lastkey = key = 0;
+            break;
+          case 'f':
+          case 'F':
+            if (findText()) {
+              h = 0; // Reset to high nibble
+            }
+            break;
+          case 'q':
+          case 'Q':
+            if (is_dirty) {
+              if (!confirm("Loose changes")) continue;
+            }
+            running = 0;
+            break;
+          case 's':
+          case 'S':
+            if (is_dirty && confirm("Overwrite file")) {
+              if (savefile(args)){
+                is_dirty = 0;
+                redraw_status = 0;
+              }              
+            }
+            break;
+        }
+        continue;
+      } else if (key == KEY_EXT) {
+        menu(1);
+      }
+
+      switch(key) {
+        case KEY_LEFT:
+          if (!h) {
+            tmp = curr;
+            u32_addi(&tmp, -1);
+            if (u32_scmp(&tmp, &ZERO) >= 0) curr = tmp;
+          }
+          h ^= 1;
+          break;
+        
+        case KEY_RIGHT:
+          if (h) moveright();
+          h ^= 1;
+          break;
+
+        case KEY_DOWN:
+          tmp = curr;
+          u32_addi(&tmp, COLS);
+          if (u32_scmp(&tmp, &size) < 0) curr = tmp;
+          break;
+        
+        case KEY_UP:
+          tmp = curr;
+          u32_addi(&tmp, -COLS);        
+          if (u32_scmp(&tmp, &ZERO) >= 0) curr = tmp;
+          break;
+
+        default:
+          byte nibble = 255;
+          if (key >= '0' && key <= '9') nibble = key - '0';
+          else if (key >= 'a' && key <= 'f') nibble = key - 'a' + 10;        
+
+          if (nibble != 255) {
+            int offset = pagein(&curr);
+            byte *p = 0xC000 + offset;
+            if (!h) *p = (*p & 0x0f) | (nibble << 4);
+            else *p = (*p & 0xf0) | nibble;
+            tmp = curr;
+            tmp.b0 &= 0xf0;
+            gotoxy(gutter, curr_row); dump(&tmp);          
+            if (h) moveright();
+            h ^= 1;
+            if (is_dirty == 0) redraw_status = 1;
+            is_dirty = 1;
+          }
+          break;
+      }
+      while (!inview(&curr)) {
+        if (u32_scmp(&curr, &from) < 0)
+          uprow();
+        else
+          downrow();
+      }
+    }
+  }
+}
+
+bank(2) {
+  include "font.inc"
+
+  void loadfont() {
+    memcpy(TILE_DEF, font, 768);
+  }
+}
