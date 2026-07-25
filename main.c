@@ -7,13 +7,40 @@ void show_banner(void) MYCC;
 void show_help(const char *msg) MYCC;
 void cleanup(void) MYCC;
 
+#include "compiler.h"
+
 int main(unsigned int argc, unsigned char **argv) { 
     show_banner();
-    
-    if (argc < 2 || argc > 3) {
+
+    /* Very lightweight option parsing: accept any number of flags before
+     * the positional arguments. Supported flags:
+     *   -dfe    enable dead-function-elim marker emission
+     */
+    const char *src_file = NULL;
+    char *out_file_arg = NULL;
+
+    for (unsigned int i = 1; i < argc; ++i) {
+        const char *a = (const char*)argv[i];
+        if (a[0] == '-') {
+            if (strcmp(a, "-dfe") == 0) {
+                dfe_enabled = 1;
+                continue;
+            }
+            show_help("unknown option\n");
+            return 0;
+        }
+        if (!src_file) src_file = a;
+        else if (!out_file_arg) out_file_arg = (char*)a;
+        else {
+            show_help("too many arguments\n");
+            return 0;
+        }
+    }
+
+    if (!src_file) {
         show_help("expected source and output\n");
         return 0;
-    }    
+    }
 #ifdef __ZXNEXT 
     old_speed = ZXN_READ_REG(0x07) & 0x03;
     old_border = ((*(uint8_t*)(0x5c48)) & 0b00111000) >> 3;
@@ -21,15 +48,15 @@ int main(unsigned int argc, unsigned char **argv) {
 #endif
 
     atexit(cleanup);
-    const char *src_file = argv[1];
-    
-    if (argc == 2) {
+
+    if (!out_file_arg) {
         strcpy(outfilename, src_file);
-        set_file_ext(outfilename, "asm");        
+        set_file_ext(outfilename, "asm");
     } else {
-        strncpy(outfilename, argv[2], MAX_FILENAME_LEN);
+        strncpy(outfilename, out_file_arg, MAX_FILENAME_LEN);
         outfilename[MAX_FILENAME_LEN - 1] = '\0';
     }
+
     compile(src_file, outfilename);
 
     return 0;

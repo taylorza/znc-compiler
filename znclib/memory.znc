@@ -46,11 +46,11 @@ void memmove(void *dst, void *src, int len) __asm__ {
 
   ld a,d
   cp h
-  jr c,_memcpy.cpy
+  jr c,.cpy
 
   ld a,e
   cp l
-  jr c,_memcpy.cpy
+  jr c,.cpy
 
   jr z,.done
 
@@ -62,6 +62,10 @@ void memmove(void *dst, void *src, int len) __asm__ {
 
   inc bc
   lddr
+  jr .done
+
+.cpy
+  ldir
 
 .done
   pop ix

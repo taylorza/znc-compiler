@@ -364,18 +364,21 @@ void far_parse_bank(void) MYCC {
     set_strref_ctx(bank_str_lbl, (uint16_t)bank_str_start);
     set_str_search_base(bank_str_start);
     
+    uint16_t lblBankRet = newlbl();
+    emit_frame_prologue(0);
     parse_statement_block(NO_LABEL, NO_LABEL);
+    emit_frame_epilogue(0, lblBankRet, 0, 0, tokMakeType);
     
     uint16_t bank_gbl_end = get_lastgbl();
     size_t bank_str_end = get_laststr();
     dump_globals_range(bank_gbl_start, bank_gbl_end);
     dump_strings_range(bank_str_lbl, bank_str_start, bank_str_end);
-    reset_lastgbl(bank_gbl_start);
-    reset_laststr(bank_str_start);
+    //reset_lastgbl(bank_gbl_start);
+    //reset_laststr(bank_str_start);
     set_str_search_base(0);
     set_strref_ctx("str", 0);   
   
-    if (tokMakeType == tokDot) {   
+    if (tokMakeType == tokDot) {
         emit_instrln("ds $2000 - ($ - %u)", current_org - 1);
         emit_instrln("db %d", currbank);
     }    

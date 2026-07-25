@@ -129,6 +129,12 @@ void dump_globals_range(uint16_t from, uint16_t to) MYCC {
     EPILOG
 }
 
+void dump_function_dependencies(void) MYCC {
+    PROLOG(41)
+    far_dump_function_dependencies();
+    EPILOG
+}
+
 void check_undefined(void) MYCC {
     PROLOG(41)
     far_check_undefined();

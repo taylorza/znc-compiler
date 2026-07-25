@@ -1,5 +1,10 @@
 2026/07/xx - Version 0.6d
+- New - Dead function elimination (DFE) support enabled by the -dfe option. The compiler will track function usage and flag unused functions for elimination during assembly.
 - Enhancement - Support initializers for arrays of structs and arrays of arrays
+- Enhancement - Support for banked top-level code for DOT commands, executed when the bank is loaded. This ensures that declared variables are initialized when the bank is loaded. (e.g., bank(1) { int x=5; } will set x to 5 when bank 1 is loaded)
+- Add - printf_tiny.znc and sprintf_tiny.znc smaller printf/sprintf individually but larger if used together
+- Fix - ZOPT missed operators bitwise and/or/xor, and shift left/right in the optimizer expression evaluator
+- Fix - ZNC dereference integer literals did a double dereference
 
 2026/07/12 - Version 0.6c
 - Fix - Address of indexed pointers on the stack returning the wrong address

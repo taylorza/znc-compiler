@@ -1,1 +1,31 @@
 make dot "a.dot";
+
+include "dotn.znc"
+
+void show1() bank(1);
+void show2() bank(2);
+
+show1();
+show2();
+
+bank(1) {
+  byte[] numbers = {0,1,2,3,4,5,6,7,8,9};
+
+  void show1() {
+    for (int i=0; i<10; ++i) {
+      putc(numbers[i] + '0');
+      putc(',');
+    }
+  }
+}
+
+bank(2) {
+  byte[] letters = {'a','b','c','d','e','f','g','h','i','j'};
+
+  void show2() {
+    for (int i=0; i<10; ++i) {
+      putc(letters[i]);
+      putc(',');
+    }
+  }
+}

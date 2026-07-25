@@ -36,6 +36,9 @@ uint8_t func_arg_count;                 // number of arguments for function bein
 uint8_t func_arg_types[MAX_FUNC_ARGS];  // Collect argument types (function/delegate declarations)
 uint8_t func_is_variadic;               // 1 if current function is variadic
 
+/* Feature flags controlled by command-line options (default clear) */
+uint8_t dfe_enabled = 0; /* emit markers to help assembler perform dead-function elimination */
+
 char decl_name[MAX_IDENT_LEN + 1];       // Current declaration name
 
 SYMBOL declglb(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t value);
@@ -785,7 +788,9 @@ void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc, uint8_t callee_type_id) M
             expected_count = signature_get_arg_count(sig_id);
         }
     }
-    
+    sym->flags |= SYM_FLAG_USED; /* mark function as used */
+    updatesym(sym);
+
     /* Get calling convention */
     calling_convention = signature_get_calling_convention(sig_id);
 
@@ -1192,6 +1197,8 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
         infunc = 1;
         func_rettype = rettype_id;
         uint16_t skiplbl = newlbl();
+
+        if (dfe_enabled) emit_instrln("if %s%x", name, symfunc.fn.signature_id);
         emit_jp(skiplbl);
 
         emit_sname(name); emit_nl();
@@ -1226,6 +1233,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
             
         }
         emit_lbl(skiplbl);
+        if (dfe_enabled) emit_instrln("endif ;%s%x", name, symfunc.fn.signature_id);
 
         infunc = 0;
         func_rettype = TYPE_ID_VOID;
@@ -1327,6 +1335,7 @@ void compile(const char *filename, char *outfilename) MYCC {
 
     if (tokMakeType == tokNex) emit_nex(outfilename, start_lbl, stack_base);
     else if (tokMakeType == tokDot) emit_strln("PAGE_COUNT equ %d", page_count);
+    if (dfe_enabled) dump_function_dependencies();
     asm_close();
     
     dump_rtl(rtlfilename);    

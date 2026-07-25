@@ -15,6 +15,9 @@ extern uint8_t currbank;
 extern uint16_t top_local_lbl;
 extern uint8_t hash_if_depth;
 
+/* Command-line feature flags */
+extern uint8_t dfe_enabled; /* when set, emit markers usable by assembler for dead-function-elim */
+
 extern uint16_t bp_lastlocal;
 extern uint16_t localbytes;
 extern uint16_t current_org;

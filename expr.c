@@ -1320,6 +1320,9 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
                 }
                 error(errNotDefined_s, token);
                 goto ident_cleanup;
+            } else if (type_is_function(factor_result.sym.type_id)) {
+                factor_result.sym.flags |= SYM_FLAG_USED;
+                updatesym(&factor_result.sym);
             }
 
             get_token(); // skip identifier

@@ -142,6 +142,17 @@ void far_dump_globals_range(uint16_t from, uint16_t to) MYCC {
     }
 }
 
+void far_dump_function_dependencies(void) MYCC {
+    for (uint16_t i = 0; i < lastgbl; ++i) {
+        SYMBOL* sym = &symtab[i];
+        if (sym->klass == FUNCTION) {
+            /* copy_ident_to_token lives in the main bank – always reachable */
+            copy_ident_to_token(sym->name_id);
+            emit_strln("%s%x equ %d", token, sym->fn.signature_id, sym->flags & SYM_FLAG_USED ? 1 : 0);            
+        }
+    }
+}
+
 void far_check_undefined(void) MYCC {
     for (uint16_t i = 0; i < lastgbl; ++i) {
         SYMBOL* sym = &symtab[i];
