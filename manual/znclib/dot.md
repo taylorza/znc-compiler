@@ -11,7 +11,7 @@ Types
 Functions
 
 - `void seterrh(PFN_EXIT fn)` — Register an error handler function. 
-- `void atexit(PFN_EXIT fn)` — Register a function to be called at program exit.
+- `int atexit(PFN_EXIT fn)` — Register a function to be called at program exit. Returns 0 on failure (e.g., if the stack of exit functions is full), or 1 on success.
 
 Examples
 
