@@ -275,12 +275,12 @@ void far_parse_vastart(void) MYCC {
     get_token(); // skip 'va_start'
     expect_LParen();
     SYMBOL valist = lookupIdent(token);
-    if (valist.klass != VARIABLE) error(errTypeError);
+    if (!IS_VARIABLE(valist)) error(errTypeError);
     get_token(); // skip valist name
     if (tok == tokComma) {
         get_token(); // skip ','
         SYMBOL last_fixed = lookupIdent(token);
-        if (last_fixed.klass != ARGUMENT) error(errTypeError);
+        if (!IS_ARGUMENT(last_fixed)) error(errTypeError);
         get_token(); // skip last_fixed name
         emit_ld_symaddr(&last_fixed);
     } else {
@@ -297,7 +297,7 @@ void far_parse_vaend(void) MYCC {
     get_token(); // skip 'va_end'
     expect_LParen();
     SYMBOL valist = lookupIdent(token);
-    if (valist.klass != VARIABLE) error(errTypeError);
+    if (!IS_VARIABLE(valist)) error(errTypeError);
     get_token(); // skip valist name
     expect_RParen();
     expect_semi();

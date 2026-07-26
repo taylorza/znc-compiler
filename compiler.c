@@ -41,9 +41,9 @@ uint8_t dfe_enabled = 0; /* emit markers to help assembler perform dead-function
 
 char decl_name[MAX_IDENT_LEN + 1];       // Current declaration name
 
-SYMBOL declglb(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t value);
-SYMBOL declloc(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t offset);
-SYMBOL decl_in_scope(uint8_t type_id, SYM_CLASS klass, const char* name);
+SYMBOL declglb(uint8_t type_id, SYM_CLASS_SCOPE klass, const char* name, int16_t value);
+SYMBOL declloc(uint8_t type_id, SYM_CLASS_SCOPE klass, const char* name, int16_t offset);
+SYMBOL decl_in_scope(uint8_t type_id, SYM_CLASS_SCOPE klass, const char* name);
 
 void parse_type(uint8_t* type_id_out) MYCC;
 void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC;
@@ -779,7 +779,7 @@ void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc, uint8_t callee_type_id) M
     if (is_func_or_proto(sym)) {
         expected_count = (uint8_t)sym->fn.arg_count;
         if (sym->fn.signature_id != 0xFF) sig_id = sym->fn.signature_id;
-    } else if (sym->klass == VARIABLE || sym->klass == ARGUMENT || ptr_loc) {
+    } else if (IS_VARIABLE(*sym) || IS_ARGUMENT(*sym) || ptr_loc) {
         /* If variable holds a function pointer (delegate), extract signature from its type */
         uint8_t t = ptr_loc ? callee_type_id : sym->type_id;
         if (type_is_function(type_get_element_type_id(t)) && type_get_indirection(t) == 1) {
@@ -1126,7 +1126,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
     
     if (not_defined(&symfunc)) {
         symfunc = declglb(rettype_id, FUNCTION, name, 0);
-    } else if (symfunc.klass != FUNCTION_PROTO) {
+    } else if (!IS_FUNCTION_PROTO(symfunc)) {
         defined = 1;
     }
 
@@ -1152,7 +1152,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
     }
    
     /* Check signature compatibility if already declared */
-    if (defined || symfunc.klass == FUNCTION_PROTO) {
+    if (defined || IS_FUNCTION_PROTO(symfunc)) {
         if (func_arg_count != symfunc.fn.arg_count) {
             error(errDeclMismatch);
         } else if (symfunc.fn.signature_id != 0xFF) {
@@ -1188,11 +1188,12 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
 
     symfunc.fn.arg_count = func_arg_count;    
     if (tok == tokSemi) {        
-        if (!defined) symfunc.klass = FUNCTION_PROTO;
+        if (!defined) symfunc.class_scope |= FUNCTION_PROTO;
     } else {
         if (defined) error(errAlreadyDefined_s, name);
 
-        symfunc.klass = FUNCTION;
+        symfunc.class_scope &= ~FUNCTION_PROTO;
+        symfunc.class_scope |= FUNCTION;
         updatesym(&symfunc); // update before parsing body so recursive calls see correct arg_count
         infunc = 1;
         func_rettype = rettype_id;
@@ -1269,17 +1270,17 @@ void parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC {
     EPILOG
 }
 
-SYMBOL declglb(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t value) {
+SYMBOL declglb(uint8_t type_id, SYM_CLASS_SCOPE klass, const char* name, int16_t value) {
     SYMBOL lsym = addglb(name, klass, type_id, value);
     return lsym;
 }
 
-SYMBOL declloc(uint8_t type_id, SYM_CLASS klass, const char* name, int16_t offset) {
+SYMBOL declloc(uint8_t type_id, SYM_CLASS_SCOPE klass, const char* name, int16_t offset) {
     SYMBOL lsym = addloc(name, klass, type_id, offset);
     return lsym;
 }
 
-SYMBOL decl_in_scope(uint8_t type_id, SYM_CLASS klass, const char* name) {
+SYMBOL decl_in_scope(uint8_t type_id, SYM_CLASS_SCOPE  klass, const char* name) {
     SYMBOL sym;
     if ((infunc || is_scoped()) && (!currbank || infunc)) {
         uint16_t size = type_size(type_id); 

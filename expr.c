@@ -158,7 +158,7 @@ static INDEXED_RESULT compute_indexed_address(SYMBOL *sym, uint16_t base_offset,
         uint16_t total_offset = base_offset + idx.value;
         
         /* Optimize: global word-sized element with constant index and no assignment */
-        if (sym->scope == GLOBAL && type_size(elemtype_id) == 2 && next_tok != tokAssign) {
+        if (IS_GLOBAL(*sym) && type_size(elemtype_id) == 2 && next_tok != tokAssign) {
             emit_instr("ld hl,("); emit_sname_id(sym->name_id); emit_ch('+'); 
             emit_n(total_offset); emit_strln(")");
             result.type_id = elemtype_id;
@@ -915,7 +915,7 @@ static void postfix_call(EXPR_RESULT* result, uint8_t* dereference, uint8_t* add
         result->type_id = signature_get_return_type(call_sym.fn.signature_id);
     } else {
         uint8_t ftype_id = 0xFF;
-        if (had_sym && call_sym.klass == VARIABLE && type_get_indirection(call_sym.type_id) == 1)
+        if (had_sym && IS_VARIABLE(call_sym) && type_get_indirection(call_sym.type_id) == 1)
             ftype_id = type_get_element_type_id(call_sym.type_id);
         else if (type_get_indirection(callee_type_id) == 1)
             ftype_id = type_get_element_type_id(callee_type_id);

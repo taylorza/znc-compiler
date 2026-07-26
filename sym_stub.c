@@ -65,7 +65,7 @@ void updatesym(SYMBOL* from) MYCC {
     EPILOG;
 }
 
-SYMBOL addglb(const char* name, SYM_CLASS klass, uint8_t type_id, int16_t value) MYCC {
+SYMBOL addglb(const char* name, SYM_CLASS_SCOPE klass, uint8_t type_id, int16_t value) MYCC {
     IDENT_ID nid = intern_ident(name);
 
     SYMBOL *sym;
@@ -79,7 +79,7 @@ SYMBOL addglb(const char* name, SYM_CLASS klass, uint8_t type_id, int16_t value)
     return lsym;
 }
 
-SYMBOL addloc(const char* name, SYM_CLASS klass, uint8_t type_id, int16_t value) MYCC {
+SYMBOL addloc(const char* name, SYM_CLASS_SCOPE klass, uint8_t type_id, int16_t value) MYCC {
     IDENT_ID nid = intern_ident(name);
 
     SYMBOL *sym;

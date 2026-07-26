@@ -41,7 +41,7 @@ SYMBOL* far_lookupIdent(IDENT_ID name_id) MYCC {
 
 void far_updatesym(SYMBOL from) MYCC {
     SYMBOL* sym;
-    if (from.scope == LOCAL)
+    if (IS_LOCAL(from))
         sym = far_findloc(from.name_id);
     else
         sym = far_findglb(from.name_id);
@@ -49,7 +49,7 @@ void far_updatesym(SYMBOL from) MYCC {
     if (sym) *sym = from;
 }
 
-SYMBOL* far_addglb(IDENT_ID name_id, SYM_CLASS klass, uint8_t type_id, int16_t value) MYCC {
+SYMBOL* far_addglb(IDENT_ID name_id, SYM_CLASS_SCOPE klass, uint8_t type_id, int16_t value) MYCC {
     SYMBOL *sym = far_findglb(name_id);
     if (sym) return sym;
 
@@ -60,12 +60,11 @@ SYMBOL* far_addglb(IDENT_ID name_id, SYM_CLASS klass, uint8_t type_id, int16_t v
 
     sym = &symtab[lastgbl];
     sym->name_id = name_id;
-    sym->klass = klass;
-    sym->type_id = type_id;
-    sym->scope = GLOBAL;
+    sym->class_scope = (klass | GLOBAL) & ~LOCAL; // ensure GLOBAL is set and LOCAL is cleared;
+    sym->type_id = type_id;    
     sym->flags = 0;
     sym->bank = 0; // default to main bank; parse code may set decl_bank when inside a bank
-    if (klass == FUNCTION || klass == FUNCTION_PROTO) {
+    if (IS_FUNCTION(*sym) || IS_FUNCTION_PROTO(*sym)) {
         sym->fn.signature_id = 0xFF; // No signature by default
     }
     else {
@@ -75,7 +74,7 @@ SYMBOL* far_addglb(IDENT_ID name_id, SYM_CLASS klass, uint8_t type_id, int16_t v
     return sym;
 }
 
-SYMBOL* far_addloc(IDENT_ID name_id, SYM_CLASS klass, uint8_t type_id, int16_t value) MYCC {
+SYMBOL* far_addloc(IDENT_ID name_id, SYM_CLASS_SCOPE klass, uint8_t type_id, int16_t value) MYCC {
     SYMBOL *sym = far_findloc(name_id);
     if (sym) return sym;
 
@@ -86,12 +85,11 @@ SYMBOL* far_addloc(IDENT_ID name_id, SYM_CLASS klass, uint8_t type_id, int16_t v
 
     sym = &symtab[--lastloc];
     sym->name_id = name_id;
-    sym->klass = klass;
+    sym->class_scope = (klass | LOCAL) & ~GLOBAL; // ensure LOCAL is set and GLOBAL is cleared
     sym->type_id = type_id;
-    sym->scope = LOCAL;
     sym->flags = 0;
     sym->bank = 0; // local symbols default to main bank unless updated elsewhere
-    if (klass == FUNCTION || klass == FUNCTION_PROTO) {        
+    if (IS_FUNCTION(*sym) || IS_FUNCTION_PROTO(*sym)) {
         sym->fn.signature_id = 0xFF; // No signature by default
     } else {
         sym->stk.offset = value;
@@ -128,7 +126,7 @@ void far_dump_globals_range(uint16_t from, uint16_t to) MYCC {
     }
     for (uint16_t i = from; i < to; ++i) {
         SYMBOL* sym = &symtab[i];        
-        if (sym->klass == FUNCTION_PROTO || sym->klass == FUNCTION || type_is_const(sym->type_id) || (sym->flags & SYM_FLAG_INITIALIZED)) continue;
+        if (IS_FUNCTION_PROTO(*sym) || IS_FUNCTION(*sym) || type_is_const(sym->type_id) || (sym->flags & SYM_FLAG_INITIALIZED)) continue;
         emit_sname_id(sym->name_id);
         emit_ch(' ');
         uint16_t size = type_size(sym->type_id);
@@ -145,7 +143,7 @@ void far_dump_globals_range(uint16_t from, uint16_t to) MYCC {
 void far_dump_function_dependencies(void) MYCC {
     for (uint16_t i = 0; i < lastgbl; ++i) {
         SYMBOL* sym = &symtab[i];
-        if (sym->klass == FUNCTION) {
+        if (IS_FUNCTION(*sym)) {
             /* copy_ident_to_token lives in the main bank – always reachable */
             copy_ident_to_token(sym->name_id);
             emit_strln("FN_%d equ %d    ; %s", sym->name_id, sym->flags & SYM_FLAG_USED ? 1 : 0, token);
@@ -156,7 +154,7 @@ void far_dump_function_dependencies(void) MYCC {
 void far_check_undefined(void) MYCC {
     for (uint16_t i = 0; i < lastgbl; ++i) {
         SYMBOL* sym = &symtab[i];
-        if (sym->klass == FUNCTION_PROTO) {
+        if (IS_FUNCTION_PROTO(*sym)) {
             /* copy_ident_to_token lives in the main bank – always reachable */
             copy_ident_to_token(sym->name_id);
             error(errNotDefined_s, token);

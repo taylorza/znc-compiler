@@ -144,7 +144,7 @@ void far_parse_compound_assign(TOKEN op, uint8_t dereference, SYMBOL *sym, uint8
 void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint8_t type_id) MYCC {
     get_token(); // skip '='
 
-    if (sym->klass != CLASS_UNDEFINED && type_is_const(sym->type_id)) {
+    if (IS_DEFINED(*sym) && type_is_const(sym->type_id)) {
         EXPR_RESULT r = parse_expr_delayconst(0, 0);
         if (!type_is_const(r.type_id)) error(errConstExpected);
         /* Apply fixed <-> int/char conversion at compile time, same as the non-const path. */
@@ -170,12 +170,12 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
         uint16_t datalbl = newlbl();
         uint16_t datalen = NO_LABEL;
 
-        if (sym->klass == CLASS_UNDEFINED && !dereference) error(errNotlvalue);
+        if (IS_UNDEFINED(*sym) && !dereference) error(errNotlvalue);
 
         if (!dereference && !type_is_array(type_id) && !type_is_struct(type_id)) {
             /* Pointer/scalar variable: store the address of the inline data into the variable */
             emit_ld_immed(); emit_lblref(datalbl); emit_nl();
-            if (sym->klass != CLASS_UNDEFINED) {
+            if (IS_DEFINED(*sym)) {
                 emit_store_sym(sym);
             }
             else {
@@ -189,7 +189,7 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
                 /* Array/struct variable: destination is the variable's own storage address */
                 emit_ld_symaddr(sym);
             }
-            else if (sym->klass != CLASS_UNDEFINED) {
+            else if (IS_DEFINED(*sym)) {
                 emit_ld_symval(sym);
             }
             /* else: HL already contains the pointer value from parse_factor (*p case) */
@@ -265,7 +265,7 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
              */
             emit_push();  /* Save source address on stack */
 
-            if (sym->klass != CLASS_UNDEFINED) {
+            if (IS_DEFINED(*sym)) {
                 /* Load the pointer value (the address it points to) */
                 emit_ld_symval(sym);
             }
@@ -287,7 +287,7 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
             /* Direct struct assignment: p1 = p2 */
             emit_push();  /* Save source address */
 
-            if (sym->klass != CLASS_UNDEFINED) {
+            if (IS_DEFINED(*sym)) {
                 emit_ld_symaddr(sym);
             } else {
                 error(errNotlvalue);
@@ -302,7 +302,7 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
         return;
     }
 
-    if (sym->klass == CLASS_UNDEFINED) {
+    if (IS_UNDEFINED(*sym)) {
         // HL contains address to write to
         // TODO: Optimize for loading constants directly into memory without going through registers
         emit_push();

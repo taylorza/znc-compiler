@@ -438,11 +438,11 @@ static inline uint8_t offsets_in_ix_range(int16_t low, int16_t high) MYCC {
  * For local variables: returns -(offset + size), pointing to the low byte
  * For arguments: returns 2 + (func_argcount - offset) * 2, pointing to the low byte */
 static int16_t compute_symbol_base_offset(SYMBOL *sym) MYCC {
-    if (sym->klass == VARIABLE) {
+    if (IS_VARIABLE(*sym)) {
         uint16_t bp_offset = (uint16_t)sym->stk.offset;
         uint16_t var_size = type_size(sym->type_id);
         return -(int16_t)(bp_offset + var_size);
-    } else { /* ARGUMENT */
+    } else if (IS_ARGUMENT(*sym)) { /* ARGUMENT */
         return 2 + (func_arg_count - sym->stk.offset) * 2;
     }
 }
@@ -486,7 +486,7 @@ static void emit_store_variadic_arg(SYMBOL *sym) MYCC {
 void emit_ld_symval(SYMBOL* sym) MYCC {
     uint8_t type_id = sym->type_id;
 
-    if (sym->scope == GLOBAL) {
+    if (IS_GLOBAL(*sym)) {
         if (type_is_array(type_id)) {
             emit_ld_immed();
             emit_sname_id(sym->name_id);
@@ -507,14 +507,14 @@ void emit_ld_symval(SYMBOL* sym) MYCC {
             emit_nl();
         }
     }
-    else if (sym->scope == LOCAL) {
+    else if (IS_LOCAL(*sym)) {
         /* For variadic functions, ARGUMENT parameters need dynamic offset calculation */
-        if (sym->klass == ARGUMENT && func_is_variadic) {
+        if (IS_ARGUMENT(*sym) && func_is_variadic) {
             emit_load_variadic_arg(sym);
             return;
         }
         
-        if (sym->klass == VARIABLE) {
+        if (IS_VARIABLE(*sym)) {
             if (type_is_array(type_id) || type_is_struct(type_id)) {
                 /* Arrays and structs: load their address */
                 emit_ld_symaddr_offset(sym, 0);
@@ -559,15 +559,15 @@ void emit_ld_symaddr(SYMBOL* sym) MYCC {
 void emit_ld_symaddr_offset(SYMBOL* sym, uint16_t offset) MYCC {
     uint8_t type_id = sym->type_id;
 
-    if (sym->scope == GLOBAL) {
+    if (IS_GLOBAL(*sym)) {
         emit_ld_immed();
         emit_sname_id(sym->name_id);
         if (offset) { emit_ch('+'); emit_n(offset); }
         emit_nl();
     }
-    else if (sym->scope == LOCAL) {
+    else if (IS_LOCAL(*sym)) {
         /* For variadic functions, ARGUMENT parameters need dynamic offset calculation */
-        if (sym->klass == ARGUMENT && func_is_variadic) {
+        if (IS_ARGUMENT(*sym) && func_is_variadic) {
             emit_load_variadic_arg_addr(sym);
             if (offset) {
                 emit_ldde_immed_n(offset);
@@ -595,7 +595,7 @@ void emit_store_sym(SYMBOL* sym) MYCC {
     uint8_t type_id = sym->type_id;
     if (type_is_array(type_id)) error(errNotlvalue);
     
-    if (sym->scope == GLOBAL) {
+    if (IS_GLOBAL(*sym)) {
         if (!type_is_pointer(type_id) && type_is_8bit(type_id)) {
             emit_instrln("ld a,l");
             emit_instr("ld ("); emit_sname_id(sym->name_id); emit_strln("),a");
@@ -604,14 +604,14 @@ void emit_store_sym(SYMBOL* sym) MYCC {
             emit_instr("ld ("); emit_sname_id(sym->name_id); emit_strln("),hl");
         }
     }
-    else if (sym->scope == LOCAL) {
+    else if (IS_LOCAL(*sym)) {
         /* For variadic functions, ARGUMENT parameters need dynamic offset calculation */
-        if (sym->klass == ARGUMENT && func_is_variadic) {
+        if (IS_ARGUMENT(*sym) && func_is_variadic) {
             emit_store_variadic_arg(sym);
             return;
         }
 
-        if (sym->klass == VARIABLE && !type_is_pointer(type_id) && type_is_8bit(type_id)) {
+        if (IS_VARIABLE(*sym) && !type_is_pointer(type_id) && type_is_8bit(type_id)) {
             int16_t low_off = compute_symbol_base_offset(sym);
             
             if (low_off >= -128 && low_off <= 127) {
