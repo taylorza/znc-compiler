@@ -148,7 +148,7 @@ void far_dump_function_dependencies(void) MYCC {
         if (sym->klass == FUNCTION) {
             /* copy_ident_to_token lives in the main bank – always reachable */
             copy_ident_to_token(sym->name_id);
-            emit_strln("%s%x equ %d", token, sym->fn.signature_id, sym->flags & SYM_FLAG_USED ? 1 : 0);            
+            emit_strln("FN_%d equ %d    ; %s", sym->name_id, sym->flags & SYM_FLAG_USED ? 1 : 0, token);
         }
     }
 }

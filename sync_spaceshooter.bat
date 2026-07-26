@@ -7,3 +7,4 @@ rem %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/spacesho
 
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/a.znc /zdev/examples/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/hexedit.znc /zdev/examples/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/sudoku_mrv.znc /zdev/examples/

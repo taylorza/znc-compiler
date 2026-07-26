@@ -1198,7 +1198,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
         func_rettype = rettype_id;
         uint16_t skiplbl = newlbl();
 
-        if (dfe_enabled) emit_instrln("if %s%x", name, symfunc.fn.signature_id);
+        if (dfe_enabled) emit_instrln("if FN_%d", symfunc.name_id);
         emit_jp(skiplbl);
 
         emit_sname(name); emit_nl();
@@ -1233,7 +1233,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
             
         }
         emit_lbl(skiplbl);
-        if (dfe_enabled) emit_instrln("endif ;%s%x", name, symfunc.fn.signature_id);
+        if (dfe_enabled) emit_instrln("endif ;FN_%d", symfunc.name_id);
 
         infunc = 0;
         func_rettype = TYPE_ID_VOID;

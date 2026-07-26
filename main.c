@@ -14,7 +14,7 @@ int main(unsigned int argc, unsigned char **argv) {
 
     /* Very lightweight option parsing: accept any number of flags before
      * the positional arguments. Supported flags:
-     *   -dfe    enable dead-function-elim marker emission
+     *   -dfe    enable dead-function-elimination marker emission
      */
     const char *src_file = NULL;
     char *out_file_arg = NULL;
