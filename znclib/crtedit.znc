@@ -27,7 +27,7 @@ char crt_edit(char *text, char *alphabet, int maxlen, int editwidth) {
   int offset = 0;
 
   char exitkey = 0;
-  while(!exitkey) {
+  for(;;) {
     if (editwidth < maxlen) {
       byte rightpad = (i < len - 1) ? pad : 0;
       if (i >= offset + editwidth - rightpad) { 
@@ -47,6 +47,7 @@ char crt_edit(char *text, char *alphabet, int maxlen, int editwidth) {
       redraw = 0;
     }
     
+    if (exitkey) break;
     crt_gotoxy(x+i-offset, y);
     char ch = crt_getch();
 
@@ -54,6 +55,8 @@ char crt_edit(char *text, char *alphabet, int maxlen, int editwidth) {
       case KEY_ENTER:
       case KEY_EDIT: 
         exitkey = ch;
+        i = 0;
+        redraw = 1;
         break;
       
       case KEY_DELETE:
