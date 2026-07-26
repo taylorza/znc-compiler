@@ -13,13 +13,30 @@ void seterrh(PFN_EXIT fn) __znccall(1) __asm__ {
     ret
 }
 
-PFN_EXIT atexit(PFN_EXIT fn) __znccall(1) __asm__ {
+int atexit(PFN_EXIT fn) __znccall(1) __asm__ {
     pop bc
     pop de
     push bc
 
-    ld hl, (__exitfn)
-    ld (__exitfn), de
+    ld hl,0
+    ld a,(ccexit.cnt)
+    cp 4
+    ret z
+
+    ld b,a
+    add a
+
+    ld hl, __exitfn
+    add hl,a
+    ld (hl),e
+    inc hl
+    ld (hl),d
+
+    ld a,b
+    inc a
+    ld (ccexit.cnt),a
+
+    ld hl,1
     ret
 }
 

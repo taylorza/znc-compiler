@@ -841,8 +841,10 @@ void emit_output(const char* filename, TOKEN outputTok) MYCC {
         /* Create char[80] array type for args */
         uint8_t args_type = type_make_array(TYPE_ID_CHAR, 80);
         uint8_t fn_type = type_make_pointer(TYPE_ID_VOID, 1);
+        uint8_t exitfn_type = type_make_array(fn_type, 4);
+
         addglb("args", VARIABLE, args_type, 0);
-        addglb("_exitfn", VARIABLE, fn_type, 0);
+        addglb("_exitfn", VARIABLE, exitfn_type, 0);
         emit_rtl("ldcmdln");        
     }
 }

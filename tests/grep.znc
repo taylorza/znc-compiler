@@ -97,17 +97,12 @@ void onerror() {
 }
 seterrh(onerror);
 
-PFN_EXIT old_exitfn = 0;
-
 void cleanup() {
   mmufree(mmu6);
   nextreg(0x56, old_mmu6);
-
-  if (old_exitfn) {
-    old_exitfn();
-  }
 }
-old_exitfn = atexit(cleanup);
+
+atexit(cleanup);
 
 DIRENTLFN dirent;
 hdir = fopendir(

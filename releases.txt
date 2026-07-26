@@ -34,7 +34,7 @@
 - Added fseek to fileio.znc
 - Added dot.znc to standard library
 -- seterrh - set the error handler for a DOT command
--- exitat  - set an exit function that is executed when a DOT command completes 
+-- atexit  - set an exit function that is executed when a DOT command completes 
 - Added hexvw.znc example
 - Added hexedit.znc example
 - Enhancement - delegates are not limited to returning int types

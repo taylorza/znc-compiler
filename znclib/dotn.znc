@@ -19,7 +19,6 @@ __asm__ {
   ld (__page_count),a
 }
 
-PFN_EXIT _dotn_exitfn = 0;
 void _dotn_cleanup();
 
 {
@@ -37,7 +36,7 @@ void _dotn_cleanup();
   }
   nextreg(0x54, old_mmu4);
 
-  _dotn_exitfn = atexit(_dotn_cleanup);
+  atexit(_dotn_cleanup);
 }
 
 void _dotn_cleanup() {
@@ -45,9 +44,6 @@ void _dotn_cleanup() {
     if (_page_map[i]) {
       mmufree(_page_map[i]);
     }
-  }
-  if (_dotn_exitfn) {
-    _dotn_exitfn();
   }
 }
 
