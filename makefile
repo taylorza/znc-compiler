@@ -12,7 +12,7 @@ CFLAGS_O2 = -m -c -clib=sdcc_iy -SO2 -opt-code-size --max-allocs-per-node$(MAX_A
 AFLAGS =
 LFLAGS = -m -startup=30 -clib=sdcc_iy -subtype=dotn -pragma-include:zpragma.inc -create-app
 
-SOURCES = farcall.c callgraph.c callgraph_stub.c identtbl_stub.c strtbl_stub.c sym_stub.c rtl_stub.c expr_stub.c errordata_stub.c initializer_stub.c shared.c typedata.c typedata2.c typedata3.c errordata.c struct_stub.c struct.c strtbl.c identtbl.c initializer.c codegen.c compiler.c compilerex.c dataarea.c error.c expr.c exprex.c type.c main.c rtl.c scanner.c scannerdata.c sym.c util.c
+SOURCES = main.c farcall.c callgraph.c callgraph_stub.c identtbl_stub.c strtbl_stub.c sym_stub.c rtl_stub.c expr_stub.c errordata_stub.c initializer_stub.c shared.c typedata.c typedata2.c typedata3.c errordata.c struct_stub.c struct.c strtbl.c identtbl.c initializer.c codegen.c compiler.c compilerex.c dataarea.c error.c expr.c exprex.c type.c rtl.c scanner.c scannerdata.c sym.c util.c
 
 OBJFILES = $(patsubst %.c,$(OUTPUT_DIR)/%.o,$(SOURCES))
 

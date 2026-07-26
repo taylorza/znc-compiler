@@ -86,6 +86,7 @@ void far_callgraph_mark_reachable(void) MYCC {
         uint16_t current = queue_pop(&q);
         for (int i = 1; i < CALLGRAPH_MAX_FUNCS; ++i) {
             if (i == current) continue; // Skip self
+
             if (bitset_test(&callgraph[current], i)) {
                 if (current != 0) {
                     // Mark the callee function as reachable
@@ -95,7 +96,10 @@ void far_callgraph_mark_reachable(void) MYCC {
                         updatesym(&callee_sym);
                     }
                 }
-                queue_push(&q, i);
+                if (func_ids[i].func_id != -1) {
+                    queue_push(&q, i);
+                    func_ids[i].func_id = -1;
+                }
             }
         }
     }
