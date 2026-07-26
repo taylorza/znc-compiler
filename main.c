@@ -1,4 +1,5 @@
 #include "znc.h"
+#include "callgraph.h"
 
 uint8_t old_speed = 255;
 uint8_t old_border = 7;
@@ -57,6 +58,7 @@ int main(unsigned int argc, unsigned char **argv) {
         outfilename[MAX_FILENAME_LEN - 1] = '\0';
     }
 
+    callgraph_init();
     compile(src_file, outfilename);
 
     return 0;

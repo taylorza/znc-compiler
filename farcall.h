@@ -5,23 +5,22 @@
 
 extern unsigned char _z_page_table[];
 
+void switch_bank67(uint8_t bank, uint8_t *old_page0, uint8_t *old_page1) MYCC;
+void restore_bank67(uint8_t old_page0, uint8_t old_page1) MYCC;
+
 // Bank switch prolog/epilog for wrappers. Stubs should include znc.h first.
 #define PROLOG(BANK) \
 	{ \
-		uint8_t page0 = ZXN_READ_MMU6(); \
-		uint8_t page1 = ZXN_READ_MMU7(); \
-		ZXN_WRITE_MMU6(_z_page_table[(BANK)<<1]); \
-		ZXN_WRITE_MMU7(_z_page_table[((BANK)<<1)+1]);
+		uint8_t page0; \
+		uint8_t page1; \
+		switch_bank67(BANK, &page0, &page1);
 
 #define EPILOG \
-		ZXN_WRITE_MMU6(page0); \
-		ZXN_WRITE_MMU7(page1); \
+		restore_bank67(page0, page1); \
 	}
 
 #define EPILOG_RETURN(EXPR) \
-		ZXN_WRITE_MMU6(page0); \
-		ZXN_WRITE_MMU7(page1); \
+		restore_bank67(page0, page1); \
 		return (EXPR); \
 	}
-
 #endif //FARCALL_H__

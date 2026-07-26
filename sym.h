@@ -71,6 +71,8 @@ SYMBOL findglb(const char* name) MYCC;
 SYMBOL findloc(const char* name) MYCC;
 SYMBOL lookupIdent(const char* name) MYCC;
 
+SYMBOL lookupFuncByNameId(IDENT_ID name_id) MYCC;
+
 SYMBOL addglb(const char* name, SYM_CLASS_SCOPE klass, uint8_t type_id, int16_t value) MYCC;
 SYMBOL addloc(const char* name, SYM_CLASS_SCOPE klass, uint8_t type_id, int16_t value) MYCC;
 void updatesym(SYMBOL* from) MYCC;

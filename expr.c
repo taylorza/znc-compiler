@@ -2,6 +2,7 @@
 #include "struct.h"
 #include "shared.h"
 #include "initializer.h"
+#include "callgraph.h"
 
 #define ASSIGN_PREC 1
 #define COND_PREC 3
@@ -21,6 +22,9 @@ typedef enum {
     SCALE_DE = 0,
     SCALE_HL = 1
 } SCALE_REG;
+
+extern uint8_t infunc;
+extern uint16_t currfunc_id;
 
 extern EXPR_RESULT parse_onearg(void) MYCC;
 extern void parse_type(uint8_t* type_id_out) MYCC;
@@ -1343,7 +1347,8 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
                 factor_result.value = 0;                  /* Functions don't have a numeric value */
                 factor_result.type_id = type_make_pointer(factor_result.sym.type_id, 1); /* Function pointer type */
 
-                factor_result.sym.flags |= SYM_FLAG_USED;
+                if (!infunc) factor_result.sym.flags |= SYM_FLAG_USED;
+                callgraph_add_edge(currfunc_id, callgraph_add_func(factor_result.sym.name_id));
                 updatesym(&factor_result.sym);
 
                 goto ident_cleanup;

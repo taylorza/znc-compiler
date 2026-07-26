@@ -2,12 +2,14 @@
 #include "struct.h"
 #include "shared.h"
 #include "initializer.h"
+#include "callgraph.h"
 
 char* rtlfilename;          // filename for RTL include
 uint16_t retlbl = 0;        // function exit label
 
 TOKEN tokMakeType = tokRaw; // type of make command
 
+uint16_t currfunc_id = 0;   // id of the current function being parsed (0 if not in a function)
 uint8_t infunc = 0;         // 1 if parsing a function
 uint8_t func_rettype = 0;   // return type of current function (0 = void)
 uint8_t bankseen = 0;       // set to 1 the first time a bank directive is encountered
@@ -788,7 +790,8 @@ void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc, uint8_t callee_type_id) M
             expected_count = signature_get_arg_count(sig_id);
         }
     }
-    sym->flags |= SYM_FLAG_USED; /* mark function as used */
+    if (!infunc) sym->flags |= SYM_FLAG_USED; /* mark function as used */
+    callgraph_add_edge(currfunc_id, callgraph_add_func(sym->name_id));
     updatesym(sym);
 
     /* Get calling convention */
@@ -1185,6 +1188,8 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
         }
         symfunc.type_id = type_make_function(symfunc.fn.signature_id);
     }
+    
+    currfunc_id = callgraph_add_func(symfunc.name_id);
 
     symfunc.fn.arg_count = func_arg_count;    
     if (tok == tokSemi) {        
@@ -1235,13 +1240,14 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
         }
         emit_lbl(skiplbl);
         if (dfe_enabled) emit_instrln("endif ;FN_%d", symfunc.name_id);
-
+        
         infunc = 0;
         func_rettype = TYPE_ID_VOID;
         func_is_variadic = 0;
         func_arg_count = 0;
         retlbl = oldretlbl;
-    }
+    }   
+    currfunc_id = 0;
     pop_frame(funcframe);
     updatesym(&symfunc);
 }
@@ -1336,7 +1342,10 @@ void compile(const char *filename, char *outfilename) MYCC {
 
     if (tokMakeType == tokNex) emit_nex(outfilename, start_lbl, stack_base);
     else if (tokMakeType == tokDot) emit_strln("PAGE_COUNT equ %d", page_count);
-    if (dfe_enabled) dump_function_dependencies();
+    if (dfe_enabled) {
+        callgraph_mark_reachable();
+        dump_function_dependencies();
+    }
     asm_close();
     
     dump_rtl(rtlfilename);    

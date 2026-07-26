@@ -12,7 +12,7 @@ CFLAGS_O2 = -m -c -clib=sdcc_iy -SO2 -opt-code-size --max-allocs-per-node$(MAX_A
 AFLAGS =
 LFLAGS = -m -startup=30 -clib=sdcc_iy -subtype=dotn -pragma-include:zpragma.inc -create-app
 
-SOURCES = identtbl_stub.c strtbl_stub.c sym_stub.c rtl_stub.c expr_stub.c errordata_stub.c initializer_stub.c shared.c typedata.c typedata2.c typedata3.c errordata.c struct_stub.c struct.c strtbl.c identtbl.c initializer.c codegen.c compiler.c compilerex.c dataarea.c error.c expr.c exprex.c type.c main.c rtl.c scanner.c scannerdata.c sym.c util.c
+SOURCES = farcall.c callgraph.c callgraph_stub.c identtbl_stub.c strtbl_stub.c sym_stub.c rtl_stub.c expr_stub.c errordata_stub.c initializer_stub.c shared.c typedata.c typedata2.c typedata3.c errordata.c struct_stub.c struct.c strtbl.c identtbl.c initializer.c codegen.c compiler.c compilerex.c dataarea.c error.c expr.c exprex.c type.c main.c rtl.c scanner.c scannerdata.c sym.c util.c
 
 OBJFILES = $(patsubst %.c,$(OUTPUT_DIR)/%.o,$(SOURCES))
 
@@ -95,19 +95,14 @@ $(OUTPUT_DIR)/struct.o: struct.c | $(OUTPUT_DIR)
 	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_44 --codesegBANK_44 --constsegBANK_44 --bsssegBANK_44
 	@echo "-> Generated $@"
 
-$(OUTPUT_DIR)/identtbl.o: identtbl.c | $(OUTPUT_DIR)
-	@echo "Compiling BANK 45 (ident table)"
-	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_45 --codesegBANK_45 --constsegBANK_45 --bsssegBANK_45
-	@echo "-> Generated $@"
-
 $(OUTPUT_DIR)/typedata2.o: typedata2.c | $(OUTPUT_DIR)
 	@echo "Compiling BANK 44 (named-type registry)"
 	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_44 --codesegBANK_44 --constsegBANK_44 --bsssegBANK_44
 	@echo "-> Generated $@"
 
-$(OUTPUT_DIR)/typedata3.o: typedata3.c | $(OUTPUT_DIR)
-	@echo "Compiling BANK 46 (function-signature data)"
-	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_46 --codesegBANK_46 --constsegBANK_46 --bsssegBANK_46
+$(OUTPUT_DIR)/identtbl.o: identtbl.c | $(OUTPUT_DIR)
+	@echo "Compiling BANK 45 (ident table)"
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_45 --codesegBANK_45 --constsegBANK_45 --bsssegBANK_45
 	@echo "-> Generated $@"
 
 $(OUTPUT_DIR)/exprex.o: exprex.c | $(OUTPUT_DIR)
@@ -115,9 +110,19 @@ $(OUTPUT_DIR)/exprex.o: exprex.c | $(OUTPUT_DIR)
 	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_45 --codesegBANK_45 --constsegBANK_45 --bsssegBANK_45
 	@echo "-> Generated $@"
 
+$(OUTPUT_DIR)/typedata3.o: typedata3.c | $(OUTPUT_DIR)
+	@echo "Compiling BANK 46 (function-signature data)"
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_46 --codesegBANK_46 --constsegBANK_46 --bsssegBANK_46
+	@echo "-> Generated $@"
+
 $(OUTPUT_DIR)/compilerex.o: compilerex.c | $(OUTPUT_DIR)
 	@echo "Compiling BANK 47 (compiler extras)"
 	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_47 --codesegBANK_47 --constsegBANK_47 --bsssegBANK_47
+	@echo "-> Generated $@"
+
+$(OUTPUT_DIR)/callgraph.o: callgraph.c | $(OUTPUT_DIR)
+	@echo "Compiling BANK 48 (call graph)"
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_48 --codesegBANK_48 --constsegBANK_48 --bsssegBANK_48
 	@echo "-> Generated $@"
 
 $(OUTPUT_DIR)/shared.o: shared.c | $(OUTPUT_DIR)

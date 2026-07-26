@@ -54,6 +54,19 @@ SYMBOL lookupIdent(const char* name) MYCC {
     return lsym;
 }
 
+SYMBOL lookupFuncByNameId(IDENT_ID name_id) MYCC {
+    SYMBOL* sym;
+    SYMBOL lsym;
+    
+    PROLOG(41)
+    sym = far_findglb(name_id);
+    if (!sym || !IS_FUNCTION(*sym)) sym = &undefined_sym;
+    lsym = *sym;
+    EPILOG
+
+    return lsym;
+}
+
 void updatesym(SYMBOL* from) MYCC {
     /* Copy the SYMBOL into a local stack variable (in main bank) before switching
      * banks. Passing the structure by value is cheaper and avoids arena overhead.
