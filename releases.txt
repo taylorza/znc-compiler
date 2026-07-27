@@ -1,4 +1,4 @@
-2026/07/xx - Version 0.6d
+2026/07/26 - Version 0.6d
 - New - Dead function elimination (DFE) support enabled by the -dfe option. The compiler will track function usage and flag unused functions for elimination during assembly.
       - ZIDE.BAS has an option to enable/disable DFE
 - Enhancement - Support initializers for arrays of structs and arrays of arrays
