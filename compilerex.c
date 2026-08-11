@@ -349,12 +349,18 @@ void far_parse_bank(void) MYCC {
         dump_strings_range("str", 0, bank_str_start);
         emit_instrln("include \"%s\"", rtlfilename);
         if (tokMakeType == tokDot) {
+            emit_instrln("display \"DOT-Remaining:\", $4000 - ($ - %u)", current_org - 1);
+            emit_instrln("assert $4000 - ($ - %u) >= 0", current_org - 1);
             emit_instrln("ds $4000-$");
         }
     }
-
+    emit_instrln("display \"Assembling bank %d\"", currbank);
     emit_bank(currbank, offset);
-    if (tokMakeType == tokDot) {
+    expect_LBrace(); // skip '{'
+    
+    if (tok == tokIdent && lookup_ident_token(token) == tokOrg) {
+        parse_org();        
+    } else if (tokMakeType == tokDot) {
         emit_org(DOT_SCRATCH_ADDR + offset);
         current_org = DOT_SCRATCH_ADDR + offset;
     }
@@ -366,7 +372,7 @@ void far_parse_bank(void) MYCC {
     
     uint16_t lblBankRet = newlbl();
     emit_frame_prologue(0);
-    parse_statement_block(NO_LABEL, NO_LABEL);
+    parse_statement_block(NO_LABEL, NO_LABEL, 0);
     emit_frame_epilogue(0, lblBankRet, 0, 0, tokMakeType);
     
     uint16_t bank_gbl_end = get_lastgbl();
@@ -379,6 +385,8 @@ void far_parse_bank(void) MYCC {
     set_strref_ctx("str", 0);   
   
     if (tokMakeType == tokDot) {
+        emit_instrln("display \"BANK %d Remaining:\", $2000 - ($ - %u)", currbank, current_org - 1);
+        emit_instrln("assert $2000 - ($ - %u) >= 0", current_org - 1);
         emit_instrln("ds $2000 - ($ - %u)", current_org - 1);
         emit_instrln("db %d", currbank);
     }    

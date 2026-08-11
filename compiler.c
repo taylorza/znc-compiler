@@ -261,8 +261,9 @@ void skip_statement(void) MYCC {
     }
 }
 
-void parse_statement_block(uint16_t brklbl, uint16_t contlbl) MYCC {
-    get_token(); // skip '{'
+void parse_statement_block(uint16_t brklbl, uint16_t contlbl, uint8_t check_lbrace) MYCC {
+    if (check_lbrace) expect(tokLBrace, '{');
+
     uint16_t blockframe = push_frame();
     uint8_t old_localcount = localcount;
     uint16_t old_bp = bp_lastlocal;
@@ -330,7 +331,7 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
             break;
 
         case tokLBrace:
-            parse_statement_block(brklbl, contlbl);
+            parse_statement_block(brklbl, contlbl, 1);
             break;
         case tokIf: parse_if(brklbl, contlbl); break;
         case tokSwitch: parse_switch(contlbl); break;
@@ -528,7 +529,7 @@ void parse_switch(uint16_t contlbl) MYCC {
         }
         expect_colon();
         if (tok == tokLBrace) 
-            parse_statement_block(lblDone, contlbl);
+            parse_statement_block(lblDone, contlbl, 1);
         else
             while (tok != tokEOS && tok != tokBreak && tok != tokCase && tok != tokRBrace && tok != tokDefault) {
                 parse_statement(lblDone, contlbl);
@@ -1230,7 +1231,7 @@ void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
             emit_frame_prologue(0);
             locals_lbl = emit_alloclocals();
 
-            parse_statement_block(NO_LABEL, NO_LABEL);
+            parse_statement_block(NO_LABEL, NO_LABEL, 1);
 
             emit_frame_epilogue(0, retlbl, calling_convention, func_arg_count, tokMakeType);
             

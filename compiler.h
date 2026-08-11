@@ -25,8 +25,10 @@ extern uint16_t current_org;
 void compile(const char *filename, char *asmfilename) MYCC;
 
 void parse(const char* sourcefile, char* outfilename, uint8_t entrypoint) MYCC;
+void parse_org(void) MYCC; 
 void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc, uint8_t callee_type_id) MYCC;
-void parse_statement_block(uint16_t brklbl, uint16_t contlbl) MYCC;
+void parse_statement_block(uint16_t brklbl, uint16_t contlbl, uint8_t check_lbrace) MYCC;
+
 uint8_t try_handle_variadic_intrinsic(const char* name) MYCC;
 
 EXPR_RESULT parse_onearg(void) MYCC;

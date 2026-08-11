@@ -162,6 +162,8 @@ bank(1) {
     putc('\r');
   }
 
+  char *spinner = "|/-\\";
+  byte spinner_idx = 0;
   byte scan_text(char* filename, char* pattern) {
     pat_len = strlen(pattern);
     buf_len = 0;
@@ -180,8 +182,10 @@ bank(1) {
 
     line_start = 0;
     while (!eof) {
+      putc(spinner[++spinner_idx & 3]);
+      putc('\x08');
       read_window();
-
+      
       pos = 0;
       while (pos < buf_len) {
         scan_char = raw[pos];
@@ -233,6 +237,7 @@ bank(1) {
 
       if (eof) break;
     }
+    puts(" \x08"); // Clear spinner
 
     if (buf_len > 0) {
       raw[buf_len] = '\0';
