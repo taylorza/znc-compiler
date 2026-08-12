@@ -1,31 +1,33 @@
 make dot "a.dot";
 
-include "dotn.znc"
+const byte TEST_G1 = 0;
+const byte TEST_G2 = 0;
+const byte TEST_G3 = 0;
+const byte TEST_G4 = 1;
 
-void show1() bank(1);
-void show2() bank(2);
+const byte TEST_BASIC   = TEST_G1;   // typ_glb, const, arith, bitwise, compare, ternary, incdec
+const byte TEST_FLOW    = TEST_G1;
+const byte TEST_ARRAYS  = TEST_G1;   // arrays, ptrs
+const byte TEST_STRUCTS = TEST_G1;   // structs, dlgs
+const byte TEST_VARGS   = TEST_G1;   // vargs
+const byte TEST_ASM     = TEST_G1;   // asm
+const byte TEST_CCOMP   = TEST_G1;   // ccomp (conditional compilation)
+const byte TEST_ENUM    = TEST_G1;   // enum declarations and type conversions
 
-show1();
-show2();
+const byte TEST_FIXED   = TEST_G2;
+const byte TEST_PTRADV  = TEST_G2;   // rawref, tconv
+const byte TEST_FORINIT = TEST_G2;   // for-initializer declarations
+const byte TEST_ELIF    = TEST_G2;   // #elif
+const byte TEST_COMPOUND = TEST_G2;  // compound assignment operators
+const byte TEST_INITEX  = TEST_G2;   // initializer + brace-argument enhancements
 
-bank(1) {
-  byte[] numbers = {0,1,2,3,4,5,6,7,8,9};
+const byte TEST_RECURSE = TEST_G3;   // recursion
+const byte TEST_TYPEMIX = TEST_G3;   // type coercion / byte-char mixing
+const byte TEST_NCALL   = TEST_G3;   // nested / chained function calls
 
-  void show1() {
-    for (int i=0; i<10; ++i) {
-      putc(numbers[i] + '0');
-      putc(',');
-    }
-  }
-}
+const byte g_aaa=1;
+uint16 g_test= 50000;
+const byte g_aam=1;
+uint16 g_test2= 50000;
 
-bank(2) {
-  byte[] letters = {'a','b','c','d','e','f','g','h','i','j'};
 
-  void show2() {
-    for (int i=0; i<10; ++i) {
-      putc(letters[i]);
-      putc(',');
-    }
-  }
-}

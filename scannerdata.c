@@ -83,6 +83,10 @@ static const KEYWORD kw_s[] = {
     {"switch", tokSwitch},
 };
 
+static const KEYWORD kw_u[] = {
+    {"uint16", tokUint16},
+};
+
 static const KEYWORD kw_v[] = {
     {"va_arg", tokVaArg},
     {"va_end", tokVaEnd},
@@ -127,6 +131,7 @@ static const KEYWORD_BUCKET keyword_buckets[128] = {
     ['p'] = { kw_p, sizeof(kw_p) / sizeof(KEYWORD) },
     ['r'] = { kw_r, sizeof(kw_r) / sizeof(KEYWORD) },
     ['s'] = { kw_s, sizeof(kw_s) / sizeof(KEYWORD) },
+    ['u'] = { kw_u, sizeof(kw_u) / sizeof(KEYWORD) },
     ['v'] = { kw_v, sizeof(kw_v) / sizeof(KEYWORD) },
     ['w'] = { kw_w, sizeof(kw_w) / sizeof(KEYWORD) },
 };

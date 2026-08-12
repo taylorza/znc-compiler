@@ -1,20 +1,24 @@
- ex de, hl
- ld a, h
- ld c, l
- ld hl, 0
- ld b, 16
-.loop
- rl c
- rla
- adc hl, hl
- sbc hl, de
- jp nc, .norestr
- add hl, de
-.norestr
- ccf
- djnz .loop
- rl c
- rla
- ex de, hl
- ld h, a
- ld l, c
+ ld a, d
+ xor h
+ ex af, af'
+ bit 7,d
+ jr z,.divA
+ 
+ ld a,e ; DE = -DE
+ cpl
+ ld e,a
+ ld a,d
+ cpl
+ ld d,a
+ inc de
+ 
+.divA
+ bit 7,h
+ call nz,ccneg
+
+ call ccudiv
+
+ ex af,af'
+ or a
+ ret p
+ jp ccneg

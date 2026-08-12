@@ -9,6 +9,16 @@
  * (parse_expr / parse_expr_delayconst / parse_assign) so that
  * bank-switch is handled correctly on ZX Next. */
 
+static uint8_t ternary_common_scalar_type(uint8_t left_type_id, uint8_t right_type_id) MYCC {
+    if (type_is_fixed(left_type_id) || type_is_fixed(right_type_id))
+        return TYPE_ID_FIXED;
+    if (type_is_uint16(left_type_id) || type_is_uint16(right_type_id))
+        return TYPE_ID_UINT16;
+    if (type_is_byte(left_type_id) || type_is_byte(right_type_id))
+        return TYPE_ID_BYTE;
+    return TYPE_ID_INT;
+}
+
 void far_parse_ternary(EXPR_RESULT *result, uint8_t prec, uint8_t expected_type_id) MYCC {
     uint16_t altlbl = newlbl();
     uint16_t donelbl = newlbl();
@@ -41,16 +51,24 @@ void far_parse_ternary(EXPR_RESULT *result, uint8_t prec, uint8_t expected_type_
     if (expected_type_id != 0) {
         result->type_id = expected_type_id;
     } else {
-        /* Infer result type from the true-branch, but ternary always produces a
-         * runtime value so the const qualifier must be stripped. */
-        uint8_t inferred = ptyp.type_id;
-        if (type_is_const(inferred)) {
-            TypeKind k = type_get_kind(inferred);
-            if (k == TK_CHAR)       inferred = type_make_char(0);
-            else if (k == TK_FIXED) inferred = type_make_fixed(0);
-            else                    inferred = type_make_int(0);
+        /* Infer a common runtime type from scalar branches. */
+        if (type_is_integral(ptyp.type_id) || type_is_fixed(ptyp.type_id)) {
+            if (type_is_integral(atyp.type_id) || type_is_fixed(atyp.type_id)) {
+                result->type_id = ternary_common_scalar_type(ptyp.type_id, atyp.type_id);
+            } else {
+                result->type_id = ptyp.type_id;
+            }
+        } else {
+            result->type_id = ptyp.type_id;
         }
-        result->type_id = inferred;
+        if (type_is_const(result->type_id)) {
+            TypeKind k = type_get_kind(result->type_id);
+            if (k == TK_CHAR)       result->type_id = type_make_char(0);
+            else if (k == TK_FIXED) result->type_id = type_make_fixed(0);
+            else if (k == TK_UINT16) result->type_id = type_make_uint16(0);
+            else if (k == TK_BYTE)   result->type_id = type_make_byte(0);
+            else                    result->type_id = type_make_int(0);
+        }
     }
     return;
 }
@@ -103,14 +121,16 @@ void far_parse_compound_assign(TOKEN op, uint8_t dereference, SYMBOL *sym, uint8
         case tokSubAssign: emit_sub16(); break;
         case tokMulAssign:
             if (type_is_fixed(type_id)) emit_rtl("ccfxmul");
+            else if (type_is_unsigned_scalar(type_id)) emit_rtl("ccumult");
             else emit_rtl("ccmult");
             break;
         case tokDivAssign:
             if (type_is_fixed(type_id)) emit_rtl("ccfxdiv");
+            else if (type_is_unsigned_scalar(type_id)) emit_rtl("ccudiv");
             else emit_rtl("ccdiv");
             break;
         case tokModAssign:
-            emit_rtl("ccdiv");
+            emit_rtl(type_is_unsigned_scalar(type_id) ? "ccudiv" : "ccdiv");
             emit_swap();
             break;
         case tokOrAssign:  emit_rtl("ccor");  break;
@@ -123,7 +143,7 @@ void far_parse_compound_assign(TOKEN op, uint8_t dereference, SYMBOL *sym, uint8
             break;
         case tokShrAssign:
             emit_instrln("ld b,l");
-            emit_instrln("bsra de,b");
+            emit_instrln(type_is_uint16(type_id) || type_is_byte(type_id) ? "bsrl de,b" : "bsra de,b");
             emit_swap();
             break;
         default:
@@ -147,7 +167,10 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
     if (IS_DEFINED(*sym) && type_is_const(sym->type_id)) {
         EXPR_RESULT r = parse_expr_delayconst(0, 0);
         if (!type_is_const(r.type_id)) error(errConstExpected);
+        if (type_is_uint16(sym->type_id) && expr_const_is_negative(&r))
+            error(errTypeError); /* now routed through the BANK_43 stub */
         /* Apply fixed <-> int/char conversion at compile time, same as the non-const path. */
+
         if (type_is_fixed(sym->type_id) && !type_is_fixed(r.type_id) &&
             type_is_integral(r.type_id)) {
             r.value = (uint16_t)((int16_t)r.value << 4);
@@ -320,7 +343,11 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
 
         emit_push();
     }
+    
     EXPR_RESULT r_result = parse_expr_delayconst(0, type_id);
+
+    if (type_is_uint16(type_id) && expr_const_is_negative(&r_result))
+        error(errTypeError);
 
     /* Reject cross-enum assignment: enum A <- enum B is always an error.
      * Same-enum is allowed; enum <- scalar and scalar <- enum are allowed. */

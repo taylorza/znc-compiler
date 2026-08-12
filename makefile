@@ -7,8 +7,8 @@ ZCC     = zcc
 ASM     = z80asm
 
 MAX_ALLOCS = 20000
-CFLAGS = -m -c -clib=sdcc_iy -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLOCS)
-CFLAGS_O2 = -m -c -clib=sdcc_iy -SO2 -opt-code-size --max-allocs-per-node$(MAX_ALLOCS)
+CFLAGS = --list -m -c -clib=sdcc_iy -O3 -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLOCS)
+CFLAGS_O2 = --list -m -c -clib=sdcc_iy -O2 -SO2 -opt-code-size --max-allocs-per-node$(MAX_ALLOCS)
 AFLAGS =
 LFLAGS = -m -startup=30 -clib=sdcc_iy -subtype=dotn -pragma-include:zpragma.inc -create-app
 
@@ -107,7 +107,7 @@ $(OUTPUT_DIR)/identtbl.o: identtbl.c | $(OUTPUT_DIR)
 
 $(OUTPUT_DIR)/exprex.o: exprex.c | $(OUTPUT_DIR)
 	@echo "Compiling BANK 45 (expr extras)"
-	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_45 --codesegBANK_45 --constsegBANK_45 --bsssegBANK_45
+	$(ZCC) $(TARGET) $(CFLAGS_O2) $< -o $@ --datasegBANK_45 --codesegBANK_45 --constsegBANK_45 --bsssegBANK_45
 	@echo "-> Generated $@"
 
 $(OUTPUT_DIR)/typedata3.o: typedata3.c | $(OUTPUT_DIR)
@@ -150,4 +150,5 @@ clean:
 	@echo "Cleaning generated files..."
 	rm -rf $(OUTPUT_DIR) $(TARGET_BIN)
 	rm -rf *.bin
+	rm -rf *.lis
 	@echo "Clean complete."

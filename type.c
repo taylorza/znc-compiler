@@ -15,6 +15,7 @@ extern void type_write_to_bank(uint8_t type_id, TypeEntry entry) MYCC;
 uint8_t TYPE_ID_VOID = 0;
 uint8_t TYPE_ID_CHAR = 0;
 uint8_t TYPE_ID_BYTE = 0;
+uint8_t TYPE_ID_UINT16 = 0;
 uint8_t TYPE_ID_INT = 0;
 uint8_t TYPE_ID_FIXED = 0;
 uint8_t TYPE_ID_CHAR_PTR = 0;
@@ -40,9 +41,17 @@ void type_init(void) MYCC {
     TYPE_ID_VOID = type_make_void();
     TYPE_ID_CHAR = type_make_char(0);
     TYPE_ID_BYTE = type_make_byte(0);
+    TYPE_ID_UINT16 = type_make_uint16(0);
     TYPE_ID_INT = type_make_int(0);
     TYPE_ID_FIXED = type_make_fixed(0);
     TYPE_ID_CHAR_PTR = type_make_pointer(TYPE_ID_CHAR, 1);
+}
+
+uint8_t type_make_uint16(uint8_t is_const) MYCC {
+    TypeEntry entry = {0};
+    TYPE_SET_KIND(entry, TK_UINT16);
+    if (is_const) TYPE_SET_CONST(entry);
+    return far_type_intern(entry);
 }
 
 uint8_t type_as_const(uint8_t type_id) MYCC {
@@ -185,12 +194,32 @@ uint8_t type_is_byte(uint8_t type_id) MYCC {
     return type_get_kind(type_id) == TK_BYTE && type_get_indirection(type_id) == 0;
 }
 
-uint8_t type_is_integral(uint8_t type_id) MYCC { /* char, byte, int, enum */
-    return (type_get_kind(type_id) == TK_CHAR || type_get_kind(type_id) == TK_BYTE || type_get_kind(type_id) == TK_INT || type_get_kind(type_id) == TK_ENUM)   && type_get_indirection(type_id) == 0;
+uint8_t type_is_uint16(uint8_t type_id) MYCC {
+    return type_get_kind(type_id) == TK_UINT16 && type_get_indirection(type_id) == 0;
+}
+
+uint8_t type_is_integral(uint8_t type_id) MYCC { /* char, byte, int, uint16, enum */
+    return (type_get_kind(type_id) == TK_CHAR || type_get_kind(type_id) == TK_BYTE || type_get_kind(type_id) == TK_INT || type_get_kind(type_id) == TK_UINT16 || type_get_kind(type_id) == TK_ENUM)   && type_get_indirection(type_id) == 0;
 }
 
 uint8_t type_is_8bit(uint8_t type_id) MYCC {    /* char, byte */
     return (type_get_kind(type_id) == TK_CHAR || type_get_kind(type_id) == TK_BYTE)   && type_get_indirection(type_id) == 0;
+}
+
+uint8_t type_is_16bit_integer(uint8_t type_id) MYCC { /* int, uint16 */
+    return (type_get_kind(type_id) == TK_INT || type_get_kind(type_id) == TK_UINT16) && type_get_indirection(type_id) == 0;
+}
+
+uint8_t type_is_scalar(uint8_t type_id) MYCC {
+    return type_is_integral(type_id) || type_is_fixed(type_id);
+}
+
+uint8_t type_is_signed_scalar(uint8_t type_id) MYCC {
+    return (type_is_char(type_id) || type_is_int(type_id)) && type_get_indirection(type_id) == 0;
+}
+
+uint8_t type_is_unsigned_scalar(uint8_t type_id) MYCC {
+    return (type_is_byte(type_id) || type_is_uint16(type_id)) && type_get_indirection(type_id) == 0;
 }
 
 uint8_t type_is_int(uint8_t type_id) MYCC {
@@ -200,6 +229,7 @@ uint8_t type_is_int(uint8_t type_id) MYCC {
 uint8_t type_is_fixed(uint8_t type_id) MYCC {
     return type_get_kind(type_id) == TK_FIXED && type_get_indirection(type_id) == 0;
 }
+
 
 uint8_t type_is_struct(uint8_t type_id) MYCC {
     return type_get_kind(type_id) == TK_STRUCT && type_get_indirection(type_id) == 0;
@@ -280,6 +310,7 @@ uint16_t type_size(uint8_t type_id) MYCC {
     if (kind == TK_CHAR) return 1;
     if (kind == TK_BYTE) return 1;
     if (kind == TK_INT) return 2;
+    if (kind == TK_UINT16) return 2;
     if (kind == TK_FIXED) return 2;  /* 16-bit fixed point 12.4 */
     
     return 0;  /* VOID, FUNCTION, etc. */

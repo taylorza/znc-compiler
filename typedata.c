@@ -39,6 +39,11 @@ static uint8_t peel_to_base(uint8_t type_id) MYCC {
     return type_id;
 }
 
+static uint8_t kind_is_scalar(uint8_t kind) MYCC {
+    return kind == TK_CHAR || kind == TK_BYTE || kind == TK_INT ||
+           kind == TK_UINT16 || kind == TK_FIXED;
+}
+
 /* BANK_43: Type compatibility checking
  * to_type_id: target type (assignment destination)
  * from_type_id: source type (value being assigned)
@@ -91,22 +96,21 @@ uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC
     uint8_t is_enum_from = (kind_from == TK_INT && indir_from == 0 && t2.aux0 != 0) ? 1 : 0;
     if (is_enum_to || is_enum_from) {
         if (is_enum_to && is_enum_from) return (t1.aux0 == t2.aux0) ? 1 : 0;
-        /* One side is enum, the other is a plain scalar � allow */
-        if (indir_to == 0 && indir_from == 0) {
-            uint8_t scalar_to   = (kind_to   == TK_CHAR || kind_to   == TK_BYTE || kind_to   == TK_INT || kind_to   == TK_FIXED);
-            uint8_t scalar_from = (kind_from == TK_CHAR || kind_from == TK_BYTE || kind_from == TK_INT || kind_from == TK_FIXED);
-            if (scalar_to || scalar_from) return 1;
+        /* One side is enum, the other is a plain scalar: allow */
+        if (indir_to == 0 && indir_from == 0 &&
+            (kind_is_scalar(kind_to) || kind_is_scalar(kind_from))) {
+            return 1;
         }
         return 0;
     }
 
-    /* For non-pointer scalars (char/byte/int/fixed), allow compatibility between them */
-    if (indir_to == 0 && indir_from == 0 && 
-        (kind_to == TK_CHAR || kind_to == TK_BYTE || kind_to == TK_INT || kind_to == TK_FIXED) && 
-        (kind_from == TK_CHAR || kind_from == TK_BYTE || kind_from == TK_INT || kind_from == TK_FIXED)) {
+    /* For non-pointer scalars (char/byte/int/uint16/fixed), allow compatibility between them */
+    if (indir_to == 0 && indir_from == 0 &&
+        kind_is_scalar(kind_to) && kind_is_scalar(kind_from)) {
         /* Scalars are compatible in both directions */
         return 1;
     }
+
 
     /* Detect arrays regardless of indirection (arrays may degrade to pointers) */
     uint8_t is_array_to = (kind_to == TK_ARRAY) ? 1 : 0;
@@ -122,7 +126,7 @@ uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC
     if (is_array_to && !is_array_from && indir_from == 0) return 0;
     if (is_array_from && !is_array_to && indir_to == 0) {
         /* Allow array -> int/char/byte: scalar holds the array base address */
-        if (kind_to == TK_CHAR || kind_to == TK_BYTE || kind_to == TK_INT) return 1;
+        if (kind_to == TK_CHAR || kind_to == TK_BYTE || kind_to == TK_INT || kind_to == TK_UINT16) return 1;
         return 0;
     }
 
@@ -190,12 +194,12 @@ uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC
      */
     if (indir_to > 0 && indir_from == 0) {
         /* Target is pointer, source is non-pointer: allow scalar -> pointer */
-        if (kind_from == TK_CHAR || kind_from == TK_BYTE || kind_from == TK_INT || kind_from == TK_FIXED) return 1;
+        if (kind_from == TK_CHAR || kind_from == TK_BYTE || kind_from == TK_INT || kind_from == TK_UINT16 || kind_from == TK_FIXED) return 1;
         return 0;
     }
     if (indir_from > 0 && indir_to == 0) {
         /* Source is pointer, target is scalar integer: allow (int/char/byte hold the address value) */
-        if (kind_to == TK_CHAR || kind_to == TK_BYTE || kind_to == TK_INT) return 1;
+        if (kind_to == TK_CHAR || kind_to == TK_BYTE || kind_to == TK_INT || kind_to == TK_UINT16) return 1;
         return 0;
     }
     

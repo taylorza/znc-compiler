@@ -311,6 +311,7 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
         case tokVoid:
         case tokChar:
         case tokByte:
+        case tokUint16:
         case tokInt:
         case tokFixed:
             parse_decl();
@@ -385,6 +386,7 @@ static uint8_t make_const_type(uint8_t type_id) MYCC {
     TypeKind kind = type_get_kind(type_id);
     if (kind == TK_CHAR) return type_make_char(1);
     else if (kind == TK_BYTE) return type_make_byte(1);
+    else if (kind == TK_UINT16) return type_make_uint16(1);
     else if (kind == TK_INT) return type_make_int(1);
     else if (kind == TK_FIXED) return type_make_fixed(1);
     else if (kind == TK_STRUCT) {
@@ -578,7 +580,7 @@ void parse_for(void) MYCC {
 
 	// parse initializer
 	uint8_t init_is_decl = 0;
-	if (tok == tokConst || tok == tokChar || tok == tokByte || tok == tokInt || tok == tokFixed || tok == tokVoid) {
+    if (tok == tokConst || tok == tokChar || tok == tokByte || tok == tokUint16 || tok == tokInt || tok == tokFixed || tok == tokVoid) {
 		init_is_decl = 1;
 	} else if (tok == tokIdent) {
 		if (find_struct(token) >= 0 || type_find_by_name(token) != -1)
@@ -707,6 +709,9 @@ void parse_type(uint8_t *type_id_out) MYCC {
             break;
         case tokByte:
             base_type_id = TYPE_ID_BYTE;
+            break;
+        case tokUint16:
+            base_type_id = TYPE_ID_UINT16;
             break;
         case tokInt:
             base_type_id = TYPE_ID_INT;

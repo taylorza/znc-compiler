@@ -5,7 +5,8 @@ make dot "feature_test.dot";
 // ============================================================
 const byte TEST_G1 = 0;
 const byte TEST_G2 = 0;
-const byte TEST_G3 = 1;
+const byte TEST_G3 = 0;
+const byte TEST_G4 = 1;
 
 const byte TEST_BASIC   = TEST_G1;   // typ_glb, const, arith, bitwise, compare, ternary, incdec
 const byte TEST_FLOW    = TEST_G1;
@@ -40,6 +41,12 @@ const byte TEST_DLGFNS = 1;
 const byte TEST_DLGFNS = 1;
 #else
 const byte TEST_DLGFNS = 0;
+#endif
+
+#if TEST_G4
+uint16[3] g_u16_vals = {0, 32768, 65535};
+uint16 g_u16 = 50000;
+uint16 g_u16_folded = 65535 / 2;
 #endif
 
 // ============================================================
@@ -1355,6 +1362,84 @@ void test_addrof() {
 }
 #endif
 
+#if TEST_G4
+uint16 add_u16(uint16 a, uint16 b) {
+    return a + b;
+}
+
+uint16 math_u16(uint16 a, uint16 b) {
+    uint16 p = a * b;
+    uint16 q = a / b;
+    uint16 r = a % b;
+    return p + q + r;
+}
+
+uint16 *add_u16_ptr(uint16 *p, uint16 n) {
+    return p + n;
+}
+
+void test_u16mix() {
+    uint16 u = 40000;
+    int si = 2;
+    byte ub = 3;
+    const fixed shcnt = 2.0;
+    uint16 sum = u + si;
+    uint16 prod = u * ub;
+    uint16 quot = u / si;
+    uint16 rem = u % si;
+    uint16 bits = u | 1;
+    uint16 shl = 1 << shcnt;
+    uint16 shr = 65535 >> shcnt;
+
+    chk("u16_mixadd", sum == 40002);
+    chk("u16_mixmul", prod == 54464);
+    chk("u16_mixdiv", quot == 20000);
+    chk("u16_mixmod", rem == 0);
+    chk("u16_mixbit", bits == 40001);
+    chk("u16_mixshl", shl == 4);
+    chk("u16_mixshr", shr == 16383);
+    chk("u16_mixcmp", u > si);
+}
+
+void test_uint16() {
+    // Global storage and compile-time folding
+    chk("u16_global", g_u16 == 50000);
+    chk("u16_arr0",   g_u16_vals[0] == 0);
+    chk("u16_arr1",   g_u16_vals[1] == 32768);
+    chk("u16_arr2",   g_u16_vals[2] == 65535);
+    chk("u16_folded", g_u16_folded == 32767);
+
+    // Local storage, wrapping arithmetic, and unsigned comparisons
+    uint16 x = 65535;
+    uint16 y = 1;
+    uint16 z = x + y;
+    chk("u16_wrap", z == 0);
+    chk("u16_gt",   x > y);
+    chk("u16_lt",   y < 32768);
+    chk("u16_ge",   x >= 50000);
+    chk("u16_call", add_u16(60000, 5535) == 65535);
+    chk("u16_math", math_u16(12, 3) == 40);
+
+    // Pointer indexing and pointer arithmetic
+    uint16[3] vals = {10, 20, 30};
+    uint16 *p = add_u16_ptr(vals, 1);
+    chk("u16_ptr", *p == 20);
+
+    // Compound assignment operators
+    uint16 c = 12;
+    c *= 3;
+    chk("u16_mul", c == 36);
+    c /= 4;
+    chk("u16_div", c == 9);
+    c %= 4;
+    chk("u16_mod", c == 1);
+    c >>= 1;
+    chk("u16_shr", c == 0);
+
+    test_u16mix();
+}
+#endif
+
 
 pass_count = 0;
 fail_count = 0;
@@ -1431,6 +1516,11 @@ test_arrdec();
 test_brinit();
 test_callconv();
 test_addrof();
+#endif
+
+#if TEST_G4
+test_uint16();
+test_u16mix();
 #endif
 
 puts("================\r");

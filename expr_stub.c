@@ -11,6 +11,12 @@ EXPR_RESULT parse_expr(uint8_t minprec, uint8_t expected_type_id) MYCC {
     EPILOG_RETURN(r);
 }
 
+uint8_t expr_const_is_negative(EXPR_RESULT *expr) MYCC {
+    PROLOG(43)
+    uint8_t r = far_expr_const_is_negative(expr);
+    EPILOG_RETURN(r);
+}
+
 EXPR_RESULT parse_expr_delayconst(uint8_t minprec, uint8_t expected_type_id) MYCC {
     PROLOG(43)
     EXPR_RESULT r = far_parse_expr_delayconst(minprec, expected_type_id);

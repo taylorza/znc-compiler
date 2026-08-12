@@ -134,7 +134,7 @@ RTLREC rtltbl[] = {
     {"ccneg",
 #include "RTL/generated/ccneg.inc"
     "cccom",
-    FLAG_RTL_INLINE
+    FLAG_RTL_NONE
     },
     // HL = ~HL
     {"cccom",
@@ -151,6 +151,12 @@ RTLREC rtltbl[] = {
     // HL = HL * DE
     {"ccmult",
 #include "RTL/generated/ccmult.inc"
+    "ccumult",
+    FLAG_RTL_NONE
+    },
+    // Unsigned HL * DE
+    {"ccumult",
+#include "RTL/generated/ccumult.inc"
     NULL,
     FLAG_RTL_NONE
     },
@@ -158,6 +164,13 @@ RTLREC rtltbl[] = {
     // DE = DE % HL
     {"ccdiv",
 #include "RTL/generated/ccdiv.inc"
+    "ccneg,ccudiv",
+    FLAG_RTL_NONE
+    },
+    // Unsigned HL = DE / HL
+    // Unsigned DE = DE % HL
+    {"ccudiv",
+#include "RTL/generated/ccudiv.inc"
         NULL,
         FLAG_RTL_NONE
     },

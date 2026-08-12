@@ -68,6 +68,103 @@ static void emit_scale_reg(uint16_t scale, SCALE_REG reg) MYCC {
     }
 }
 
+/* Lives in BANK_43; cross-bank callers must go through the expr_const_is_negative stub in expr_stub.c. */
+uint8_t far_expr_const_is_negative(EXPR_RESULT *expr) MYCC {
+    if (!expr || !type_is_const(expr->type_id)) return 0;
+    if (expr->is_negative) return 1;
+    if (type_is_char(expr->type_id) || type_is_int(expr->type_id)) {
+        return ((int16_t)expr->value) < 0;
+    }
+    return 0;
+}
+
+static uint8_t expr_effective_integer_signedness(EXPR_RESULT *expr) MYCC {
+    if (!expr) return 0;
+
+    if (type_is_pointer(expr->type_id)) return 1; /* pointer compares are unsigned addresses */
+    if (type_is_byte(expr->type_id) || type_is_uint16(expr->type_id)) return 1;
+    if (type_is_char(expr->type_id) || type_is_int(expr->type_id)) return 0;
+
+    /* Const integral values inherit the scalar type that produced them. Keep
+     * signedness derived from type semantics rather than ad hoc sign heuristics. */
+    if (type_is_const(expr->type_id) && type_is_integral(expr->type_id)) {
+        if (type_is_byte(expr->type_id) || type_is_uint16(expr->type_id)) return 1;
+        return 0;
+    }
+
+    return 0;
+}
+
+static uint8_t expr_operand_has_unsigned_semantics(EXPR_RESULT *expr) MYCC {
+    if (!expr) return 0;
+    return expr_effective_integer_signedness(expr) == 1;
+}
+
+static uint8_t expr_shift_right_is_unsigned(EXPR_RESULT *expr) MYCC {
+    if (!expr) return 0;
+    if (type_is_pointer(expr->type_id)) return 1;
+    if (type_is_byte(expr->type_id) || type_is_uint16(expr->type_id)) return 1;
+    if (type_is_const(expr->type_id) && type_is_integral(expr->type_id)) {
+        return !far_expr_const_is_negative(expr);
+    }
+    return 0;
+}
+
+static uint8_t expr_common_scalar_type(EXPR_RESULT *left, EXPR_RESULT *right, uint8_t is_const) MYCC {
+    uint8_t type_id;
+    if (type_is_fixed(left->type_id) || type_is_fixed(right->type_id))
+        type_id = TYPE_ID_FIXED;
+    else if (type_is_uint16(left->type_id) || type_is_uint16(right->type_id))
+        type_id = TYPE_ID_UINT16;
+    else if (type_is_byte(left->type_id) || type_is_byte(right->type_id))
+        type_id = TYPE_ID_BYTE;
+    else
+        type_id = TYPE_ID_INT;
+    return is_const ? type_as_const(type_id) : type_id;
+}
+
+static uint8_t expr_shift_result_type(EXPR_RESULT *left, uint8_t is_const) MYCC {
+    uint8_t type_id = left->type_id;
+
+    if (type_is_const(type_id)) {
+        if (type_is_char(type_id)) type_id = TYPE_ID_CHAR;
+        else if (type_is_byte(type_id)) type_id = TYPE_ID_BYTE;
+        else if (type_is_uint16(type_id)) type_id = TYPE_ID_UINT16;
+        else if (type_is_int(type_id)) type_id = TYPE_ID_INT;
+        else if (type_is_fixed(type_id)) type_id = TYPE_ID_FIXED;
+    }
+    return is_const ? type_as_const(type_id) : type_id;
+}
+
+static uint8_t is_unsigned_comparison(EXPR_RESULT *left, EXPR_RESULT *right) MYCC {
+    if (type_is_pointer(left->type_id) || type_is_pointer(right->type_id))
+        return 1;
+
+    return expr_operand_has_unsigned_semantics(left) || expr_operand_has_unsigned_semantics(right);
+}
+
+static uint8_t make_runtime_scalar_type(uint8_t type_id) MYCC {
+    if (type_is_char(type_id)) return TYPE_ID_CHAR;
+    if (type_is_byte(type_id)) return TYPE_ID_BYTE;
+    if (type_is_uint16(type_id)) return TYPE_ID_UINT16;
+    if (type_is_int(type_id)) return TYPE_ID_INT;
+    if (type_is_fixed(type_id)) return TYPE_ID_FIXED;
+    return type_id;
+}
+
+static uint8_t is_unsigned_integer_operation(EXPR_RESULT *left, EXPR_RESULT *right) MYCC {
+    if (type_is_pointer(left->type_id) || type_is_pointer(right->type_id))
+        return 0;
+
+    return expr_operand_has_unsigned_semantics(left) || expr_operand_has_unsigned_semantics(right);
+}
+
+
+
+
+
+
+
 /* Helper: Emit inc/dec of HL by 'step' (modifies HL, isdec=1 for decrement) */
 static void emit_incdec_step(uint16_t step, uint8_t isdec) MYCC {
     if (step <= 3) {
@@ -304,7 +401,7 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
     if (!is_cmp_op) {
         /* Fixed-type offsets in pointer arithmetic are first converted to int (>> 4) */
         if ((type_is_pointer(left->type_id) || type_is_array(left->type_id)) &&
-            (type_is_int(r_result.type_id) || type_is_fixed(r_result.type_id))) {
+            (type_is_16bit_integer(r_result.type_id) || type_is_fixed(r_result.type_id))) {
             uint8_t elem_id = type_get_element_type_id(left->type_id);
             scaleR = type_size(elem_id);
             /* If the offset is fixed, convert it to int BEFORE scaling. */
@@ -319,7 +416,7 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
             }
         }
         if ((type_is_pointer(r_result.type_id) || type_is_array(r_result.type_id)) &&
-            (type_is_int(left->type_id) || type_is_fixed(left->type_id))) {
+            (type_is_16bit_integer(left->type_id) || type_is_fixed(left->type_id))) {
             uint8_t elem_id = type_get_element_type_id(r_result.type_id);
             scaleL = type_size(elem_id);
             if (type_is_const(left->type_id) && type_is_fixed(left->type_id))
@@ -350,7 +447,7 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
         error(errTypeError);
     }
 
-    uint8_t left_is_unsigned = type_is_byte(left->type_id) || type_is_pointer(left->type_id);
+    uint8_t left_is_unsigned = expr_shift_right_is_unsigned(left);
     if (type_is_const(left->type_id) && type_is_const(r_result.type_id)) {
         uint8_t lf = type_is_fixed(left->type_id);
         uint8_t rf = type_is_fixed(r_result.type_id);
@@ -361,8 +458,9 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
             else if (rf && !lf) { left->value = left->value << 4; lf = 1; }
         }
 
-        uint8_t fold_unsigned = pointer ||
+        uint8_t fold_unsigned = is_unsigned_comparison(left, &r_result) ||
             (type_is_byte(left->type_id) && type_is_byte(r_result.type_id));
+        uint8_t fold_unsigned_arith = is_unsigned_integer_operation(left, &r_result);
         switch (op) {
             case tokLt:
                 left->value = fold_unsigned ? (left->value < r_result.value) : ((int16_t)left->value < (int16_t)r_result.value);
@@ -392,15 +490,20 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
                 /* fixed * fixed in Q4: (a*b)>>4 */
                 /* Cast to int32_t before multiply to avoid overflow on 16-bit targets (SDCC). */
                 if (lf && rf) left->value = (uint16_t)(((int32_t)(int16_t)left->value * (int32_t)(int16_t)r_result.value) >> 4);
+                else if (fold_unsigned_arith) left->value = (uint16_t)left->value * (uint16_t)r_result.value;
                 else left->value = left->value * r_result.value;
                 break;
             case tokDiv:
                 /* fixed / fixed in Q4: (a<<4)/b */
                 /* Cast to int32_t before shift to avoid overflow on 16-bit targets (SDCC). */
                 if (lf && rf) left->value = (uint16_t)(((int32_t)(int16_t)left->value << 4) / (int32_t)(int16_t)r_result.value);
+                else if (fold_unsigned_arith) left->value = (uint16_t)left->value / (uint16_t)r_result.value;
                 else left->value = left->value / r_result.value;
                 break;
-            case tokMod: left->value = left->value % r_result.value; break;
+            case tokMod:
+                if (fold_unsigned_arith) left->value = (uint16_t)left->value % (uint16_t)r_result.value;
+                else left->value = left->value % r_result.value;
+                break;
             case tokShl: 
                 if (left_is_unsigned)
                     left->value = (uint16_t)left->value << (rf ? (r_result.value >> 4) : r_result.value); 
@@ -408,13 +511,13 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
                     left->value = left->value << (rf ? (uint16_t)((int16_t)r_result.value >> 4) : r_result.value); 
                     
                 break;
-            case tokShr: 
-                if (left_is_unsigned)
-                    left->value = (uint16_t)left->value >> (rf ? (r_result.value >> 4) : r_result.value); 
+            case tokShr:
+                if (expr_shift_right_is_unsigned(left))
+                    left->value = (uint16_t)left->value >> (rf ? (r_result.value >> 4) : r_result.value);
                 else
-                    left->value = left->value >> (rf ? (uint16_t)((int16_t)r_result.value >> 4) : r_result.value); 
-                
+                    left->value = left->value >> (rf ? (uint16_t)((int16_t)r_result.value >> 4) : r_result.value);
                 break;
+
             case tokBitOr: left->value = left->value | r_result.value; break;
             case tokBitAnd: left->value = left->value & r_result.value; break;
             case tokBitXor: left->value = left->value ^ r_result.value; break;
@@ -422,7 +525,9 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
                 error(errIllegalOp);
                 break;
         }
-        /* Result type: comparisons always produce int (0 or 1); arithmetic preserves fixed */
+        /* Result type: comparisons always produce int (0 or 1); fixed arithmetic
+         * stays fixed, and other scalar arithmetic follows the common scalar type
+         * implied by the operands. */
         switch (op) {
             case tokEq: case tokNeq:
             case tokLt: case tokLeq:
@@ -430,11 +535,12 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
                 left->type_id = type_make_int(1);
                 break;
             case tokShl: case tokShr:
-                /* Shift result follows the left operand only (right is the count) */
                 if (lf) left->type_id = type_make_fixed(1);
+                else left->type_id = expr_shift_result_type(left, 1);
                 break;
             default:
                 if (lf || rf) left->type_id = type_make_fixed(1);
+                else left->type_id = expr_common_scalar_type(left, &r_result, 1);
                 break;
         }
         left->has_sym = 0;  /* Result is a folded value, not a direct symbol reference */  
@@ -492,7 +598,7 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
         }
     }
 
-    uint8_t use_unsigned = pointer ||
+    uint8_t use_unsigned = is_unsigned_comparison(left, &r_result) ||
         (type_is_byte(left->type_id) && type_is_byte(r_result.type_id));
 
     switch (op) {
@@ -527,17 +633,21 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
         case tokStar:
             if (either_fixed)
                 emit_rtl("ccfxmul");
+            else if (is_unsigned_integer_operation(left, &r_result))
+                emit_rtl("ccumult");
             else
                 emit_rtl("ccmult");
             break;
         case tokDiv:
             if (either_fixed)
                 emit_rtl("ccfxdiv");
+            else if (is_unsigned_integer_operation(left, &r_result))
+                emit_rtl("ccudiv");
             else
                 emit_rtl("ccdiv");
             break;
         case tokMod:
-            emit_rtl("ccdiv");
+            emit_rtl(is_unsigned_integer_operation(left, &r_result) ? "ccudiv" : "ccdiv");
             emit_swap();
             break;
         case tokShl:
@@ -549,7 +659,7 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
         case tokShr:
             if (right_is_fixed) emit_fixed_to_int();
             emit_instrln("ld b,l");
-            if (left_is_unsigned) emit_instrln("bsrl de,b"); else emit_instrln("bsra de,b");
+            if (expr_shift_right_is_unsigned(left)) emit_instrln("bsrl de,b"); else emit_instrln("bsra de,b");
             emit_swap();
             break;
         case tokBitOr:
@@ -568,15 +678,23 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
 
     /* After emitting runtime code, result is no longer const or a simple symbol */
     if (type_is_const(left->type_id)) {
-        left->type_id = TYPE_ID_INT;
+        left->type_id = make_runtime_scalar_type(left->type_id);
     }
     /* Comparison/relational operators always produce an int (0 or 1) result */
     if (op == tokEq || op == tokNeq || op == tokLt || op == tokLeq || op == tokGt || op == tokGeq) {
         left->type_id = TYPE_ID_INT;
     }
-    /* If either operand was fixed and this is an arithmetic op, result is fixed */
-    if (either_fixed && (op == tokPlus || op == tokMinus || op == tokStar || op == tokDiv || op == tokMod)) {
+    /* If either operand was fixed and this is an arithmetic op, result is fixed.
+     * Otherwise, derive the runtime result type from the common scalar semantics
+     * of the operands so mixed int/uint16 arithmetic shares one type rule. */
+    else if (either_fixed && (op == tokPlus || op == tokMinus || op == tokStar || op == tokDiv || op == tokMod)) {
         left->type_id = TYPE_ID_FIXED;
+    }
+    else if (op == tokPlus || op == tokMinus || op == tokStar || op == tokDiv || op == tokMod) {
+        left->type_id = expr_common_scalar_type(left, &r_result, 0);
+    }
+    else if (op == tokBitOr || op == tokBitAnd || op == tokBitXor) {
+        left->type_id = expr_common_scalar_type(left, &r_result, 0);
     }
     /* Shift result follows the left operand type only (right operand is the count) */
     if (left_is_fixed && (op == tokShl || op == tokShr)) {
@@ -669,7 +787,12 @@ EXPR_RESULT far_parse_expr_delayconst(uint8_t minprec, uint8_t expected_type_id)
         } else if (expected_type_id != 0 && !type_is_fixed(expected_type_id) && type_is_fixed(expr_result.type_id) &&
                    type_is_integral(expected_type_id)) {
             expr_result.value = (uint16_t)((int16_t)expr_result.value >> 4);
-            expr_result.type_id = type_make_int(1);
+             if (type_is_uint16(expected_type_id))
+                expr_result.type_id = type_make_uint16(1);
+            else if (type_is_byte(expected_type_id))
+                expr_result.type_id = type_make_byte(1);
+            else
+                expr_result.type_id = type_make_int(1);
         }
     }
     return expr_result;
@@ -1047,7 +1170,7 @@ static void parse_factor_postfix(EXPR_RESULT* result, uint8_t* dereference, uint
 #define PF_IDENT_ARENA  0x20
 
 EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
-    EXPR_RESULT factor_result = { .type_id = expected_type_id, .has_sym = 0 };
+    EXPR_RESULT factor_result = { .type_id = expected_type_id, .has_sym = 0, .is_negative = 0 };
     uint8_t flags = 0;   /* PF_* bit-flags: neg/not/cmpl/prefix_inc/prefix_dec/ident_arena */
     uint8_t addr_in_hl = 0;
     uint8_t initial_deref = dereference;
@@ -1276,6 +1399,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             break;
 
         case tokNumber:
+            factor_result.is_negative = (flags & PF_NEG) ? 1 : 0;
             if (flags & PF_NEG) intval = -intval;
             if (flags & PF_NOT) intval = !intval;
             if (flags & PF_CMPL) intval = ~intval;
@@ -1287,7 +1411,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
                 factor_result.type_id = TYPE_ID_INT;                
                 dereference = 0;
             } else {
-                factor_result.type_id = type_make_int(1);
+                factor_result.type_id = type_is_uint16(expected_type_id) ? type_make_uint16(1) : type_make_int(1);
                 factor_result.value = intval;
             }
             break;

@@ -10,8 +10,13 @@ typedef struct EXPR_RESULT {
     uint16_t value;
     uint8_t type_id;
     uint8_t has_sym; /* whether sym is valid */
-    
+    uint8_t is_negative; /* direct unary-negative constant */
+
 } EXPR_RESULT;
+
+/* far_expr_const_is_negative lives in BANK_43; use the expr_const_is_negative stub from other banks. */
+uint8_t far_expr_const_is_negative(EXPR_RESULT *expr) MYCC;
+uint8_t expr_const_is_negative(EXPR_RESULT *expr) MYCC;
 
 EXPR_RESULT parse_expr(uint8_t minprec, uint8_t expected_type_id) MYCC;
 EXPR_RESULT parse_expr_delayconst(uint8_t minprec, uint8_t expected_type_id) MYCC;

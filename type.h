@@ -26,7 +26,8 @@ typedef enum TypeKind {
     TK_FUNCTION = 6,/* function pointer */
     TK_STRUCT = 5,  /* structure */
     TK_ARRAY = 7,   /* array */
-    TK_ENUM = 8     /* named enumeration */
+    TK_ENUM = 8,    /* named enumeration */
+    TK_UINT16 = 9   /* unsigned 16-bit */
 } TypeKind;
 
 /* Compact type descriptor (now 4 bytes with uint16_t aux1 for larger arrays) */
@@ -43,6 +44,7 @@ void type_init(void) MYCC;
 uint8_t type_as_const(uint8_t type_id) MYCC;
 uint8_t type_make_char(uint8_t is_const) MYCC;
 uint8_t type_make_byte(uint8_t is_const) MYCC;
+uint8_t type_make_uint16(uint8_t is_const) MYCC;
 uint8_t type_make_int(uint8_t is_const) MYCC;
 uint8_t type_make_fixed(uint8_t is_const) MYCC;
 uint8_t type_make_void(void) MYCC;
@@ -62,6 +64,7 @@ uint8_t type_is_const(uint8_t type_id) MYCC;
 uint8_t type_is_void(uint8_t type_id) MYCC;
 uint8_t type_is_char(uint8_t type_id) MYCC;
 uint8_t type_is_byte(uint8_t type_id) MYCC;
+uint8_t type_is_uint16(uint8_t type_id) MYCC;
 uint8_t type_is_int(uint8_t type_id) MYCC;
 uint8_t type_is_fixed(uint8_t type_id) MYCC;
 uint8_t type_is_struct(uint8_t type_id) MYCC;
@@ -69,8 +72,13 @@ uint8_t type_is_enum(uint8_t type_id) MYCC;
 uint8_t type_is_function(uint8_t type_id) MYCC;
 uint8_t type_is_delegate(uint8_t type_id) MYCC;
 
-uint8_t type_is_integral(uint8_t type_id) MYCC; /* char, byte, int */
+uint8_t type_is_integral(uint8_t type_id) MYCC; /* char, byte, int, uint16 */
 uint8_t type_is_8bit(uint8_t type_id) MYCC;    /* char, byte */
+uint8_t type_is_16bit_integer(uint8_t type_id) MYCC; /* int, uint16 */
+uint8_t type_is_scalar(uint8_t type_id) MYCC; /* char, byte, int, uint16, fixed */
+uint8_t type_is_signed_scalar(uint8_t type_id) MYCC; /* char, int */
+uint8_t type_is_unsigned_scalar(uint8_t type_id) MYCC; /* byte, uint16 */
+
 
 /* Array/struct/function accessors */
 uint8_t type_get_element_type(uint8_t array_type_id) MYCC;
@@ -115,6 +123,7 @@ uint8_t type_check_compatible(uint8_t from_type_id, uint8_t to_type_id) MYCC;
 extern uint8_t TYPE_ID_VOID;
 extern uint8_t TYPE_ID_CHAR;
 extern uint8_t TYPE_ID_BYTE;
+extern uint8_t TYPE_ID_UINT16;
 extern uint8_t TYPE_ID_INT;
 extern uint8_t TYPE_ID_FIXED;
 extern uint8_t TYPE_ID_CHAR_PTR;
