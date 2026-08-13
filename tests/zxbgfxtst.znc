@@ -39,7 +39,7 @@ void floodfill(int x, int y) __znccall(1) {
     --right;
     
     zxb_plot(left, y);
-    zxb_draw(right-left, 0);
+    if (right > left) zxb_draw(right-left, 0);
     
     int inspan;
     int yy = y-1;
