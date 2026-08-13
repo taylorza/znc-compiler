@@ -1118,6 +1118,11 @@ void test_typemix() {
     int   rs = bm - cm;
     chk("tmx_bcsub",   rs == 210);
 
+    // Mixed byte/char comparisons and division use their signed int result type
+    chk("tmx_bccmp",   !(bm < cm));
+    int   rd = bm / cm;
+    chk("tmx_bcdiv",   rd == -20);
+
     // pointer from int literal (address cast)
     int addr2 = 0x4000;
     byte *rptr = addr2;
