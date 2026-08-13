@@ -82,6 +82,23 @@ void vsprintf(PFN_PUTC sink, void* sink_ctx, char *fmt, va_list args) __znccall(
         break;
       }
 
+      case 'u': {
+        uint16 p = 0;
+        uint16 u = va_arg(args, uint16);
+        if (u == 0) {
+          _buf_g[p++] = '0';
+        } else {
+          while (u != 0) {
+            _buf_g[p++] = '0' + (u % 10);
+            u = u / 10;
+          }
+        }
+        pad_count = (width > p) ? width - p : 0;
+        _fmt_pad(sink, sink_ctx, pad, pad_count);
+        _fmt_rev_buf(sink, sink_ctx, _buf_g, p);
+        break;
+      }
+
       case 'x':
       case 'X': {
         int p = 0;
