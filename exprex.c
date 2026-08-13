@@ -143,7 +143,7 @@ void far_parse_compound_assign(TOKEN op, uint8_t dereference, SYMBOL *sym, uint8
             break;
         case tokShrAssign:
             emit_instrln("ld b,l");
-            emit_instrln(type_is_uint16(type_id) || type_is_byte(type_id) ? "bsrl de,b" : "bsra de,b");
+            emit_instrln(type_is_unsigned_scalar(type_id) ? "bsrl de,b" : "bsra de,b");
             emit_swap();
             break;
         default:
