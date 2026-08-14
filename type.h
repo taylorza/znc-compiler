@@ -78,6 +78,7 @@ uint8_t type_is_16bit_integer(uint8_t type_id) MYCC; /* int, uint16 */
 uint8_t type_is_scalar(uint8_t type_id) MYCC; /* char, byte, int, uint16, fixed */
 uint8_t type_is_signed_scalar(uint8_t type_id) MYCC; /* char, int */
 uint8_t type_is_unsigned_scalar(uint8_t type_id) MYCC; /* byte, uint16 */
+uint8_t type_common_scalar_type(uint8_t left_type_id, uint8_t right_type_id, uint8_t is_const) MYCC; /* char, byte, int, uint16, fixed */
 
 
 /* Array/struct/function accessors */

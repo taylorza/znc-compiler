@@ -4,20 +4,10 @@
 #include "initializer.h"
 #include "expr.h"
 
-/* parse_ternary, far_parse_assign_ex, and far_parse_compound_assign live here in BANK_46.
+/* parse_ternary, far_parse_assign_ex, and far_parse_compound_assign live here in BANK_45.
  * All recursive expression calls go through the main-bank stubs
  * (parse_expr / parse_expr_delayconst / parse_assign) so that
  * bank-switch is handled correctly on ZX Next. */
-
-static uint8_t ternary_common_scalar_type(uint8_t left_type_id, uint8_t right_type_id) MYCC {
-    if (type_is_fixed(left_type_id) || type_is_fixed(right_type_id))
-        return TYPE_ID_FIXED;
-    if (type_is_uint16(left_type_id) || type_is_uint16(right_type_id))
-        return TYPE_ID_UINT16;
-    if (type_is_byte(left_type_id) || type_is_byte(right_type_id))
-        return TYPE_ID_BYTE;
-    return TYPE_ID_INT;
-}
 
 void far_parse_ternary(EXPR_RESULT *result, uint8_t prec, uint8_t expected_type_id) MYCC {
     uint16_t altlbl = newlbl();
@@ -54,7 +44,7 @@ void far_parse_ternary(EXPR_RESULT *result, uint8_t prec, uint8_t expected_type_
         /* Infer a common runtime type from scalar branches. */
         if (type_is_integral(ptyp.type_id) || type_is_fixed(ptyp.type_id)) {
             if (type_is_integral(atyp.type_id) || type_is_fixed(atyp.type_id)) {
-                result->type_id = ternary_common_scalar_type(ptyp.type_id, atyp.type_id);
+                result->type_id = type_common_scalar_type(ptyp.type_id, atyp.type_id, 0);
             } else {
                 result->type_id = ptyp.type_id;
             }

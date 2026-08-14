@@ -12,7 +12,10 @@ FuncSignature signature_table[MAX_SIGNATURES];
 uint8_t signature_intern(uint8_t calling_convention, uint8_t return_type_id, uint8_t arg_count, const uint8_t* arg_types, uint8_t is_variadic) MYCC {
     uint8_t i, j;
 
-    if (arg_count > MAX_FUNC_ARGS) error(errTooManyArgs);
+    if (arg_count > MAX_FUNC_ARGS) {
+        error(errTooManyArgs);
+        return SIGNATURE_INVALID;
+    }
     
     /* Search for existing identical signature */
     for (i = 0; i < signature_count; i++) {
@@ -33,7 +36,7 @@ uint8_t signature_intern(uint8_t calling_convention, uint8_t return_type_id, uin
     }
     
     /* Not found - add new entry */
-    if (signature_count+1 == MAX_SIGNATURES) {
+    if (signature_count >= MAX_SIGNATURES) {
         error(errTooManyTypes);
         return SIGNATURE_INVALID;
     }

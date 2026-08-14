@@ -222,6 +222,24 @@ uint8_t type_is_unsigned_scalar(uint8_t type_id) MYCC {
     return (type_is_byte(type_id) || type_is_uint16(type_id)) && type_get_indirection(type_id) == 0;
 }
 
+uint8_t type_common_scalar_type(uint8_t left_type_id, uint8_t right_type_id, uint8_t is_const) MYCC {
+    uint8_t type_id;
+
+    if (type_is_fixed(left_type_id) || type_is_fixed(right_type_id))
+        type_id = TYPE_ID_FIXED;
+    else if (type_is_uint16(left_type_id) || type_is_uint16(right_type_id))
+        type_id = TYPE_ID_UINT16;
+    else if (type_is_int(left_type_id) || type_is_int(right_type_id) ||
+             type_is_char(left_type_id) || type_is_char(right_type_id))
+        type_id = TYPE_ID_INT;
+    else if (type_is_byte(left_type_id) || type_is_byte(right_type_id))
+        type_id = TYPE_ID_BYTE;
+    else
+        type_id = TYPE_ID_INT;
+
+    return is_const ? type_as_const(type_id) : type_id;
+}
+
 uint8_t type_is_int(uint8_t type_id) MYCC {
     return type_get_kind(type_id) == TK_INT && type_get_indirection(type_id) == 0;
 }

@@ -1122,6 +1122,7 @@ void test_typemix() {
     chk("tmx_bccmp",   !(bm < cm));
     int   rd = bm / cm;
     chk("tmx_bcdiv",   rd == -20);
+    chk("tmx_bctern",  (0 ? bm : cm) < 0);
 
     // pointer from int literal (address cast)
     int addr2 = 0x4000;

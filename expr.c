@@ -88,22 +88,6 @@ static uint8_t expr_shift_right_is_unsigned(EXPR_RESULT *expr) MYCC {
     return 0;
 }
 
-static uint8_t expr_common_scalar_type(EXPR_RESULT *left, EXPR_RESULT *right, uint8_t is_const) MYCC {
-    uint8_t type_id;
-    if (type_is_fixed(left->type_id) || type_is_fixed(right->type_id))
-        type_id = TYPE_ID_FIXED;
-    else if (type_is_uint16(left->type_id) || type_is_uint16(right->type_id))
-        type_id = TYPE_ID_UINT16;
-    else if (type_is_int(left->type_id) || type_is_int(right->type_id) ||
-             type_is_char(left->type_id) || type_is_char(right->type_id))
-        type_id = TYPE_ID_INT;
-    else if (type_is_byte(left->type_id) || type_is_byte(right->type_id))
-        type_id = TYPE_ID_BYTE;
-    else
-        type_id = TYPE_ID_INT;
-    return is_const ? type_as_const(type_id) : type_id;
-}
-
 static uint8_t expr_shift_result_type(EXPR_RESULT *left, uint8_t is_const) MYCC {
     uint8_t type_id = left->type_id;
 
@@ -120,7 +104,7 @@ static uint8_t expr_shift_result_type(EXPR_RESULT *left, uint8_t is_const) MYCC 
 static uint8_t unsigned_operation_semantics(EXPR_RESULT *left, EXPR_RESULT *right) MYCC {
     if (type_is_pointer(left->type_id) || type_is_pointer(right->type_id))
         return 1;
-    return type_is_unsigned_scalar(expr_common_scalar_type(left, right, 0));
+    return type_is_unsigned_scalar(type_common_scalar_type(left->type_id, right->type_id, 0));
 }
 
 static uint8_t make_runtime_scalar_type(uint8_t type_id) MYCC {
@@ -438,7 +422,7 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
                 break;
             default:
                 if (lf || rf) left->type_id = type_make_fixed(1);
-                else left->type_id = expr_common_scalar_type(left, &r_result, 1);
+                else left->type_id = type_common_scalar_type(left->type_id, r_result.type_id, 1);
                 break;
         }
         left->has_sym = 0;  /* Result is a folded value, not a direct symbol reference */  
@@ -589,10 +573,10 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
         left->type_id = TYPE_ID_FIXED;
     }
     else if (is_arithmetic_op) {
-        left->type_id = expr_common_scalar_type(left, &r_result, 0);
+        left->type_id = type_common_scalar_type(left->type_id, r_result.type_id, 0);
     }
     else if (is_bitwise_op) {
-        left->type_id = expr_common_scalar_type(left, &r_result, 0);
+        left->type_id = type_common_scalar_type(left->type_id, r_result.type_id, 0);
     }
     /* Shift result follows the left operand type only (right operand is the count) */
     if (left_is_fixed && is_shift_op) {
