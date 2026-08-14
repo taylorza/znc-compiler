@@ -1369,6 +1369,33 @@ void test_addrof() {
 #endif
 
 #if TEST_G4
+void test_cmp_i16() {
+    int neg = -1;
+    int zero = 0;
+    int pos = 1;
+
+    chk("sint_eq", neg == -1);
+    chk("sint_ne", neg != pos);
+    chk("sint_lt", neg < zero);
+    chk("sint_le", neg <= -1);
+    chk("sint_gt", pos > zero);
+    chk("sint_ge", pos >= 1);
+}
+
+void test_cmp_u16() {
+    uint16 zero = 0;
+    uint16 high = 32768;
+    uint16 max = 65535;
+
+    chk("u16_cmp_eq", max == 65535);
+    chk("u16_cmp_ne", max != zero);
+    chk("u16_cmp_lt", zero < high);
+    chk("u16_cmp_le", high <= high);
+    chk("u16_cmp_gt", max > high);
+    chk("u16_cmp_ge", max >= 65535);
+    chk("u16_cmp_unsigned", high > zero);
+}
+
 uint16 add_u16(uint16 a, uint16 b) {
     return a + b;
 }
@@ -1525,6 +1552,8 @@ test_addrof();
 #endif
 
 #if TEST_G4
+test_cmp_i16();
+test_cmp_u16();
 test_uint16();
 test_u16mix();
 #endif
