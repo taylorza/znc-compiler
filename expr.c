@@ -1049,14 +1049,59 @@ static void parse_factor_postfix(EXPR_RESULT* result, uint8_t* dereference, uint
 #define PF_CMPL         0x04
 #define PF_PREFIX_INC   0x08
 #define PF_PREFIX_DEC   0x10
-#define PF_IDENT_ARENA  0x20
+
+static void parse_factor_identifier(EXPR_RESULT *result, uint8_t flags) MYCC {
+    ARENA_MARKER ident_mark = arena_get_marker();
+    char* ident_name = arena_strdup(token, strnlen(token, MAX_IDENT_LEN));
+    uint8_t maybe_type_id = (uint8_t)type_find_by_name(token);
+
+    result->sym = lookupIdent(token);
+    if (not_defined(&result->sym)) {
+        if (maybe_type_id != 0xFF && type_is_enum(maybe_type_id)) {
+            get_token(); // skip enum name
+            if (tok == tokMember) {
+                parse_enum_member(result, ident_name);
+                arena_free_to_marker(ident_mark);
+                return;
+            }
+        }
+        error(errNotDefined_s, token);
+        arena_free_to_marker(ident_mark);
+        return;
+    }
+
+    get_token(); // skip identifier
+
+    result->has_sym = 1;
+    result->type_id = result->sym.type_id;
+
+    if (type_is_const(result->sym.type_id)) {
+        result->value = result->sym.stk.offset;
+        if (flags & PF_NEG) result->value = -result->value;
+        if (flags & PF_NOT) result->value = !result->value;
+        if (flags & PF_CMPL) result->value = ~result->value;
+        result->has_sym = 0;
+        arena_free_to_marker(ident_mark);
+        return;
+    }
+
+    if (is_func_or_proto(&result->sym) && tok != tokLParen && tok != tokLBrack) {
+        result->value = 0;
+        result->type_id = type_make_pointer(result->sym.type_id, 1);
+
+        if (!infunc) result->sym.flags |= SYM_FLAG_USED;
+        callgraph_add_edge(currfunc_id, callgraph_add_func(result->sym.name_id));
+        updatesym(&result->sym);
+    }
+
+    arena_free_to_marker(ident_mark);
+}
 
 EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
     EXPR_RESULT factor_result = { .type_id = expected_type_id, .has_sym = 0, .is_negative = 0 };
-    uint8_t flags = 0;   /* PF_* bit-flags: neg/not/cmpl/prefix_inc/prefix_dec/ident_arena */
+    uint8_t flags = 0;   /* PF_* bit-flags: neg/not/cmpl/prefix_inc/prefix_dec */
     uint8_t addr_in_hl = 0;
     uint8_t initial_deref = dereference;
-    ARENA_MARKER ident_mark = 0;
 
     /* Handle prefix ++/-- */
     while (tok == tokInc || tok == tokDec) {
@@ -1077,7 +1122,6 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             if (!type_is_array(expected_type_id) 
              && !type_is_pointer(expected_type_id)) error(errTypeError);
 
-            uint8_t element_type_id = type_get_element_type_id(expected_type_id);
             get_token(); // skip '{'
             uint16_t skiplbl = newlbl();
             emit_jp(skiplbl);
@@ -1304,6 +1348,14 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
                 intval = -intval;
                 flags &= ~PF_NEG;
             }
+            if (flags & PF_NOT) {
+                intval = !intval;
+                flags &= ~PF_NOT;
+            }
+            if (flags & PF_CMPL) {
+                intval = ~intval;
+                flags &= ~PF_CMPL;
+            }
             get_token();
             if (dereference) {
                 error(errTypeError); /* can't dereference a fixed literal */
@@ -1314,53 +1366,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             break;
                                
         case tokIdent: {
-            ident_mark = arena_get_marker();
-            flags |= PF_IDENT_ARENA;
-            char* ident_name = arena_strdup(token, strnlen(token, MAX_IDENT_LEN));
-            uint8_t maybe_type_id = (uint8_t)type_find_by_name(token);
-
-            factor_result.sym = lookupIdent(token);
-            if (not_defined(&factor_result.sym)) {
-                if (maybe_type_id != 0xFF && type_is_enum(maybe_type_id)) {
-                    get_token(); // skip enum name
-                    if (tok == tokMember) {
-                        parse_enum_member(&factor_result, ident_name);
-                        goto ident_cleanup;
-                    }
-                }
-                error(errNotDefined_s, token);
-                goto ident_cleanup;
-            }
-
-            get_token(); // skip identifier
-
-            factor_result.has_sym = 1;
-            factor_result.type_id = factor_result.sym.type_id;
-
-            if (type_is_const(factor_result.sym.type_id)) {
-                factor_result.value = factor_result.sym.stk.offset;
-                if (flags & PF_NEG) factor_result.value = -factor_result.value;
-                if (flags & PF_NOT) factor_result.value = !factor_result.value;
-                if (flags & PF_CMPL) factor_result.value = ~factor_result.value;
-                goto ident_cleanup;
-            }
-
-            /* For function symbols used as addresses (not called), return early like constants
-             * to avoid emitting load instructions. The caller can check has_sym and is_func_or_proto
-             * to emit the symbol reference directly (e.g., for initializers).
-             */
-            if (is_func_or_proto(&factor_result.sym) && tok != tokLParen && tok != tokLBrack) {
-                factor_result.value = 0;                  /* Functions don't have a numeric value */
-                factor_result.type_id = type_make_pointer(factor_result.sym.type_id, 1); /* Function pointer type */
-
-                if (!infunc) factor_result.sym.flags |= SYM_FLAG_USED;
-                callgraph_add_edge(currfunc_id, callgraph_add_func(factor_result.sym.name_id));
-                updatesym(&factor_result.sym);
-
-                goto ident_cleanup;
-            }
-
-            /* Don't handle postfix operators here - let the postfix loop handle them */
+            parse_factor_identifier(&factor_result, flags);
             break;
         }
         default:
@@ -1428,9 +1434,6 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
         dereference = 0;
     }
     
-    ident_cleanup:
-    if (flags & PF_IDENT_ARENA) arena_free_to_marker(ident_mark);
-
     if (flags & PF_NEG) emit_neg();
     if (flags & PF_NOT) emit_rtl("ccnot");
     if (flags & PF_CMPL) emit_rtl("cccom");
