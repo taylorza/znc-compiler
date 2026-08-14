@@ -620,13 +620,13 @@ void parse_for(void) MYCC {
 			return;
 		}
 		if (!type_is_const(expr_result.type_id))
-			emit_jp_false(lblEndFor);
+			emit_jp_true(lblBody);
+            emit_jp(lblEndFor);
 	}
 	expect_semi();
 
 	// parse post statement
-	if (tok != tokRParen) {
-		emit_jp(lblBody);
+	if (tok != tokRParen) {		
 		lblPost = contlbl = newlbl();
 		emit_lbl(lblPost);
 		parse_expr(0, 0);
