@@ -588,7 +588,7 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
 
 void parse_op_right(EXPR_RESULT *left, uint8_t minprec, uint8_t expected_type_id) {
     uint8_t p;
-    while ((p = prec(tok)) && p && p >= minprec) {
+    while ((p = prec(tok)) && p >= minprec) {
         TOKEN op = tok;
         get_token(); // skip op
 
