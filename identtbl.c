@@ -41,13 +41,6 @@ IDENT_ID far_intern_ident(const char* name) MYCC {
     return id;
 }
 
-/* Return a pointer to the NUL-terminated identifier string for 'id'.
- * Only safe to call while BANK 45 is mapped. */
-const char* far_get_ident(IDENT_ID id) MYCC {
-    if (id == IDENT_ID_NONE || id >= lastident) return "";
-    return &identtbl[id];
-}
-
 /* Return 1 if the identifier at 'id' equals 'name', 0 otherwise. */
 uint8_t far_cmp_ident(IDENT_ID id, const char* name) MYCC {
     if (id == IDENT_ID_NONE) return 0;

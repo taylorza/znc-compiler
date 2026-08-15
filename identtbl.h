@@ -10,11 +10,7 @@
 
 typedef uint16_t IDENT_ID;
 
-/* Far implementations (live in BANK 45, called after bank-switch) */
-IDENT_ID far_intern_ident(const char* name) MYCC;
-const char* far_get_ident(IDENT_ID id) MYCC;
-uint8_t far_cmp_ident(IDENT_ID id, const char* name) MYCC;
-void far_get_ident_copy(IDENT_ID id, char* buf, uint8_t maxlen) MYCC;
+
 
 /* Stub wrappers (main bank – safe to call from anywhere) */
 IDENT_ID intern_ident(const char* name) MYCC;
