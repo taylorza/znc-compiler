@@ -155,7 +155,7 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
     get_token(); // skip '='
 
     if (IS_DEFINED(*sym) && type_is_const(sym->type_id)) {
-        EXPR_RESULT r = parse_expr_delayconst(0, 0);
+        EXPR_RESULT r = parse_expr_delayconst(0, sym->type_id);
         if (!type_is_const(r.type_id)) error(errConstExpected);
         if (type_is_uint16(sym->type_id) && expr_const_is_negative(&r))
             error(errTypeError); /* now routed through the BANK_43 stub */
@@ -336,7 +336,7 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
     
     EXPR_RESULT r_result = parse_expr_delayconst(0, type_id);
 
-    if (type_is_uint16(type_id) && expr_const_is_negative(&r_result))
+    if (type_is_uint16(type_id) && type_is_const(r_result.type_id) && r_result.is_negative)
         error(errTypeError);
 
     /* Reject cross-enum assignment: enum A <- enum B is always an error.
