@@ -259,6 +259,13 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
 
     /* Handle struct assignment */
     if (type_is_struct(type_id) && !type_is_pointer(type_id)) {
+        uint8_t saved_dest = dereference && IS_UNDEFINED(*sym);
+        if (saved_dest) {
+            /* Indexed struct elements arrive with their destination address in HL.
+             * Preserve it while the RHS expression is parsed. */
+            emit_push();
+        }
+
         EXPR_RESULT r = parse_expr(0, type_id);
 
         /* Verify types match */
@@ -276,24 +283,29 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
              * HL = source address (from parsing right side)
              * Need to get destination address from pointer value
              */
-            emit_push();  /* Save source address on stack */
+            if (!saved_dest) emit_push();  /* Save source address on stack */
 
             if (IS_DEFINED(*sym)) {
                 /* Load the pointer value (the address it points to) */
                 emit_ld_symval(sym);
             }
-            /* else: HL already has dest address from parse_factor */
-
-            if (indexed) {
-                emit_swap();  /* DE = dest */
-                emit_pop_hl();   /* HL = index */
-                emit_add16(); /* HL = dest + index */
-                emit_push();  /* Save adjusted dest */
+            else if (saved_dest) {
+                /* The destination address was saved before parsing the RHS. */                
+                emit_pop_de();   /* DE = destination */
             }
 
-            /* At this point we need: DE = dest, HL = source */
-            emit_swap();  /* DE = dest (pointer value or adjusted address) */
-            emit_pop_hl();   /* HL = source */
+            if (!saved_dest) {
+                if (indexed) {
+                    emit_swap();  /* DE = dest */
+                    emit_pop_hl();   /* HL = index */
+                    emit_add16(); /* HL = dest + index */
+                    emit_push();  /* Save adjusted dest */
+                }
+
+                /* At this point we need: DE = dest, HL = source */
+                emit_swap();  /* DE = dest (pointer value or adjusted address) */
+                emit_pop_hl();   /* HL = source */
+            }
             emit_ldbc_immed_n(struct_size);
             emit_instrln("ldir");
         } else {
