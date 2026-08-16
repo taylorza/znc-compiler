@@ -568,7 +568,7 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
     }
     /* If either operand was fixed and this is an arithmetic op, result is fixed.
      * Otherwise, derive the runtime result type from the common scalar semantics
-     * of the operands so mixed int/uint16 arithmetic shares one type rule. */
+     * of the operands so mixed int/uint arithmetic shares one type rule. */
     else if (either_fixed && is_arithmetic_op) {
         left->type_id = TYPE_ID_FIXED;
     }

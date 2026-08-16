@@ -83,8 +83,8 @@ void vsprintf(PFN_PUTC sink, void* sink_ctx, char *fmt, va_list args) __znccall(
       }
 
       case 'u': {
-        uint16 p = 0;
-        uint16 u = va_arg(args, uint16);
+        uint p = 0;
+        uint u = va_arg(args, uint);
         if (u == 0) {
           _buf_g[p++] = '0';
         } else {

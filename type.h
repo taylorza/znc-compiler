@@ -72,13 +72,13 @@ uint8_t type_is_enum(uint8_t type_id) MYCC;
 uint8_t type_is_function(uint8_t type_id) MYCC;
 uint8_t type_is_delegate(uint8_t type_id) MYCC;
 
-uint8_t type_is_integral(uint8_t type_id) MYCC; /* char, byte, int, uint16 */
+uint8_t type_is_integral(uint8_t type_id) MYCC; /* char, byte, int, uint */
 uint8_t type_is_8bit(uint8_t type_id) MYCC;    /* char, byte */
-uint8_t type_is_16bit_integer(uint8_t type_id) MYCC; /* int, uint16 */
-uint8_t type_is_scalar(uint8_t type_id) MYCC; /* char, byte, int, uint16, fixed */
+uint8_t type_is_16bit_integer(uint8_t type_id) MYCC; /* int, uint */
+uint8_t type_is_scalar(uint8_t type_id) MYCC; /* char, byte, int, uint, fixed */
 uint8_t type_is_signed_scalar(uint8_t type_id) MYCC; /* char, int */
-uint8_t type_is_unsigned_scalar(uint8_t type_id) MYCC; /* byte, uint16 */
-uint8_t type_common_scalar_type(uint8_t left_type_id, uint8_t right_type_id, uint8_t is_const) MYCC; /* char, byte, int, uint16, fixed */
+uint8_t type_is_unsigned_scalar(uint8_t type_id) MYCC; /* byte, uint */
+uint8_t type_common_scalar_type(uint8_t left_type_id, uint8_t right_type_id, uint8_t is_const) MYCC; /* char, byte, int, uint, fixed */
 
 
 /* Array/struct/function accessors */

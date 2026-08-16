@@ -198,7 +198,7 @@ uint8_t type_is_uint16(uint8_t type_id) MYCC {
     return type_get_kind(type_id) == TK_UINT16 && type_get_indirection(type_id) == 0;
 }
 
-uint8_t type_is_integral(uint8_t type_id) MYCC { /* char, byte, int, uint16, enum */
+uint8_t type_is_integral(uint8_t type_id) MYCC { /* char, byte, int, uint, enum */
     return (type_get_kind(type_id) == TK_CHAR || type_get_kind(type_id) == TK_BYTE || type_get_kind(type_id) == TK_INT || type_get_kind(type_id) == TK_UINT16 || type_get_kind(type_id) == TK_ENUM)   && type_get_indirection(type_id) == 0;
 }
 
@@ -206,7 +206,7 @@ uint8_t type_is_8bit(uint8_t type_id) MYCC {    /* char, byte */
     return (type_get_kind(type_id) == TK_CHAR || type_get_kind(type_id) == TK_BYTE)   && type_get_indirection(type_id) == 0;
 }
 
-uint8_t type_is_16bit_integer(uint8_t type_id) MYCC { /* int, uint16 */
+uint8_t type_is_16bit_integer(uint8_t type_id) MYCC { /* int, uint */
     return (type_get_kind(type_id) == TK_INT || type_get_kind(type_id) == TK_UINT16) && type_get_indirection(type_id) == 0;
 }
 

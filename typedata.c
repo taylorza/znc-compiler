@@ -104,7 +104,7 @@ uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC
         return 0;
     }
 
-    /* For non-pointer scalars (char/byte/int/uint16/fixed), allow compatibility between them */
+    /* For non-pointer scalars (char/byte/int/uint/fixed), allow compatibility between them */
     if (indir_to == 0 && indir_from == 0 &&
         kind_is_scalar(kind_to) && kind_is_scalar(kind_from)) {
         /* Scalars are compatible in both directions */

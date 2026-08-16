@@ -44,9 +44,9 @@ const byte TEST_DLGFNS = 0;
 #endif
 
 #if TEST_G4
-uint16[3] g_u16_vals = {0, 32768, 65535};
-uint16 g_u16 = 50000;
-uint16 g_u16_folded = 65535 / 2;
+uint[3] g_u16_vals = {0, 32768, 65535};
+uint g_u16 = 50000;
+uint g_u16_folded = 65535 / 2;
 #endif
 
 // ============================================================
@@ -1383,9 +1383,9 @@ void test_cmp_i16() {
 }
 
 void test_cmp_u16() {
-    uint16 zero = 0;
-    uint16 high = 32768;
-    uint16 max = 65535;
+    uint zero = 0;
+    uint high = 32768;
+    uint max = 65535;
 
     chk("u16_cmp_eq", max == 65535);
     chk("u16_cmp_ne", max != zero);
@@ -1396,33 +1396,33 @@ void test_cmp_u16() {
     chk("u16_cmp_unsigned", high > zero);
 }
 
-uint16 add_u16(uint16 a, uint16 b) {
+uint add_u16(uint a, uint b) {
     return a + b;
 }
 
-uint16 math_u16(uint16 a, uint16 b) {
-    uint16 p = a * b;
-    uint16 q = a / b;
-    uint16 r = a % b;
+uint math_u16(uint a, uint b) {
+    uint p = a * b;
+    uint q = a / b;
+    uint r = a % b;
     return p + q + r;
 }
 
-uint16 *add_u16_ptr(uint16 *p, uint16 n) {
+uint *add_u16_ptr(uint *p, uint n) {
     return p + n;
 }
 
 void test_u16mix() {
-    uint16 u = 40000;
+    uint u = 40000;
     int si = 2;
     byte ub = 3;
     const fixed shcnt = 2.0;
-    uint16 sum = u + si;
-    uint16 prod = u * ub;
-    uint16 quot = u / si;
-    uint16 rem = u % si;
-    uint16 bits = u | 1;
-    uint16 shl = 1 << shcnt;
-    uint16 shr = 65535 >> shcnt;
+    uint sum = u + si;
+    uint prod = u * ub;
+    uint quot = u / si;
+    uint rem = u % si;
+    uint bits = u | 1;
+    uint shl = 1 << shcnt;
+    uint shr = 65535 >> shcnt;
 
     chk("u16_mixadd", sum == 40002);
     chk("u16_mixmul", prod == 54464);
@@ -1443,9 +1443,9 @@ void test_uint16() {
     chk("u16_folded", g_u16_folded == 32767);
 
     // Local storage, wrapping arithmetic, and unsigned comparisons
-    uint16 x = 65535;
-    uint16 y = 1;
-    uint16 z = x + y;
+    uint x = 65535;
+    uint y = 1;
+    uint z = x + y;
     chk("u16_wrap", z == 0);
     chk("u16_gt",   x > y);
     chk("u16_lt",   y < 32768);
@@ -1454,12 +1454,12 @@ void test_uint16() {
     chk("u16_math", math_u16(12, 3) == 40);
 
     // Pointer indexing and pointer arithmetic
-    uint16[3] vals = {10, 20, 30};
-    uint16 *p = add_u16_ptr(vals, 1);
+    uint[3] vals = {10, 20, 30};
+    uint *p = add_u16_ptr(vals, 1);
     chk("u16_ptr", *p == 20);
 
     // Compound assignment operators
-    uint16 c = 12;
+    uint c = 12;
     c *= 3;
     chk("u16_mul", c == 36);
     c /= 4;

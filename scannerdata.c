@@ -84,7 +84,7 @@ static const KEYWORD kw_s[] = {
 };
 
 static const KEYWORD kw_u[] = {
-    {"uint16", tokUint16},
+    {"uint", tokUint},
 };
 
 static const KEYWORD kw_v[] = {
