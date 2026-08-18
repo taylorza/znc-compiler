@@ -5,6 +5,7 @@ byte CRT__=1;
 include "font.inc"
 #endif
 
+include "zxn.znc"
 include "memory.znc"
 
 const char KEY_TRUEVID = 0x04;
@@ -40,24 +41,6 @@ byte _crt_fctr = 0;
 
 byte _crt_cur_norm = 255;         // Attribute used for normal cursor (255 = calculate attribute)
 byte _crt_cur_caps = 255;         // Attribute used for capslock cursor (255 = calculate attribute)
-
-byte updatereg(byte reg, byte value) __znccall(1) __asm__ {
-  pop bc      ; Pop return address
-  pop de      ; Pop value to DE
-  pop hl      ; Pop reg to HL
-  push bc     ; Restore return address
-
-  ld bc,0x243b
-  ld a,l
-  out (c),a   ; select register
-  inc b       ; move to NextReg Data
-  in a,(c)    ; read current value
-  ld l,a      ; save old value to L
-  out (c),e   ; write new nextreg value
-  
-  ld h,0      ; HL = old reg value
-  ret
-}
 
 byte[] _crt_pal = {
   // Standard Colors (Intensity = 0)

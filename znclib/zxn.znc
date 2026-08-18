@@ -1,0 +1,22 @@
+#ifndef ZXN__
+const byte ZXN__=1;
+
+byte updatereg(byte reg, byte value) __znccall(1) __asm__ {
+  pop bc      ; Pop return address
+  pop de      ; Pop value to DE
+  pop hl      ; Pop reg to HL
+  push bc     ; Restore return address
+
+  ld bc,0x243b
+  ld a,l
+  out (c),a   ; select register
+  inc b       ; move to NextReg Data
+  in a,(c)    ; read current value
+  ld l,a      ; save old value to L
+  out (c),e   ; write new nextreg value
+  
+  ld h,0      ; HL = old reg value
+  ret
+}
+
+#endif

@@ -25,7 +25,13 @@ int rnd() __asm__ {
 
 void rndseed() __asm__ {
 _    
+    ld bc,$243b
+    ld a,$1f
+    out (c),a
+    inc b
+    in a,(c)        ; read scanline LSB
     ld hl, (0x5c78) ; read frame counter
+    add hl,a        ; add scanline to frame counter
     ld a, h
     or l
     jr nz, .set

@@ -1,0 +1,367 @@
+make dot "samegame.dot";
+
+include "dotn.znc"
+include "tilemap.znc"
+include "io.znc"
+include "rnd.znc"
+
+const byte WIDTH = 20;
+const byte HEIGHT = 12;
+const byte TOP_PAD = 3;
+
+const byte SELECT_CELL = 10;
+const byte EMPTY_CELL = 11;
+const byte EMPTY_TILE = EMPTY_CELL * 4;
+
+void do_title();
+void do_gameover();
+
+enum GameState {
+  Title,
+  Play,
+  GameOver,
+  HighScore,
+  Quit,
+}
+
+GameState state = GameState.Title;
+byte[WIDTH][HEIGHT] visited;
+
+byte cursor_x = 0;
+byte cursor_y = 0;
+uint score = 0;
+uint highscore = 0;
+uint old_high = 0;
+
+byte key_left = 0;
+byte key_right = 0;
+byte key_up = 0;
+byte key_down = 0;
+byte key_select = 0;
+byte key_quit = 0;
+
+void load_score() {
+  byte fh = fopen("samegame.sav", M_EXIST | M_READ);
+  if (fh) {
+    fread(fh, &highscore, 2);
+    old_high = highscore;
+    fclose(fh);
+  }
+}
+
+void save_score() {
+  if (old_high >= highscore) return;
+
+  byte fh = fopen("samegame.sav", M_CREATE | M_WRITE);
+  if (fh) {
+    fwrite(fh, &highscore, 2);
+    fclose(fh);
+  }
+}
+
+void cls() {
+  memset(0x4000, 0, 32*192);
+  memset(0x5800, 7<<3, 32*24);
+  out(0xfe, 7);
+  til_cls(EMPTY_TILE);
+}
+
+void set(byte x, byte y, byte tile) __znccall(1) {
+  tile <<= 2;
+  y += TOP_PAD;
+  x <<= 1;
+  y <<= 1;
+  til_set(x, y, tile);
+  til_set(x+1, y, tile+1);
+  til_set(x, y+1, tile+2);
+  til_set(x+1, y+1, tile+3);
+}
+
+byte get(byte x, byte y) __znccall(1) {
+  y += TOP_PAD;
+  x <<= 1;
+  y <<= 1;
+  return til_get(x, y) >> 2;
+}
+
+byte is_empty(byte x, byte y) __znccall(1) {
+  return get(x, y) >= 10;
+}
+
+void select(byte x, byte y) __znccall(1) {
+  if (is_empty(x, y)) {
+    set(x, y, SELECT_CELL);
+  } else {
+    set(x, y, get(x, y) + 5);
+  }
+}
+
+void unselect(byte x, byte y) __znccall(1) {
+  if (is_empty(x, y)) {
+    set(x, y, EMPTY_CELL);
+  } else {
+    set(x, y, get(x, y) - 5);
+  }
+}
+
+void slide_left(byte x, byte y, byte w, byte h, byte blanktile)
+{
+  __asm__ {
+    halt
+  }
+  for (byte yy = 0; yy < h; ++yy) {
+    byte* dst = TIL_TILEMAP + (y + yy) * TIL_WIDTH + x;
+    byte* src = dst + 1;    
+    memcpy(dst, src, w);
+    dst[w] = blanktile;
+  }
+}
+
+void create_board() {
+  for (byte x=0; x<WIDTH; ++x) {
+    for (byte y=0; y<HEIGHT; ++y) {
+      set(x, y, rnd() % 5);
+    }
+  }
+}
+
+void shift_cells() {
+  // Slide cells down
+  byte moved = 1;
+  while (moved) {
+    moved = 0;
+    for (byte x=0; x<WIDTH; ++x) {      
+      for (byte y=HEIGHT-1; y>0; --y) {
+        if (is_empty(x, y) && !is_empty(x, y-1)) {
+          set(x, y, get(x, y-1));
+          set(x, y-1, EMPTY_CELL);
+          moved = 1;
+        }
+      }
+    }
+  }
+
+  // Slide cells left, if the entire column is empty
+  byte d = 1;
+  for (byte x=0; x<WIDTH-d; ++x) {
+    byte empty = 1;
+    for (byte y=0; y<HEIGHT; ++y) {
+      if (!is_empty(x, y)) {
+        empty = 0;
+        break;
+      }
+    }
+    if (empty) {
+      byte tx = x << 1;
+      byte w = (WIDTH - x) << 1;      
+      
+      slide_left(tx, TOP_PAD, w-1, (HEIGHT << 1)+3, EMPTY_TILE);
+      slide_left(tx, TOP_PAD, w-1, (HEIGHT << 1)+3, EMPTY_TILE);
+      ++d;
+      --x; // Check the same column again, as it has new content now
+    } 
+  }
+}
+
+struct Pos {
+  byte x;
+  byte y;
+}
+
+char[] dx = {1,-1,0,0};
+char[] dy = {0,0,1,-1};
+
+uint count_group(byte x, byte y, byte tile) __znccall(1) {
+  Pos[WIDTH * HEIGHT] stack;
+  uint sp = 0;
+  uint count = 0;
+  
+  memset(visited, 0, WIDTH*HEIGHT);
+  if (is_empty(x, y)) return 0;
+
+  stack[sp].x = x;
+  stack[sp].y = y;
+  ++sp;
+
+  visited[y][x] = 1;
+  while (sp > 0) {
+    --sp;
+    byte xx = stack[sp].x;
+    byte yy = stack[sp].y;
+    ++count;
+    for(byte i=0; i<4; ++i) {
+      byte nx = xx + dx[i];
+      byte ny = yy + dy[i];
+      if (nx < 0 || nx >= WIDTH || ny < 0 || ny >= HEIGHT) continue;
+      if (visited[ny][nx]) continue;
+      if (get(nx, ny) != tile) continue;
+
+      stack[sp].x = nx;
+      stack[sp].y = ny;
+      ++sp;
+      visited[ny][nx] = 1;
+    }
+  }
+  return count;
+}
+
+byte has_group(byte x, byte y) __znccall(1) {
+  byte tile = get(x, y);
+  if (is_empty(x, y)) return 0;  
+  return count_group(x, y, tile) > 1;
+}
+
+void remove_group(byte x, byte y) __znccall(1) {
+  byte tile = get(x, y);
+  if (tile >= 10) return;
+
+  uint n = 0;
+  for(byte xx=0; xx<WIDTH; ++xx) {
+    for(byte yy=0; yy<HEIGHT; ++yy) {
+      if (visited[yy][xx]) {
+        set(xx, yy, EMPTY_CELL);
+        ++n;
+      }
+    }
+  }
+  score += n * (n - 1);
+  shift_cells();
+}
+
+void do_hud() {
+  gotoxy(0, 0);
+  puts("Score: ");
+  printnum_u(score);
+  gotoxy(17, 0);
+  puts("High Score: ");
+  printnum_u(highscore);
+}
+
+const char KEY_LEFT = 0x08;
+const char KEY_RIGHT = 0x09;
+const char KEY_DOWN = 0x0a;
+const char KEY_UP = 0x0b;
+const char KEY_ENTER = 0x0d;
+
+void do_input() {
+  char ch = inkey();
+  key_left = ch == 'o' || ch == KEY_LEFT;
+  key_right = ch == 'p' || ch == KEY_RIGHT;
+  key_up = ch == 'q' || ch == KEY_UP;
+  key_down = ch == 'a' || ch == KEY_DOWN;
+  key_select = ch == ' ' || ch == 'm' || ch == KEY_ENTER;
+  key_quit = ch == 'x';
+}
+
+void do_play() {
+  byte cx = cursor_x;
+  byte cy = cursor_y;
+  if (key_left && cursor_x > 0) --cursor_x;
+  if (key_right && cursor_x < WIDTH - 1) ++cursor_x;
+  if (key_up && cursor_y > 0) --cursor_y;
+  if (key_down && cursor_y < HEIGHT - 1) ++cursor_y;
+
+  if (cursor_x != cx || cursor_y != cy) {
+    unselect(cx, cy);
+    select(cursor_x, cursor_y);    
+  }
+
+  if (key_select) {
+    unselect(cursor_x, cursor_y);
+    if (has_group(cursor_x, cursor_y)) {
+      remove_group(cursor_x, cursor_y);
+    }
+    select(cursor_x, cursor_y);
+    
+    for(byte x=0; x<WIDTH; ++x) {
+      for(byte y=0; y<HEIGHT; ++y) {
+        if (has_group(x, y)) return;
+      }
+    }
+    if (score > highscore) highscore = score;
+    state = GameState.GameOver;
+  }
+}
+
+rndseed();
+
+byte old_speed = updatereg(7, 3);
+
+load_score();
+til_init(TIL_MODE.TIL_40x32);
+pal_load(PALETTE.Tilemap_1, "samegame.pal");
+til_load("samegame.til", 64);
+
+while(state != GameState.Quit) {
+  do_input();
+  if (key_quit) state = GameState.GameOver;
+
+  switch (state) {
+    case GameState.Title:
+      do_title();
+      break;
+    case GameState.Play:
+      do_play();
+      do_hud();
+      break;
+    case GameState.GameOver:
+      do_gameover();
+      break;
+  }
+  __asm__{
+    halt
+  }
+}
+save_score();
+
+cls();
+til_restore();
+nextreg(7, old_speed);
+
+  void do_title() {
+    cls();
+
+    til_loadmap("samegame.map");
+    
+    gotoxy(5, 21);
+    puts("Press any key to start");
+    waitkey();
+
+    cls();
+    create_board();
+    cursor_x = 0;
+    cursor_y = 0;
+    set(cursor_x, cursor_y, get(cursor_x, cursor_y) + 5);
+    score = 0;
+    state = GameState.Play;
+  }
+
+  void do_gameover() {
+    cls();
+
+    til_loadmap("samegame-gameover.map");
+    
+    gotoxy(11, 16);
+    puts("Score: ");
+    printnum_u(score);
+    gotoxy(9, 18);
+    puts("High Score: ");
+    printnum_u(highscore);
+    gotoxy(9, 20);
+    puts("R-Retry, X-Exit");
+
+    char ch;
+    while((ch = inkey()) != 'r' && ch != 'x') {
+      __asm__{
+        halt
+      }
+    }
+    switch(ch) {
+      case 'r':
+        state = GameState.Title;
+        break;
+      case 'x':
+        state = GameState.Quit;
+        break;
+    }
+  }

@@ -84,6 +84,21 @@ void printnum(int n) {
   }
 }
 
+void printnum_u(uint n) {
+  if (n==0) { putc('0'); return; }
+  
+  int div=10000;  
+  while((n/div)==0) {
+    div=div/10;
+  }
+  
+  while(div) {
+    putc(n/div+'0');
+    n=n%div;			
+    div=div/10;
+  }
+}
+
 char inkey() __asm__ {
   ld hl,0
   bit 5,(iy+1)
