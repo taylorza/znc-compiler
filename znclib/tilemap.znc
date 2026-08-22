@@ -28,6 +28,21 @@ byte _til_save_6c;
 
 byte _til_mode;
 
+// Set tilemap defaults
+void til_default() __znccall(1) {
+  // Reset clip window
+  nextreg(0x1c, 0b00001000);      // Reset tilemap clip index
+  nextreg(0x1b, 0);               // X1 - 0
+  nextreg(0x1b, 159);             // X2 - 318
+  nextreg(0x1b, 0);               // Y1 - 0
+  nextreg(0x1b, 255);             // Y1 - 255
+
+  // Reset scroll offsets
+  nextreg(0x2f, 0);               // X Scroll offset - MSB
+  nextreg(0x30, 0);               // X Scroll offset - LSB
+  nextreg(0x31, 0);               // Y Scroll offset
+}
+
 void til_init(TIL_MODE mode) __znccall(1) {
   _til_mode = mode;
 
@@ -51,30 +66,7 @@ void til_init(TIL_MODE mode) __znccall(1) {
   nextreg(0x6e, 0x80);                  // Tilemap Bank 7 offset 0x0000
   nextreg(0x6f, 0x80 | TIL_TILE_OFFS);  // Tiledef Bank 7 offset 0x0a00 
 
-  // Set tilemap defaults
-  // Reset clip window
-  nextreg(0x1c, 0b00001000);      // Reset tilemap clip index
-  nextreg(0x1b, 0);               // X1 - 0
-  nextreg(0x1b, 159);             // X2 - 318
-  nextreg(0x1b, 0);               // Y1 - 0
-  nextreg(0x1b, 255);             // Y1 - 255
-
-  // Reset scroll offsets
-  nextreg(0x2f, 0);               // X Scroll offset - MSB
-  nextreg(0x30, 0);               // X Scroll offset - LSB
-  nextreg(0x31, 0);               // Y Scroll offset
-
-  byte *tiledef = TIL_TILEDEF;
-  *tiledef = {
-    0x00,0xee,0xee,0x00,
-    0x0e,0xee,0xee,0xe0,
-    0xee,0xee,0xee,0xee,
-    0xee,0xee,0xee,0xee,
-    0xee,0xee,0xee,0xee,
-    0xee,0xee,0xee,0xee,
-    0x0e,0xee,0xee,0xe0,
-    0x00,0xee,0xee,0x00,
-  };
+  til_default();
 }
 
 void til_cls(byte tile) __znccall(1) {
@@ -154,11 +146,27 @@ byte til_get(byte x, byte y) __znccall(1) {
   return _til_ptr[(y * TIL_WIDTH) + x];
 }
 
+void til_at(uint x, uint y) __znccall(1) {
+  nextreg(0x2f, x >> 8); // X Scroll offset - MSB
+  nextreg(0x30, x & 0xff); // X Scroll offset - LSB
+  nextreg(0x31, y); // Y Scroll offset
+}
+
+void til_clip(uint x1, uint y1, uint x2, uint y2) __znccall(1) {
+  nextreg(0x1c, 0b00001000);      // Reset tilemap clip index
+  nextreg(0x1b, x1);              // X1
+  nextreg(0x1b, x2);              // X2
+  nextreg(0x1b, y1);              // Y1
+  nextreg(0x1b, y2);              // Y2
+}
+
 void til_restore() __znccall(1) {
   nextreg(0x4c, _til_save_4c);  
   nextreg(0x6b, _til_save_6b);
   nextreg(0x6c, _til_save_6c);
   nextreg(0x56, _til_bank);
+
+  til_default();
 }
 
 #endif
