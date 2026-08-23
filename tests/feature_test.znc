@@ -1382,6 +1382,26 @@ void test_cmp_i16() {
     chk("sint_ge", pos >= 1);
 }
 
+void test_casts() {
+    fixed f = 2.0;
+    int address = 0x4000;
+    byte *bp = (byte *)address;
+
+    // Explicit numeric casts preserve the underlying bits in both directions.
+    chk("cast_f2i", (int)f == 32);
+    chk("cast_i2f", (fixed)2 != 2);
+    chk("cast_f2i_rt", (int)(f + 1.0) == 48);
+    chk("cast_i2f_const", (fixed)(2 + 1) != 3);
+
+    // A cast applies to the next unary expression, not the complete expression.
+    chk("cast_precedence", (int)((fixed)2 + 1) == 18);
+    chk("cast_grouped", (int)(fixed)(2 + 1) == 3);
+
+    // Integral and pointer representations are both 16-bit addresses/values.
+    chk("cast_int_ptr", bp == 0x4000);
+    chk("cast_ptr_int", (int)bp == 0x4000);
+}
+
 void test_cmp_u16() {
     uint zero = 0;
     uint high = 32768;
@@ -1553,6 +1573,7 @@ test_addrof();
 
 #if TEST_G4
 test_cmp_i16();
+test_casts();
 test_cmp_u16();
 test_uint16();
 test_u16mix();
