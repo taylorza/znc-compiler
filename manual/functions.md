@@ -13,6 +13,16 @@ int add(int a, int b) {
 - Prototypes and definitions are supported. The compiler records signatures and checks call sites.
 - Argument count and types are validated against the declared signature.
 
+Explicit casts
+
+Use `(type) expression` when a conversion must be requested explicitly. Casts are useful for bit-preserving conversions between integer and fixed-point values, or between integer values and pointers. A cast binds to the next unary expression, so group a larger operand explicitly:
+
+```c
+fixed f = 2.0;
+int raw = (int)f;       // 32, the fixed-point representation of 2.0
+int value = (int)(2+1);
+```
+
 Variadic functions
 
 - Declare with an ellipsis at the end of the fixed parameter list:

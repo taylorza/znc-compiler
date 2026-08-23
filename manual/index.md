@@ -19,7 +19,7 @@ Chapters
 - [Inline Assembly & __asm__](inline_asm.md)
 - [Directives & Conditional Compilation](directives.md)
 - [RTL & Libraries](znclib.md)
-- [Calling Conventions](calling_conventions.md)
+- [Calling Conventions](calling_convention.md)
 - [Examples](examples.md)
 - [Limitations & Notes](limitations.md)
 

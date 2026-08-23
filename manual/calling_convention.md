@@ -83,6 +83,10 @@ int add(int a, int b) __znccall(1) {
 - Important: Do not use `__znccall(1)` for variadic functions — the compiler will report an error.
 - If you write an assembler function (`__asm__`) and use `__znccall(1)`, be sure your asm epilogue performs the same cleanup (adjust `SP` to remove arguments) before returning.
 
+### Banked function calls
+
+Functions declared with `bank(n)` may be called from code in another bank. The compiler temporarily maps the target bank, preserves the caller's stack and return address, and restores the previous MMU mapping when the function returns. The target function uses the same argument and return-value conventions described above.
+
 ### Optimized assembler functions with `__znccall(1)`
 
 When implementing a function entirely in assembler and using the callee‑cleanup convention (`__znccall(1)`), you can skip the normal frame prologue (`push ix` / `ld ix,0; add ix,sp`) and instead pop the return address and argument words directly from the stack into registers. This reduces code size and avoids allocating an IX frame.

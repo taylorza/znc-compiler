@@ -20,7 +20,7 @@ Output:
 - `demo.asm` — generated assembly
 - `*.rtl` — any runtime helper includes
 
-With `-dfe` the compiler will do some basic tracking of function usage and flag unsed functions for elimination during assembly. The assembler will remove any function blocks that are marked as unused by the compiler.
+With `-dfe` the compiler will do some basic tracking of function usage and flag unused functions for elimination during assembly. The assembler will remove any function blocks that are marked as unused by the compiler.
 
 ## 2) Optimize with ZOPT
 

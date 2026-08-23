@@ -7,7 +7,7 @@ ZNC provides several top-level directives that affect code generation.
 Syntax
 
 ```
-make <type> ["<binary name>"];
+make <type> ["<binary name>"] [, <stack base>];
 ```
 
 `<type>`: `dot`, `nex`, `raw`.
@@ -15,7 +15,7 @@ make <type> ["<binary name>"];
 Behavior
 
 - `dot` produces a DOT command binary
-- `nex` produces a NEX binary
+- `nex` produces a NEX binary. An optional second argument sets the stack base address; the default is `0xBFFF`.
 - `raw` produces a raw binary (default load address 0xc000)
 
 `org` — set origin address
@@ -35,6 +35,16 @@ bank(40, 0x1000) {
   // code/data compiled into bank 40 at offset 0x1000
 }
 ```
+
+Top-level code inside a bank is run when that bank is loaded. This is useful for initializing variables belonging to the bank:
+
+```c
+bank(1) {
+  int score = 5;
+}
+```
+
+Functions can be declared with `bank(n)` to place them in a bank. Calls to functions in another bank use transparent banked-call support; the current MMU mapping is restored after the call.
 
 `include` — include another source file
 

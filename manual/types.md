@@ -3,11 +3,25 @@
 ZNC provides a compact static type system tailored for ZX Spectrum Next.
 
 Base types
-- `char` / `byte`: signed 8‑bit scalar. `byte` is an alias for `char`.
+- `char`: signed 8-bit scalar.
+- `byte`: unsigned 8-bit scalar.
 - `int`: signed 16‑bit scalar.
+- `uint`: unsigned 16-bit scalar, with values from 0 through 65535.
 - `fixed`: signed 16-bit fixed-point in **Q4 (12.4)** format. The upper 12 bits hold the integer part and the lower 4 bits hold the fractional part. Range: approximately **-2048.0 to +2047.9375**, precision **0.0625** (1/16). Write fixed-point literals with a decimal point: `3.14`, `0.5`, `-1.25`.
 - `void`: used only for function return types and as the base of a generic pointer (`void*`).
 - Named enum types: declared with `enum Name { ... };` and then used as a type name (for example, `Name v;`).
+
+Explicit casts
+
+- A cast uses the form `(type) expression` and applies to the next unary expression. Use parentheses around a larger expression when that is the intended operand.
+- Casts between scalar types preserve the 16-bit representation; they do not perform a numeric fixed-point conversion. For example, `(int)(fixed)2` is `32`, because `fixed` uses four fractional bits.
+- Casts between integers and pointers are supported for absolute addresses: `byte *p = (byte *)0x4000;` and `int address = (int)p;`.
+
+```c
+fixed f = 2.0;
+int raw = (int)f;              // 32
+int whole = (int)(fixed)(2+1); // 3
+```
 
 Composite types
 - Pointers: `T*` (size: 2 bytes). Pointer arithmetic scales by `sizeof(T)`.
@@ -23,25 +37,25 @@ Notes on calling conventions and delegates
 - Assignments and calls involving delegates/function pointers require a matching signature and a matching calling convention (caller‑cleanup vs callee‑cleanup). Functions annotated with `__znccall(1)` use a callee‑cleanup convention; ensure the delegate and any callers expect that convention. Mismatched conventions will corrupt the stack and lead to crashes.
 
 Const qualifier
-- `const` can be applied only to scalar types (`char`, `int`, `fixed`) to produce compile-time constants. `const` is not permitted on `void`, pointers, or arrays. Const values are folded into code with no storage allocated.
+- `const` can be applied only to scalar types (`char`, `byte`, `int`, `uint`, `fixed`) to produce compile-time constants. `const` is not permitted on `void`, pointers, or arrays. Const values are folded into code with no storage allocated.
 - Enum members themselves are compile-time constants and can be used where constant expressions are required.
 
 Sizes
-- `sizeof(char)` = 1, `sizeof(int)` = 2, `sizeof(fixed)` = 2.
+- `sizeof(char)` = 1, `sizeof(byte)` = 1, `sizeof(int)` = 2, `sizeof(uint)` = 2, `sizeof(fixed)` = 2.
 - `sizeof(enum)` = 2.
 - Pointers are 2 bytes regardless of base type.
 - `sizeof(struct)` is the sum of its field sizes; array sizes are computed statically where a fixed length is provided.
 
 Type compatibility rules
 - Same type: identical type IDs are compatible.
-- Scalars: `char`, `int`, and `fixed` are mutually compatible; implicit conversion is applied automatically. When a `fixed` value is assigned to `int`/`char` the fractional bits are discarded; when an `int`/`char` is assigned to `fixed` it is shifted left 4 bits (multiplied by 16).
+- Scalars: `char`, `byte`, `int`, `uint`, and `fixed` are mutually compatible; implicit conversion is applied automatically. When a `fixed` value is assigned to an integer the fractional bits are discarded; when an integer is assigned to `fixed` it is shifted left 4 bits (multiplied by 16). Arithmetic and comparisons involving `uint` use unsigned 16-bit behavior.
 - Arrays ↔ arrays: only compatible when both element type and length are identical.
 - Arrays ↔ pointers: assigning an array to a pointer of matching element type is allowed (array decays to pointer). Assigning a pointer to an array is not allowed.
 - Pointers ↔ pointers:
 	- Indirection levels must match.
 	- `void*` is compatible with any pointer base type.
 	- Base element types must match for non-`void*` pointers.
-- Scalars ↔ pointers: assigning an integer (char/int) to a pointer is allowed (commonly used for absolute addresses). Assigning a pointer to a scalar is not allowed.
+- Scalars ↔ pointers: assigning an integer (char/byte/int/uint) to a pointer is allowed (commonly used for absolute addresses). Assigning a pointer to a scalar is not allowed without an explicit cast.
 - Structs: only exact struct types (same struct ID) are compatible; no implicit conversions between different structs.
 - Enums:
 	- Same enum type is compatible with itself.
@@ -50,5 +64,5 @@ Type compatibility rules
 - Delegates/function pointers: assignment requires a matching signature (same return type, argument types, and variadic flag). Calls are checked against the callee’s signature.
 
 Notes
-- Arrays with explicit fixed size do not support initializers; use inferred-size arrays (e.g., `byte[] s = "Hi";`) or copy data at runtime.
+- Arrays may be initialized with nested lists, including arrays of structs and arrays of arrays. An omitted length is inferred from the initializer (e.g., `byte[] s = "Hi";`).
 - Pointer arithmetic is typed; arithmetic scales by element size. `void*` is supported as a generic pointer type compatible with any other pointer.

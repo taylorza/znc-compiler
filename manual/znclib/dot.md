@@ -13,6 +13,8 @@ Functions
 - `void seterrh(PFN_EXIT fn)` — Register an error handler function. 
 - `int atexit(PFN_EXIT fn)` — Register a function to be called at program exit. Returns 0 on failure (e.g., if the stack of exit functions is full), or 1 on success.
 
+Up to four exit functions may be registered. They are stored in a stack and run when the DOT command exits.
+
 Examples
 
 ```c

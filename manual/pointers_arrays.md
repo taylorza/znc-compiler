@@ -29,13 +29,14 @@ byte[] s = "Hi";          // s has length 3 == {'H','i',0}
 int[] p;   // treated as `int *p` (a pointer) when no initializer is given
 ```
 
-- Arrays with an explicit size do **not** support an initializer. Attempting to write `byte[6] x = {..};` or `byte[6] s = "Hi";` is not supported by the compiler (use `byte[] s = "Hi";` to infer the size instead). If you need a fixed-size zero-filled buffer, declare it without an initializer and fill it at runtime.
+- Explicit-size arrays may have initializers. Nested initializers are supported for arrays of arrays and arrays of structs.
 
 ```c
-byte[5] b; // declare fixed-size array; no initializer allowed in source
+byte[5] b = {1, 2, 3, 4, 5};
+int[2][2] matrix = {{1, 2}, {3, 4}};
 ```
 
 Notes and limits
 - `void*` is supported as a generic pointer type; it is compatible with any other pointer base type in assignments and calls. Pointer arithmetic on `void*` is not meaningful since element size is unknown.
 - Out-of-bounds access is undefined (as with C).
-- The compiler supports both `byte` and `int` arrays (emitted as DB and DW respectively).
+- The compiler supports `char`, `byte`, `int`, `uint`, `fixed`, struct, and nested arrays.

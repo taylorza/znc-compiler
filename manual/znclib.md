@@ -26,6 +26,7 @@ Libraries
 - [sprite](znclib/sprite.md) — Sprite loading and updates
 - [sprintf](znclib/sprintf.md) — String formatting to buffer
 - [string](znclib/string.md) — Core string functions
+- [tilemap](znclib/tilemap.md) — Tilemap and palette support
 - [strcontains](znclib/strcontains.md) — Substring test
 - [strtoint](znclib/strtoint.md) — String to integer parsing
 - [version](znclib/version.md) — System/core version queries
