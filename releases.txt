@@ -1,4 +1,4 @@
-2026/08/x  - Version 0.6e
+2026/08/22  - Version 0.6e
 - Enhancement - Added uint data type (updated vsprintf to support %u)
 - Enhancement - Report error when DOT exceeds 8K, and report remaining space in the banks
 - Enhancement - Support explicit casts, mostly for bit preserving casts between fixed and integer types
