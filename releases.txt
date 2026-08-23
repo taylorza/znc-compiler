@@ -2,6 +2,7 @@
 - Enhancement - Added uint data type (updated vsprintf to support %u)
 - Enhancement - Report error when DOT exceeds 8K, and report remaining space in the banks
 - Enhancement - Support explicit casts, mostly for bit preserving casts between fixed and integer types
+- New - tilemap.znc library for tilemap and palette support
 - Example: GREP example added a spinner to show progress
 - Example: Same Game example mini-game used to test the new tilemap.znc library
 
