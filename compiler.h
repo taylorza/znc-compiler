@@ -29,6 +29,8 @@ void parse_org(void) MYCC;
 void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc, uint8_t callee_type_id) MYCC;
 void parse_statement_block(uint16_t brklbl, uint16_t contlbl, uint8_t check_lbrace) MYCC;
 
+int get_type_id(void) MYCC;
+
 uint8_t try_handle_variadic_intrinsic(const char* name) MYCC;
 
 EXPR_RESULT parse_onearg(void) MYCC;

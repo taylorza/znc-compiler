@@ -152,6 +152,23 @@ void parse(const char* sourcefile, char* outfilename, uint8_t entrypoint) MYCC {
     src_close();
 }
 
+int get_type_id(void) MYCC {
+    int found = -1;
+    uint8_t id;
+    if (tok == tokIdent) {
+        found = find_struct(token);
+        if (found < 0)
+            found = type_find_by_name(token);
+    }
+    else if (tok == tokVoid || tok == tokChar || tok == tokByte || tok == tokUint || tok == tokInt || tok == tokFixed) {
+        found = tok;
+    }
+    if (found < 0) return -1;
+
+    parse_type(&id);
+    return id;
+}
+
 void emit_make_defines(TOKEN outputTok) {
     uint8_t const_char_type = type_make_char(1);
 
@@ -738,9 +755,7 @@ void parse_type(uint8_t *type_id_out) MYCC {
             break;
         }
         default:
-            error(errNotDefined_s, token);
-            tok = tokInt;
-            base_type_id = TYPE_ID_INT;
+            error(errNotDefined_s, token);           
             break;
     }
 

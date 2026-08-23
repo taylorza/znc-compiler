@@ -28,6 +28,7 @@ extern uint16_t currfunc_id;
 
 extern EXPR_RESULT parse_onearg(void) MYCC;
 extern void parse_type(uint8_t* type_id_out) MYCC;
+extern int get_type_id(void) MYCC;
 
 int8_t prec(TOKEN op) MYCC {
     switch (op) {
@@ -45,6 +46,41 @@ int8_t prec(TOKEN op) MYCC {
         case tokStar:   case tokDiv: case tokMod: return MUL_PREC;
         default:                                return 0;
     }
+}
+
+static uint8_t cast_is_valid(uint8_t from_type_id, uint8_t to_type_id) MYCC {
+    if (type_is_void(to_type_id)) return 1;
+    if (type_is_void(from_type_id)) return 0;
+    if (type_is_scalar(from_type_id) && type_is_scalar(to_type_id)) return 1;
+    if ((type_is_pointer(from_type_id) || type_is_array(from_type_id)) &&
+        (type_is_pointer(to_type_id) || type_is_integral(to_type_id))) return 1;
+    if (type_is_integral(from_type_id) && type_is_pointer(to_type_id)) return 1;
+    if (type_check_compatible(from_type_id, to_type_id)) return 1;
+    return type_is_struct(from_type_id) && type_is_struct(to_type_id) &&
+           type_get_struct_id(from_type_id) == type_get_struct_id(to_type_id);
+}
+
+static void apply_cast(EXPR_RESULT *result, uint8_t target_type_id) MYCC {
+    uint8_t source_type_id = result->type_id;
+
+    if (!cast_is_valid(source_type_id, target_type_id)) {
+        error(errTypeError);
+        result->type_id = target_type_id;
+        result->has_sym = 0;
+        return;
+    }
+
+    if (type_is_const(source_type_id)) {
+        /* Explicit numeric casts preserve the underlying bits. */
+        result->type_id = type_as_const(target_type_id);
+        result->has_sym = 0;
+        return;
+    }
+
+    /* Explicit numeric casts preserve the underlying bits; implicit conversions
+     * continue to be handled by far_parse_expr and argument checking. */
+    result->type_id = target_type_id;
+    result->has_sym = 0;
 }
 
 EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC;
@@ -1138,6 +1174,25 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
         }
         case tokLParen:
             get_token(); // skip '('
+
+            {
+                int cast_id = get_type_id();
+                if (cast_id >= 0) {
+                    uint8_t target_type_id = (uint8_t)cast_id;
+                    expect_RParen();
+                    factor_result = parse_factor(0, 0);
+                    apply_cast(&factor_result, target_type_id);
+                    if (flags & (PF_NEG | PF_NOT | PF_CMPL)) {
+                        if (type_is_const(factor_result.type_id)) {
+                            if (flags & PF_NEG) factor_result.value = -factor_result.value;
+                            if (flags & PF_NOT) factor_result.value = !factor_result.value;
+                            if (flags & PF_CMPL) factor_result.value = ~factor_result.value;
+                            flags &= ~(PF_NEG | PF_NOT | PF_CMPL);
+                        }
+                    }
+                    break;
+                }
+            }
             
             /* Check for prefix ++(*ptr) or --(*ptr) patterns only if we have prefix operators */
             if (tok == tokStar && (flags & (PF_PREFIX_INC | PF_PREFIX_DEC))) {
