@@ -35,7 +35,7 @@ byte _crt_x = 0;
 byte _crt_y = 0;
 
 char *_crt_p = CRT_TILEMAP;
-byte _crt_attr = 0x70 << 1;
+byte _crt_attr = 7 << 5;          // Default attribute (white on black)
 byte _crt_caps = 0;                
 byte _crt_fctr = 0;
 
