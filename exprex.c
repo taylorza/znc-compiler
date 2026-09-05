@@ -285,7 +285,7 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
         emit_lbl(datalbl);
         emit_ch(' ');
 
-        uint16_t string_length = parse_string_initializer(element_type_id, arrlen);
+        uint16_t string_length = parse_string_initializer(arrlen);
         if (arrlen > 0 && string_length > arrlen) {
             error(errTypeError);
         }

@@ -445,6 +445,7 @@ static int16_t compute_symbol_base_offset(SYMBOL *sym) MYCC {
     } else if (IS_ARGUMENT(*sym)) { /* ARGUMENT */
         return 2 + (func_arg_count - sym->stk.offset) * 2;
     }
+    return 0; /* Should not happen */
 }
 
 /* Helper: Emit code to compute address in HL when offsets out of range */

@@ -23,7 +23,7 @@ uint16_t far_parse_concat_string_literal(void) MYCC {
     return sid;
 }
 
-uint16_t far_parse_string_initializer(uint8_t element_type_id, uint16_t expected_count) MYCC {
+uint16_t far_parse_string_initializer(uint16_t expected_count) MYCC {
     uint16_t counter = 0;
     uint8_t last_is_char = 0;
     ARENA_MARKER _am = arena_get_marker();
