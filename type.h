@@ -53,6 +53,7 @@ uint8_t type_make_struct(uint8_t struct_id, uint8_t is_const) MYCC;
 uint8_t type_make_enum(uint8_t enum_id, uint8_t is_const) MYCC;
 uint8_t type_make_function(uint8_t signature_id) MYCC;
 uint8_t type_make_array(uint8_t element_type_id, uint16_t length) MYCC;
+void type_set_array_length(uint8_t array_type_id, uint16_t length) MYCC;
 
 /* Type queries - by type_id */
 const TypeEntry type_get(uint8_t type_id) MYCC;

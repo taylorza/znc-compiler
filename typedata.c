@@ -118,7 +118,8 @@ uint8_t far_type_check_compatible(uint8_t to_type_id, uint8_t from_type_id) MYCC
 
     /* Array-to-array: require exact match of element type AND length */
     if (is_array_to && is_array_from) {
-        if (t1.aux0 == t2.aux0 && t1.aux1 == t2.aux1) return 1;
+        if (t1.aux0 == t2.aux0 &&
+            (t1.aux1 == 0 || t2.aux1 == 0 || t1.aux1 == t2.aux1)) return 1;
         return 0;
     }
 

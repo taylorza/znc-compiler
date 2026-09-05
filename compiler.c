@@ -769,8 +769,8 @@ void parse_type(uint8_t *type_id_out) MYCC {
         } else if (tok == tokLBrack) {
             get_token(); // skip '['
             if (tok == tokRBrack) {
-                /* Empty brackets [] means pointer */
-                base_type_id = type_make_pointer(base_type_id, 1);
+                /* Empty brackets [] mean an inferred-size array */
+                base_type_id = type_make_array(base_type_id, 0);
             } else {
                 expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
                 if (!type_is_const(expr_result.type_id)) error(errConstExpected);

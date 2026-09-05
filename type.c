@@ -54,6 +54,13 @@ uint8_t type_make_uint16(uint8_t is_const) MYCC {
     return far_type_intern(entry);
 }
 
+void type_set_array_length(uint8_t array_type_id, uint16_t length) MYCC {
+    TypeEntry entry = type_get(array_type_id);
+    if (TYPE_GET_KIND(entry) != TK_ARRAY || entry.aux1 != 0) return;
+    entry.aux1 = length;
+    type_write_to_bank(array_type_id, entry);
+}
+
 uint8_t type_as_const(uint8_t type_id) MYCC {
     TypeEntry entry = type_get(type_id);
     if (!TYPE_IS_CONST(entry)) {

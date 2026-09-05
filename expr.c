@@ -903,8 +903,8 @@ static void postfix_subscript(EXPR_RESULT* result, uint8_t* dereference, uint8_t
             else emit_ld_symaddr(base_sym);
             result->type_id = cur_type;
             if (type_is_array(result->type_id)) {
-                uint8_t elem_id = type_get_element_type_id(result->type_id);
-                result->type_id = type_make_pointer(elem_id, 1);
+                    uint8_t elem_id = type_get_element_type_id(result->type_id);
+                    result->type_id = type_make_pointer(elem_id, 1);
                 *dereference = 0;
             } else {
                 *dereference = 1;

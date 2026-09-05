@@ -2,6 +2,8 @@
 #include "struct.h"
 #include "shared.h"
 
+static void emit_initializer_value(uint16_t *counter, uint8_t *last_is_char, uint8_t is_char, uint16_t value) MYCC;
+
 /* Parse one or more adjacent string tokens ("a" "b") and return string id */
 uint16_t far_parse_concat_string_literal(void) MYCC {
     ARENA_MARKER _am = arena_get_marker();
@@ -13,11 +15,37 @@ uint16_t far_parse_concat_string_literal(void) MYCC {
         slen += token_length;
         get_token();
     }
+
     if (!sbuf) sbuf = arena_strdup("", 0);
     uint16_t sid = lookupstr(sbuf, (uint8_t)slen);
     arena_free_to_marker(_am);
     intval = sid; /* keep global consistent with previous behavior */
     return sid;
+}
+
+uint16_t far_parse_string_initializer(uint8_t element_type_id, uint16_t expected_count) MYCC {
+    uint16_t counter = 0;
+    uint8_t last_is_char = 0;
+    ARENA_MARKER _am = arena_get_marker();
+    char* sbuf = NULL;
+    size_t slen = 0;
+
+    while (tok == tokString) {
+        sbuf = arena_strappend(sbuf, slen, token, token_length);
+        if (!sbuf) error(errArenaOutOfMemory);
+        slen += token_length;
+        get_token();
+    }
+
+    for (size_t ci = 0; ci < slen; ++ci) {
+        emit_initializer_value(&counter, &last_is_char, 1, (uint16_t)(uint8_t)sbuf[ci]);
+    }
+    for (uint16_t ci = (uint16_t)slen; ci < expected_count; ++ci) {
+        emit_initializer_value(&counter, &last_is_char, 1, 0);
+    }
+    if (counter) emit_nl();
+    arena_free_to_marker(_am);
+    return (uint16_t)slen;
 }
 
 /* Parse and emit elements for brace-initializer expressions.
@@ -138,7 +166,8 @@ static uint16_t parse_initializer_item(uint8_t field_type_id, uint16_t *counter,
             uint16_t fa_len = type_get_array_length(field_type_id);
 
             uint16_t count = far_parse_brace_initializer_elements(fa_elem, fa_len);
-            if (count > fa_len) error(errTypeError);
+            if (fa_len > 0 && count > fa_len) error(errTypeError);
+            if (fa_len == 0) type_set_array_length(field_type_id, count);
         } else {
             if (type_is_pointer(field_type_id)) error(errTypeError);
             far_parse_brace_initializer_elements(field_type_id, 0);

@@ -238,6 +238,9 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
             if (arrlen > 0 && elementcount != arrlen) {
                 error(errTypeError);
             }
+            if (type_is_array(type_id) && arrlen == 0) {
+                type_set_array_length(type_id, elementcount);
+            }
         }
 
         if (datalen != NO_LABEL) {
@@ -253,6 +256,44 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
         expect_RBrace();
 
         /* place the skip label here so code continues after the data */
+        emit_lbl(skiplbl);
+        return;
+    }
+
+    if (tok == tokString && type_is_array(type_id)) {
+        uint8_t element_type_id = type_get_element_type_id(type_id);
+        if (!type_is_char(element_type_id) && !type_is_byte(element_type_id)) {
+            error(errTypeError);
+            return;
+        }
+        if (IS_UNDEFINED(*sym) || dereference) {
+            error(errNotlvalue);
+            return;
+        }
+
+        uint16_t skiplbl = newlbl();
+        uint16_t datalbl = newlbl();
+        uint16_t datalen = newlbl();
+        uint16_t arrlen = type_get_array_length(type_id);
+
+        emit_ld_symaddr(sym);
+        emit_swap();
+        emit_ld_immed(); emit_lblref(datalbl); emit_nl();
+        emit_ldbc_immed(); emit_lblref(datalen); emit_nl();
+        emit_instrln("ldir");
+        emit_jp(skiplbl);
+        emit_lbl(datalbl);
+        emit_ch(' ');
+
+        uint16_t string_length = parse_string_initializer(element_type_id, arrlen);
+        if (arrlen > 0 && string_length > arrlen) {
+            error(errTypeError);
+        }
+        if (arrlen == 0) {
+            type_set_array_length(type_id, string_length);
+            arrlen = string_length;
+        }
+        emit_lblequ16(datalen, arrlen * type_size(element_type_id));
         emit_lbl(skiplbl);
         return;
     }
