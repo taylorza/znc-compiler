@@ -3,10 +3,10 @@ make dot "feature_test.dot";
 // ============================================================
 // Test group switches - set to 0 to exclude a group
 // ============================================================
-const byte TEST_G1 = 0;
+const byte TEST_G1 = 1;
 const byte TEST_G2 = 0;
 const byte TEST_G3 = 0;
-const byte TEST_G4 = 1;
+const byte TEST_G4 = 0;
 
 const byte TEST_BASIC   = TEST_G1;   // typ_glb, const, arith, bitwise, compare, ternary, incdec
 const byte TEST_FLOW    = TEST_G1;
@@ -153,6 +153,7 @@ int feature_on = 0;
 #if TEST_DLGFNS
 int do_add(int a, int b) { return a + b; }
 int do_sub(int a, int b) { return a - b; }
+BinOp[] dlg_tbl = {do_add, do_sub, do_add};
 #endif
 
 // --- Variadic function ---
@@ -558,6 +559,18 @@ void test_dlgs() {
     OpTable t;
     t.fn = do_add;
     chk("del_struct", t.fn(3, 4) == 7);
+
+    // Global inferred array of delegate function addresses
+    chk("del_arr_add", dlg_tbl[0](8, 2) == 10);
+    chk("del_arr_sub", dlg_tbl[1](8, 2) == 6);
+    chk("del_arr_dup", dlg_tbl[2](8, 2) == 10);
+
+    // Runtime indexing and a local inferred delegate array
+    int i = 1;
+    chk("del_arr_idx", dlg_tbl[i](9, 3) == 6);
+    BinOp[] local_tbl = {do_sub, do_add};
+    chk("del_loc_add", local_tbl[1](4, 5) == 9);
+    chk("del_loc_sub", local_tbl[0](9, 5) == 4);
 }
 #endif
 

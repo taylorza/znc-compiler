@@ -1471,14 +1471,14 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
     /* Load symbol values if we haven't loaded them yet */
     if (factor_result.has_sym && !initial_deref && !addr_in_hl) {
         if (is_func_or_proto(&factor_result.sym)) {
-            emit_ld_immed(); emit_sname_id(factor_result.sym.name_id); emit_nl();
+            /* Function addresses are emitted by far_parse_expr. */
         } else if (type_is_struct(factor_result.sym.type_id) && !type_is_pointer(factor_result.sym.type_id)) {
             /* Structs are loaded as address, not value */
             emit_ld_symaddr(&factor_result.sym);
         } else {
             emit_ld_symval(&factor_result.sym);
         }
-        factor_result.has_sym = 0;
+        if (!is_func_or_proto(&factor_result.sym)) factor_result.has_sym = 0;
         addr_in_hl = 0;
     }
     
