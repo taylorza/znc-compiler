@@ -1080,8 +1080,7 @@ static void parse_signature(uint8_t declare_locals) MYCC {
     while (tok != tokRParen && tok != tokEllipsis) {
         parse_type(&arg_type);
         
-        /* For local argument storage, arrays decay to pointers; preserve
-         * array types in the signature itself. */
+        /* Array parameters decay to pointers for both local storage and calls. */
         uint8_t decl_type = arg_type;
         if (type_is_array(arg_type)) {
             uint8_t elem = type_get_element_type(arg_type);
@@ -1093,7 +1092,7 @@ static void parse_signature(uint8_t declare_locals) MYCC {
         }
 
         if (func_arg_count < MAX_FUNC_ARGS) {
-            func_arg_types[func_arg_count] = arg_type;
+            func_arg_types[func_arg_count] = decl_type;
         } else {
             if (!declare_locals) error(errTooManyTypes);
         }

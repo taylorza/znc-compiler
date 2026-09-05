@@ -182,6 +182,10 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
         uint16_t skiplbl = newlbl();
         uint16_t datalbl = newlbl();
         uint16_t datalen = NO_LABEL;
+        uint16_t original_size = type_size(type_id);
+        uint8_t defer_local_init = !dereference && IS_LOCAL(*sym) &&
+            type_is_array(type_id) && type_get_array_length(type_id) == 0;
+        uint16_t initlbl = defer_local_init ? newlbl() : NO_LABEL;
 
         if (IS_UNDEFINED(*sym) && !dereference) error(errNotlvalue);
 
@@ -198,24 +202,28 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
         else {
             datalen = newlbl();
 
-            if (!dereference && (type_is_array(type_id) || type_is_struct(type_id))) {
-                /* Array/struct variable: destination is the variable's own storage address */
-                emit_ld_symaddr(sym);
-            }
-            else if (IS_DEFINED(*sym)) {
-                emit_ld_symval(sym);
-            }
-            /* else: HL already contains the pointer value from parse_factor (*p case) */
-            if (indexed) {
-                emit_pop_de();
-                emit_add16();
-            }
+            if (defer_local_init) {
+                emit_jp(initlbl);
+            } else {
+                if (!dereference && (type_is_array(type_id) || type_is_struct(type_id))) {
+                    /* Array/struct variable: destination is the variable's own storage address */
+                    emit_ld_symaddr(sym);
+                }
+                else if (IS_DEFINED(*sym)) {
+                    emit_ld_symval(sym);
+                }
+                /* else: HL already contains the pointer value from parse_factor (*p case) */
+                if (indexed) {
+                    emit_pop_de();
+                    emit_add16();
+                }
 
-            /* Set up registers for ldir: HL=source, DE=dest, BC=count */
-            emit_swap();  /* DE = destination (from HL) */
-            emit_ld_immed(); emit_lblref(datalbl); emit_nl();  /* HL = source */
-            emit_ldbc_immed(); emit_lblref(datalen); emit_nl();  /* BC = count */
-            emit_instrln("ldir");
+                /* Set up registers for ldir: HL=source, DE=dest, BC=count */
+                emit_swap();  /* DE = destination (from HL) */
+                emit_ld_immed(); emit_lblref(datalbl); emit_nl();  /* HL = source */
+                emit_ldbc_immed(); emit_lblref(datalen); emit_nl();  /* BC = count */
+                emit_instrln("ldir");
+            }
         }
 
         /* Jump over the data so CPU doesn't execute it at runtime */
@@ -240,7 +248,21 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
             }
             if (type_is_array(type_id) && arrlen == 0) {
                 type_set_array_length(type_id, elementcount);
+                if (IS_LOCAL(*sym)) {
+                    uint16_t new_size = type_size(type_id);
+                    bp_lastlocal += new_size - original_size;
+                    if (localbytes < bp_lastlocal) localbytes = bp_lastlocal;
+                }
             }
+        }
+
+        if (defer_local_init) {
+            emit_lbl(initlbl);
+            emit_ld_symaddr(sym);
+            emit_swap();
+            emit_ld_immed(); emit_lblref(datalbl); emit_nl();
+            emit_ldbc_immed(); emit_lblref(datalen); emit_nl();
+            emit_instrln("ldir");
         }
 
         if (datalen != NO_LABEL) {
@@ -275,12 +297,19 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
         uint16_t datalbl = newlbl();
         uint16_t datalen = newlbl();
         uint16_t arrlen = type_get_array_length(type_id);
+        uint16_t original_size = type_size(type_id);
+        uint8_t defer_local_init = IS_LOCAL(*sym) && arrlen == 0;
+        uint16_t initlbl = defer_local_init ? newlbl() : NO_LABEL;
 
-        emit_ld_symaddr(sym);
-        emit_swap();
-        emit_ld_immed(); emit_lblref(datalbl); emit_nl();
-        emit_ldbc_immed(); emit_lblref(datalen); emit_nl();
-        emit_instrln("ldir");
+        if (defer_local_init) {
+            emit_jp(initlbl);
+        } else {
+            emit_ld_symaddr(sym);
+            emit_swap();
+            emit_ld_immed(); emit_lblref(datalbl); emit_nl();
+            emit_ldbc_immed(); emit_lblref(datalen); emit_nl();
+            emit_instrln("ldir");
+        }
         emit_jp(skiplbl);
         emit_lbl(datalbl);
         emit_ch(' ');
@@ -292,8 +321,21 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
         if (arrlen == 0) {
             type_set_array_length(type_id, string_length);
             arrlen = string_length;
+            if (IS_LOCAL(*sym)) {
+                uint16_t new_size = type_size(type_id);
+                bp_lastlocal += new_size - original_size;
+                if (localbytes < bp_lastlocal) localbytes = bp_lastlocal;
+            }
         }
         emit_lblequ16(datalen, arrlen * type_size(element_type_id));
+        if (defer_local_init) {
+            emit_lbl(initlbl);
+            emit_ld_symaddr(sym);
+            emit_swap();
+            emit_ld_immed(); emit_lblref(datalbl); emit_nl();
+            emit_ldbc_immed(); emit_lblref(datalen); emit_nl();
+            emit_instrln("ldir");
+        }
         emit_lbl(skiplbl);
         return;
     }
