@@ -64,6 +64,7 @@ byte[] _crt_pal = {
   0b11111111  // White (Bright Light Grey)
 };
 
+byte _crt_save_14;
 byte _crt_save_43;
 byte _crt_save_6b;
 
@@ -83,6 +84,8 @@ void crt_setpal(byte* pal) __znccall(1) {
 }
 
 void crt_init() __znccall(1) {
+  _crt_save_14 = updatereg(0x14, 0xe3);       // Set global transpacency
+
   // Build palette 
   _crt_save_43 = updatereg(0x43, 0b00110000);
   crt_setpal(_crt_pal);
@@ -112,6 +115,7 @@ void crt_init() __znccall(1) {
 void crt_restore() __znccall(1) {
   nextreg(0x43, _crt_save_43);
   nextreg(0x6b, _crt_save_6b);
+  nextreg(0x14, _crt_save_14);
   memset(CRT_TILEMAP, 0, 6144);
   memset(CRT_TILEMAP+6144, 0x38, 768);
 }
