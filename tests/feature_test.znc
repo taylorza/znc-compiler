@@ -981,12 +981,6 @@ void test_par_unop() {
 }
 
 void test_arrdec() {
-    // Nested array subscripting should preserve the inner array/pointer type
-    char[4][] e4 = { {1, 2, 3, 0}, {4, 5, 6, 0} };
-    chk("ad_e4_0", e4[0][0] == 1);
-    chk("ad_e4_1", e4[1][1] == 5);
-    chk("ad_e4_2", e4[1][2] == 6);
-
     // Array-of-struct initializers with pointer fields should keep string refs
     StrBox[2] sb = { {"ab", 1}, {"cd", 2} };
     chk("ad_sb0", sb[0].p[0] == 'a');
@@ -1369,6 +1363,25 @@ void test_addrof() {
 #endif
 
 #if TEST_G4
+int sum_b3(byte[] p) {
+    return p[0] + p[1] + p[2];
+}
+
+void test_arr_g4() {
+    char[4][] rows = {{1, 2, 3, 0}, {4, 5, 6, 0}};
+    int ri = 1;
+    int ci = 2;
+    chk("g4_rows0", rows[0][0] == 1);
+    chk("g4_rows1", rows[ri][ci] == 6);
+
+    char*[][] names = {{"A", "B"}, {"C", "D"}};
+    chk("g4_ptr0", names[0][1][0] == 'B');
+    chk("g4_ptr1", names[1][0][0] == 'C');
+
+    byte[3] vals = {1, 2, 3};
+    chk("g4_arg", sum_b3(vals) == 6);
+}
+
 void test_cmp_i16() {
     int neg = -1;
     int zero = 0;
@@ -1572,6 +1585,7 @@ test_addrof();
 #endif
 
 #if TEST_G4
+test_arr_g4();
 test_cmp_i16();
 test_casts();
 test_cmp_u16();

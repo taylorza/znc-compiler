@@ -8,10 +8,5 @@ rem %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/spacesho
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/tilemap.znc /zdev/
 
 
-%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/a.znc /zdev/examples/
-%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/samegame.znc /zdev/examples/
-%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/samegame.pal /zdev/examples/
-%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/samegame.til /zdev/examples/
-%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/samegame.map /zdev/examples/
-%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/samegame-gameover.map /zdev/examples/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/feature_test.znc /zdev/examples/
 
