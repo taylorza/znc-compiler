@@ -11,7 +11,7 @@ const byte TEST_G4 = 0;
 const byte TEST_BASIC   = TEST_G1;   // typ_glb, const, arith, bitwise, compare, ternary, incdec
 const byte TEST_FLOW    = TEST_G1;
 const byte TEST_ARRAYS  = TEST_G1;   // arrays, ptrs
-const byte TEST_STRUCTS = TEST_G1;   // structs, dlgs
+const byte TEST_STRUCTS = TEST_G1;   // structs
 const byte TEST_VARGS   = TEST_G1;   // vargs
 const byte TEST_ASM     = TEST_G1;   // asm
 const byte TEST_CCOMP   = TEST_G1;   // ccomp (conditional compilation)
@@ -24,7 +24,7 @@ const byte TEST_ELIF    = TEST_G2;   // #elif
 const byte TEST_COMPOUND = TEST_G2;  // compound assignment operators
 const byte TEST_INITEX  = TEST_G2;   // initializer + brace-argument enhancements
 
-// Derived: do_add/do_sub are needed by STRUCTS and FORINIT
+// Derived: delegate tests run in TEST_G4
 const byte TEST_RECURSE = TEST_G3;   // recursion
 const byte TEST_TYPEMIX = TEST_G3;   // type coercion / byte-char mixing
 const byte TEST_NCALL   = TEST_G3;   // nested / chained function calls
@@ -35,9 +35,7 @@ const byte TEST_CALLCON = TEST_G3;   // test calling conventions
 const byte TEST_ADDROF = TEST_G3;   // &arr[c/r], &ptr[c/r], &sptr.f, &a[i].f, &p[i].f
 
 // Derived:
-#if TEST_STRUCTS
-const byte TEST_DLGFNS = 1;
-#elif TEST_FORINIT
+#if TEST_G4
 const byte TEST_DLGFNS = 1;
 #else
 const byte TEST_DLGFNS = 0;
@@ -546,31 +544,35 @@ void test_structs() {
     rp.br.x = 20;
     chk("nested_ptr", r.br.x == 20);
 }
+#endif
 
+#if TEST_G4
 void test_dlgs() {
-    // Assign function to delegate and call through it
     BinOp op;
     op = do_add;
-    chk("del_add",    op(6, 4) == 10);
-    // Reassign to a different function
+    chk("del_add", op(6, 4) == 10);
     op = do_sub;
-    chk("del_sub",    op(9, 4) == 5);
-    // Delegate stored in a struct field
+    chk("del_sub", op(9, 4) == 5);
+
     OpTable t;
     t.fn = do_add;
     chk("del_struct", t.fn(3, 4) == 7);
 
-    // Global inferred array of delegate function addresses
     chk("del_arr_add", dlg_tbl[0](8, 2) == 10);
     chk("del_arr_sub", dlg_tbl[1](8, 2) == 6);
     chk("del_arr_dup", dlg_tbl[2](8, 2) == 10);
 
-    // Runtime indexing and a local inferred delegate array
     int i = 1;
     chk("del_arr_idx", dlg_tbl[i](9, 3) == 6);
     BinOp[] local_tbl = {do_sub, do_add};
     chk("del_loc_add", local_tbl[1](4, 5) == 9);
     chk("del_loc_sub", local_tbl[0](9, 5) == 4);
+
+    int r = 0;
+    for (BinOp fn = do_add; r < 3; r = r + 1) {
+        r = fn(r, 0);
+    }
+    chk("for_delegate", r == 3);
 }
 #endif
 
@@ -898,12 +900,6 @@ void test_for_init() {
     }
     chk("for_struct", sum == 2);
 
-    // delegate declaration in for initializer
-    int r = 0;
-    for (BinOp op = do_add; r < 3; r = r + 1) {
-        r = op(r, 0);
-    }
-    chk("for_delegate", r == 3);
 }
 #endif
 
@@ -1548,7 +1544,6 @@ test_ptrs();
 #endif
 #if TEST_STRUCTS
 test_structs();
-test_dlgs();
 #endif
 #if TEST_VARGS
 test_vargs();
@@ -1568,6 +1563,9 @@ test_tconv();
 #endif
 #if TEST_FORINIT
 test_for_init();
+#endif
+#if TEST_G4
+test_dlgs();
 #endif
 #if TEST_ELIF
 test_elif();
