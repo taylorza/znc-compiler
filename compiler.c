@@ -221,8 +221,7 @@ void parse_make(const char *filename) MYCC {
 
     if (tok == tokIdent && lookup_ident_token(token) == tokOrg) parse_org();
     else if (tokMakeType == tokNex) {
-        emit_org(0xc000);
-        current_org = 0xc000;
+        emit_org(0xc000);        
     }
 
     emit_make_defines(tokMakeType);

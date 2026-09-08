@@ -349,8 +349,12 @@ void far_parse_bank(void) MYCC {
         dump_strings_range("str", 0, bank_str_start);
         emit_instrln("include \"%s\"", rtlfilename);
         if (tokMakeType == tokDot) {
-            emit_instrln("display \"DOT-Remaining:\", $4000 - ($ - %u)", current_org - 1);
-            emit_instrln("assert $4000 - ($ - %u) >= 0", current_org - 1);
+            emit_instrln("if $ < $4000");
+            emit_instrln("display \"DOT-Remaining:\", $4000 - $");
+            emit_instrln("else");
+            emit_instrln("display \"DOT-Too large:\", $ - $4000");
+            emit_instrln("assert 0");
+            emit_instrln("endif");
             emit_instrln("ds $4000-$");
         }
     }
@@ -362,7 +366,6 @@ void far_parse_bank(void) MYCC {
         parse_org();        
     } else if (tokMakeType == tokDot) {
         emit_org(DOT_SCRATCH_ADDR + offset);
-        current_org = DOT_SCRATCH_ADDR + offset;
     }
 
     char bank_str_lbl[16];
@@ -385,8 +388,12 @@ void far_parse_bank(void) MYCC {
     set_strref_ctx("str", 0);   
   
     if (tokMakeType == tokDot) {
+        emit_instrln("if ($ - %u) < $2000", current_org - 1);
         emit_instrln("display \"BANK %d Remaining:\", $2000 - ($ - %u)", currbank, current_org - 1);
-        emit_instrln("assert $2000 - ($ - %u) >= 0", current_org - 1);
+        emit_instrln("else");
+        emit_instrln("display \"BANK %d Too large:\", ($ - %u) - $2000", currbank, current_org - 1);
+        emit_instrln("assert 0");
+        emit_instrln("endif");        
         emit_instrln("ds $2000 - ($ - %u)", current_org - 1);
         emit_instrln("db %d", currbank);
     }    

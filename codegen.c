@@ -828,7 +828,10 @@ void emit_mulDE2(void) MYCC {
 //}
 
 void emit_org(uint16_t address) MYCC {
+    extern uint16_t current_org;
+    
     emit_instrln("org %d", address);
+    current_org = address;
 }
 
 void emit_bank(uint8_t bank, uint16_t offset) MYCC {
