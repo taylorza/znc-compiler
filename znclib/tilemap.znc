@@ -9,6 +9,7 @@ include "mmu.znc"
 enum TIL_MODE {
   TIL_40x32 = 0,
   TIL_80x32 = 0b01000000,
+  TIL_ATTR  = 0b00100000,
 }
 
 const uint TIL_TILEMAP = 0xc000;
@@ -16,6 +17,7 @@ const byte TIL_HEIGHT = 32;
 uint TIL_TILEDEF;
 byte TIL_MAX_TILES;
 byte TIL_WIDTH;
+byte TIL_SPAN;
 
 byte* _til_ptr = TIL_TILEMAP;
 
@@ -27,9 +29,12 @@ byte _til_save_6b;
 byte _til_save_6c;
 
 byte _til_mode;
+byte _til_hasattr = 0;
 
 // Set tilemap defaults
 void til_default() __znccall(1) {
+  nextreg(0x6c, 0);               // Default Attribute
+
   // Reset clip window
   nextreg(0x1c, 0b00001000);      // Reset tilemap clip index
   nextreg(0x1b, 0);               // X1 - 0
@@ -44,24 +49,24 @@ void til_default() __znccall(1) {
 }
 
 void til_init(TIL_MODE mode) __znccall(1) {
-  _til_mode = mode;
+  _til_mode = mode ^ (~TIL_MODE.TIL_ATTR);
+  _til_hasattr = mode & TIL_MODE.TIL_ATTR ? 1 : 0;
 
-  if (mode == TIL_MODE.TIL_80x32) {
+  if (mode & TIL_MODE.TIL_80x32) {
     TIL_TILEDEF = 0xca00;
     TIL_WIDTH = 80;
   } else {
     TIL_TILEDEF = 0xc500;
     TIL_WIDTH = 40;
   }
+  TIL_SPAN = TIL_WIDTH << _til_hasattr;
   TIL_MAX_TILES = (0x2000 - (TIL_WIDTH * TIL_HEIGHT)) >> 5;
   TIL_TILE_OFFS = (TIL_TILEDEF - TIL_TILEMAP) >> 8;
 
-  nextreg(0x56, 14); // Switch to bank 7 (page 14)
-
-  _til_bank = readreg(0x56);
-  _til_save_4c = updatereg(0x4c, 0x0f);               // Tilemap transparent index
-  _til_save_6b = updatereg(0x6b, 0b10100001 | _til_mode);  // Tilmap Control
-  _til_save_6c = updatereg(0x6c, 0b00000000);         // Default Attribute
+  _til_bank = updatereg(0x56, 14); // Switch to bank 7 (page 14)
+  _til_save_4c = updatereg(0x4c, 0x0f);                    // Tilemap transparent index
+  _til_save_6b = updatereg(0x6b, 0b10000001 | _til_mode);  // Tilmap Control
+  _til_save_6c = updatereg(0x6c, 0b00000000);              // Default Attribute
 
   nextreg(0x6e, 0x80);                  // Tilemap Bank 7 offset 0x0000
   nextreg(0x6f, 0x80 | TIL_TILE_OFFS);  // Tiledef Bank 7 offset 0x0a00 
@@ -70,7 +75,12 @@ void til_init(TIL_MODE mode) __znccall(1) {
 }
 
 void til_cls(byte tile) __znccall(1) {
-  memset(TIL_TILEMAP, tile, TIL_WIDTH * TIL_HEIGHT);
+  if (!_til_hasattr) {
+    memset(TIL_TILEMAP, tile, TIL_WIDTH * TIL_HEIGHT);
+  } else {
+    byte attr = readreg(0x6c);
+    memset16(TIL_TILEMAP, tile | (attr << 8), TIL_WIDTH * TIL_HEIGHT);
+  }
 }
 
 void til_load(char *filename, byte count) __znccall(1) {
@@ -81,7 +91,7 @@ void til_load(char *filename, byte count) __znccall(1) {
 
 void til_loadmap(char *filename) __znccall(1) {
   byte fh = fopen(filename, M_EXIST | M_READ);
-  fread(fh, TIL_TILEMAP, TIL_WIDTH*TIL_HEIGHT);
+  fread(fh, TIL_TILEMAP, TIL_WIDTH * TIL_HEIGHT);
   fclose(fh); 
 }
 
@@ -136,14 +146,35 @@ void pal_select(PALETTE palette) __znccall(1) {
   nextreg(0x6b, ctltil);
 }
 
+void til_defattr(byte attr) __znccall(1) {
+  nextreg(0x6c, attr);
+}
+
+void til_put(byte x, byte y, byte tile, byte attr) __znccall(1) {
+  if (x >= TIL_WIDTH || y >= TIL_HEIGHT) return;
+  byte *til_ptr = TIL_TILEMAP + (((y * TIL_SPAN) + (x << _til_hasattr)));
+  *til_ptr = tile;
+  if (_til_hasattr) *(til_ptr + 1) = attr;
+}
+
 void til_set(byte x, byte y, byte tile) __znccall(1) {
   if (x >= TIL_WIDTH || y >= TIL_HEIGHT) return;
-  _til_ptr[(y * TIL_WIDTH) + x] = tile;
+  _til_ptr[(y * TIL_SPAN) + (x << _til_hasattr)] = tile;
+}
+
+void til_setattr(byte x, byte y, byte attr) __znccall(1) {
+  if (x >= TIL_WIDTH || y >= TIL_HEIGHT) return;
+  _til_ptr[(y * TIL_SPAN) + (x << _til_hasattr) + 1] = attr;
 }
 
 byte til_get(byte x, byte y) __znccall(1) {
   if (x >= TIL_WIDTH || y >= TIL_HEIGHT) return 0;
-  return _til_ptr[(y * TIL_WIDTH) + x];
+  return _til_ptr[(y * TIL_SPAN) + (x << _til_hasattr)];
+}
+
+byte til_getattr(byte x, byte y) __znccall(1) {
+  if (x >= TIL_WIDTH || y >= TIL_HEIGHT) return 0;
+  return _til_ptr[(y * TIL_SPAN) + (x << _til_hasattr) + 1];
 }
 
 void til_at(uint x, uint y) __znccall(1) {
