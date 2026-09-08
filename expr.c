@@ -886,7 +886,10 @@ static void postfix_subscript(EXPR_RESULT* result, uint8_t* dereference, uint8_t
     result->has_sym = 0;
     uint8_t elemtype_id = type_get_element_type_id(result->type_id);
     get_token(); // skip '['
-    if (!had_sym) emit_push();
+    /* A numeric literal cannot emit runtime code, so it cannot overwrite the
+     * base address in HL. Preserve HL only for indexes that may do so. */
+    uint8_t literal_index = (tok == tokNumber || tok == tokFixedLit);
+    if (!had_sym && !literal_index) emit_push();
 
     EXPR_RESULT index_result = far_parse_expr_delayconst(0, TYPE_ID_INT);
     expect(tokRBrack, ']');
@@ -912,8 +915,8 @@ static void postfix_subscript(EXPR_RESULT* result, uint8_t* dereference, uint8_t
             *addr_in_hl = 1;
             return;
         }
-        if (!had_sym) emit_pop_hl();
-        if (offset) { emit_ldde_immed_n(offset); emit_add16(); }
+        if (!had_sym && !literal_index) emit_pop_hl();
+        if (offset) emit_add_hl_small((int16_t)offset);
     } else {
         if (type_is_fixed(index_result.type_id)) emit_fixed_to_int();
         if (scale > 1) emit_scale_reg(scale, 1);
