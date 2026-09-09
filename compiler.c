@@ -82,6 +82,9 @@ void parse_make(const char* outfilename) MYCC;
  * Far declarations for compilerex.c (BANK_47) implementations        *
  * ------------------------------------------------------------------ */
 void far_parse_include(void) MYCC;
+void far_parse_if(uint16_t brklbl, uint16_t contlbl) MYCC;
+void far_parse_for(void) MYCC;
+void far_parse_switch(uint16_t contlbl) MYCC;
 void far_parse_while(void) MYCC;
 void far_parse_break(uint16_t brklbl) MYCC;
 void far_parse_continue(uint16_t contlbl) MYCC;
@@ -471,105 +474,15 @@ void parse_enum_def(void) MYCC {
 }
 
 void parse_if(uint16_t brklbl, uint16_t contlbl) MYCC {
-    get_token(); // skip 'if'
-    expect_LParen();
-    expr_result = parse_expr_delayconst(0, 0);
-    expect_RParen();
-
-    if (type_is_const(expr_result.type_id)) {
-        if (expr_result.value) {
-            parse_statement(brklbl, contlbl);           // always-true: emit true branch
-            if (tok == tokElse) { get_token(); skip_statement(); } // skip else
-        } else {
-            skip_statement();                           // always-false: skip true branch
-            if (tok == tokElse) { get_token(); parse_statement(brklbl, contlbl); } // emit else
-        }
-        return;
-    }
-
-    uint16_t lblEndIf = NO_LABEL;
-    uint16_t lblFalse = newlbl();
-    emit_jp_false(lblFalse);
-    parse_statement(brklbl, contlbl);
-
-    if (tok == tokElse) {
-        get_token(); // skip 'else'
-        lblEndIf = newlbl();
-        emit_jp(lblEndIf);
-    }
-    emit_lbl(lblFalse);
-
-    if (lblEndIf != NO_LABEL) {
-        parse_statement(brklbl, contlbl);
-        emit_lbl(lblEndIf);
-        lblEndIf = NO_LABEL;
-    }
+    PROLOG(47)
+    far_parse_if(brklbl, contlbl);
+    EPILOG
 }
 
 void parse_switch(uint16_t contlbl) MYCC {
-    uint16_t lblTbl = newlbl();
-    uint16_t lblDefault = NO_LABEL;
-    uint16_t lblDone = newlbl();
-    
-    uint16_t mark = arena_get_marker();
-
-    uint16_t* values = arena_alloc(sizeof(uint16_t) * MAX_CASE); // space for case values
-    uint16_t* labels = arena_alloc(sizeof(uint16_t) * MAX_CASE); // space for case labels
-    
-    uint8_t case_count = 0;
-    uint8_t last_break = 0;
-
-    expr_result = parse_onearg(); // (expr)
-    if (type_is_fixed(expr_result.type_id))
-        error(errTypeError);
-    emit_jp(lblTbl);
-
-    expect_LBrace();
-    while (tok == tokCase || tok == tokDefault) {
-        last_break = 0;
-        if (tok == tokCase) {
-            get_token(); // skip 'case'
-            expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
-            if (!type_is_const(expr_result.type_id)) {
-                error(errConstExpected);
-            }
-            if (type_is_fixed(expr_result.type_id))
-                error(errTypeError);
-            uint16_t lblCase = newlbl();
-            if (case_count == MAX_CASE) error(errInvalid_s, "case");
-            values[case_count] = expr_result.value;
-            labels[case_count++] = lblCase;
-            emit_lbl(lblCase);
-        } else if (tok == tokDefault) {
-            if (lblDefault != NO_LABEL) error(errAlreadyDefined_s, "default");
-            get_token(); // skip 'default'
-            lblDefault = newlbl();   
-            emit_lbl(lblDefault);
-        }
-        expect_colon();
-        if (tok == tokLBrace) 
-            parse_statement_block(lblDone, contlbl, 1);
-        else
-            while (tok != tokEOS && tok != tokBreak && tok != tokCase && tok != tokRBrace && tok != tokDefault) {
-                parse_statement(lblDone, contlbl);
-            }
-        if (tok == tokBreak) {
-            parse_break(lblDone);            
-            last_break = 1;          
-        }
-    }
-    if (!last_break) emit_jp(lblDone);
-    expect_RBrace();
-    emit_lbl(lblTbl);
-    emit_instrln("ld b,%d", case_count);
-    emit_rtl("ccswitch");
-    for(int i=0; i<case_count; ++i) {
-        emit_instr("dw %d,", values[i]); emit_lblref(labels[i]);
-        emit_nl();
-    }
-    if (lblDefault != NO_LABEL) emit_jp(lblDefault);
-    emit_lbl(lblDone);
-    arena_free_to_marker(mark);
+    PROLOG(47)
+    far_parse_switch(contlbl);
+    EPILOG
 }
 
 void parse_while(void) MYCC {
@@ -579,94 +492,9 @@ void parse_while(void) MYCC {
 }
 
 void parse_for(void) MYCC {
-	get_token(); // skip 'for'
-	expect_LParen();
-
-	uint16_t blockframe = push_frame();
-	uint8_t old_localcount = localcount;
-    uint16_t old_bp = bp_lastlocal;
-
-	uint16_t lblCond=NO_LABEL;
-	uint16_t lblEndFor, brklbl;
-	uint16_t lblBody = newlbl();
-	uint16_t lblPost, contlbl;
-
-	lblEndFor = brklbl = newlbl();
-	lblPost = contlbl = NO_LABEL;
-
-
-	// parse initializer
-	uint8_t init_is_decl = 0;
-    if (tok == tokConst || tok == tokChar || tok == tokByte || tok == tokUint || tok == tokInt || tok == tokFixed || tok == tokVoid) {
-		init_is_decl = 1;
-	} else if (tok == tokIdent) {
-		if (find_struct(token) >= 0 || type_find_by_name(token) != -1)
-			init_is_decl = 1;
-	}
-	if (init_is_decl) {
-		parse_decl();
-	} else {
-		if (tok != tokSemi) parse_expr(0, 0);
-		expect_semi();
-	}
-
-	// parse condition
-	if (tok != tokSemi) {
-		lblCond = newlbl();
-		emit_lbl(lblCond);
-        expr_result = parse_expr_delayconst(0, 0);
-		if (type_is_const(expr_result.type_id) && !expr_result.value) {
-			// for(; 0; ...) — skip post-expr and body, emit nothing
-			expect_semi();
-			// skip post-expression, respecting nested parens
-			int pdepth = 0;
-			while (tok != tokEOS) {
-				if (tok == tokLParen || tok == tokLBrack) ++pdepth;
-				else if (tok == tokRParen || tok == tokRBrack) {
-					if (pdepth == 0) break; // this is the for's closing ')'
-					--pdepth;
-				}
-				get_token();
-			}
-			expect_RParen();
-			skip_statement(); // skip body
-			if (maxlocalcount < localcount) maxlocalcount = localcount;
-			bp_lastlocal = old_bp;
-			localcount = old_localcount;
-			pop_frame(blockframe);
-			return;
-		}
-		if (!type_is_const(expr_result.type_id))
-			emit_jp_true(lblBody);
-            emit_jp(lblEndFor);
-	}
-	expect_semi();
-
-	// parse post statement
-	if (tok != tokRParen) {		
-		lblPost = contlbl = newlbl();
-		emit_lbl(lblPost);
-		parse_expr(0, 0);
-		if (lblCond != NO_LABEL) emit_jp(lblCond);
-	} else {
-		contlbl = lblBody;
-	}
-	expect_RParen();
-
-	emit_lbl(lblBody);
-	parse_statement(brklbl, contlbl);
-	if (lblPost != NO_LABEL)
-		emit_jp(lblPost);
-	else if (lblCond != NO_LABEL)
-		emit_jp(lblCond);
-	else
-		emit_jp(lblBody);
-	emit_lbl(lblEndFor);
-
-	if (maxlocalcount < localcount) maxlocalcount = localcount;
-    bp_lastlocal = old_bp;
-	localcount = old_localcount;
-	pop_frame(blockframe);    
+    PROLOG(47)
+    far_parse_for();
+    EPILOG
 }
 
 void parse_break(uint16_t brklbl) MYCC {

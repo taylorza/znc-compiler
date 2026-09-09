@@ -24,6 +24,9 @@ extern uint8_t  infunc;
 extern uint8_t  func_rettype;
 extern uint16_t retlbl;
 extern TOKEN    tokMakeType;
+extern uint8_t  localcount;
+extern uint8_t  maxlocalcount;
+extern uint16_t bp_lastlocal;
 
 #define DOT_SCRATCH_ADDR 0x8000
 
@@ -33,8 +36,10 @@ void skip_statement_far(void) MYCC;
 
 /* Main-bank parse entry points (always safe to call) */
 void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC;
+void skip_statement(void) MYCC;
 void parse_decl(void) MYCC;
 void parse_type(uint8_t* type_id_out) MYCC;
+void far_parse_break(uint16_t brklbl) MYCC;
 
 uint8_t page_map[256];  /* page map for banked code generation */
 extern uint8_t page_count; /* current page order for banked code generation */
@@ -113,6 +118,177 @@ static int far_find_enum_member(int id, const char* name, uint16_t* value_out) M
 }
 
 /* ------------------------------------------------------------------ */
+
+void far_parse_if(uint16_t brklbl, uint16_t contlbl) MYCC {
+    get_token();
+    expect_LParen();
+    expr_result = parse_expr_delayconst(0, 0);
+    expect_RParen();
+
+    if (type_is_const(expr_result.type_id)) {
+        if (expr_result.value) {
+            parse_statement(brklbl, contlbl);
+            if (tok == tokElse) { get_token(); skip_statement(); }
+        } else {
+            skip_statement();
+            if (tok == tokElse) { get_token(); parse_statement(brklbl, contlbl); }
+        }
+        return;
+    }
+
+    uint16_t lblEndIf = NO_LABEL;
+    uint16_t lblFalse = newlbl();
+    emit_jp_false(lblFalse);
+    parse_statement(brklbl, contlbl);
+
+    if (tok == tokElse) {
+        get_token();
+        lblEndIf = newlbl();
+        emit_jp(lblEndIf);
+    }
+    emit_lbl(lblFalse);
+
+    if (lblEndIf != NO_LABEL) {
+        parse_statement(brklbl, contlbl);
+        emit_lbl(lblEndIf);
+    }
+}
+
+void far_parse_switch(uint16_t contlbl) MYCC {
+    uint16_t lblTbl = newlbl();
+    uint16_t lblDefault = NO_LABEL;
+    uint16_t lblDone = newlbl();
+    uint16_t mark = arena_get_marker();
+    uint16_t* values = arena_alloc(sizeof(uint16_t) * MAX_CASE);
+    uint16_t* labels = arena_alloc(sizeof(uint16_t) * MAX_CASE);
+    uint8_t case_count = 0;
+    uint8_t last_break = 0;
+
+    expr_result = parse_onearg();
+    if (type_is_fixed(expr_result.type_id)) error(errTypeError);
+    emit_jp(lblTbl);
+
+    expect_LBrace();
+    while (tok == tokCase || tok == tokDefault) {
+        last_break = 0;
+        if (tok == tokCase) {
+            get_token();
+            expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
+            if (!type_is_const(expr_result.type_id)) error(errConstExpected);
+            if (type_is_fixed(expr_result.type_id)) error(errTypeError);
+            uint16_t lblCase = newlbl();
+            if (case_count == MAX_CASE) error(errInvalid_s, "case");
+            values[case_count] = expr_result.value;
+            labels[case_count++] = lblCase;
+            emit_lbl(lblCase);
+        } else {
+            if (lblDefault != NO_LABEL) error(errAlreadyDefined_s, "default");
+            get_token();
+            lblDefault = newlbl();
+            emit_lbl(lblDefault);
+        }
+        expect_colon();
+        if (tok == tokLBrace)
+            parse_statement_block(lblDone, contlbl, 1);
+        else
+            while (tok != tokEOS && tok != tokBreak && tok != tokCase && tok != tokRBrace && tok != tokDefault)
+                parse_statement(lblDone, contlbl);
+        if (tok == tokBreak) {
+            far_parse_break(lblDone);
+            last_break = 1;
+        }
+    }
+    if (!last_break) emit_jp(lblDone);
+    expect_RBrace();
+    emit_lbl(lblTbl);
+    emit_instrln("ld b,%d", case_count);
+    emit_rtl("ccswitch");
+    for (uint8_t i = 0; i < case_count; ++i) {
+        emit_instr("dw %d,", values[i]);
+        emit_lblref(labels[i]);
+        emit_nl();
+    }
+    if (lblDefault != NO_LABEL) emit_jp(lblDefault);
+    emit_lbl(lblDone);
+    arena_free_to_marker(mark);
+}
+
+void far_parse_for(void) MYCC {
+    get_token();
+    expect_LParen();
+
+    uint16_t blockframe = push_frame();
+    uint8_t old_localcount = localcount;
+    uint16_t old_bp = bp_lastlocal;
+    uint16_t lblCond = NO_LABEL;
+    uint16_t lblEndFor = newlbl();
+    uint16_t lblBody = newlbl();
+    uint16_t lblPost = NO_LABEL;
+    uint16_t contlbl = NO_LABEL;
+
+    uint8_t init_is_decl = 0;
+    if (tok == tokConst || tok == tokChar || tok == tokByte || tok == tokUint ||
+        tok == tokInt || tok == tokFixed || tok == tokVoid) {
+        init_is_decl = 1;
+    } else if (tok == tokIdent && (find_struct(token) >= 0 || type_find_by_name(token) != -1)) {
+        init_is_decl = 1;
+    }
+    if (init_is_decl) parse_decl();
+    else {
+        if (tok != tokSemi) parse_expr(0, 0);
+        expect_semi();
+    }
+
+    if (tok != tokSemi) {
+        lblCond = newlbl();
+        emit_lbl(lblCond);
+        expr_result = parse_expr_delayconst(0, 0);
+        if (type_is_const(expr_result.type_id) && !expr_result.value) {
+            expect_semi();
+            int pdepth = 0;
+            while (tok != tokEOS) {
+                if (tok == tokLParen || tok == tokLBrack) ++pdepth;
+                else if (tok == tokRParen || tok == tokRBrack) {
+                    if (pdepth == 0) break;
+                    --pdepth;
+                }
+                get_token();
+            }
+            expect_RParen();
+            skip_statement();
+            if (maxlocalcount < localcount) maxlocalcount = localcount;
+            bp_lastlocal = old_bp;
+            localcount = old_localcount;
+            pop_frame(blockframe);
+            return;
+        }
+        if (!type_is_const(expr_result.type_id)) emit_jp_true(lblBody);
+        emit_jp(lblEndFor);
+    }
+    expect_semi();
+
+    if (tok != tokRParen) {
+        lblPost = contlbl = newlbl();
+        emit_lbl(lblPost);
+        parse_expr(0, 0);
+        if (lblCond != NO_LABEL) emit_jp(lblCond);
+    } else {
+        contlbl = lblBody;
+    }
+    expect_RParen();
+
+    emit_lbl(lblBody);
+    parse_statement(lblEndFor, contlbl);
+    if (lblPost != NO_LABEL) emit_jp(lblPost);
+    else if (lblCond != NO_LABEL) emit_jp(lblCond);
+    else emit_jp(lblBody);
+    emit_lbl(lblEndFor);
+
+    if (maxlocalcount < localcount) maxlocalcount = localcount;
+    bp_lastlocal = old_bp;
+    localcount = old_localcount;
+    pop_frame(blockframe);
+}
 
 void far_parse_struct_def(void) MYCC {
     static char name[MAX_IDENT_LEN + 1];
