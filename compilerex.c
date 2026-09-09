@@ -3,6 +3,8 @@
 #include "shared.h"
 #include "expr.h"
 #include "type.h"
+#include "initializer.h"
+#include "callgraph.h"
 
 /* Simple statement parsers compiled into BANK_47 to reduce the main-bank
  * footprint of compiler.c.  Every function here is a far_* implementation
@@ -23,6 +25,7 @@
 extern uint8_t  infunc;
 extern uint8_t  func_rettype;
 extern uint16_t retlbl;
+extern uint16_t currfunc_id;
 extern TOKEN    tokMakeType;
 extern uint8_t  localcount;
 extern uint8_t  maxlocalcount;
@@ -40,6 +43,161 @@ void skip_statement(void) MYCC;
 void parse_decl(void) MYCC;
 void far_parse_type(uint8_t* type_id_out) MYCC;
 void far_parse_break(uint16_t brklbl) MYCC;
+SYMBOL decl_in_scope(uint8_t type_id, SYM_CLASS_SCOPE klass, const char* name);
+void far_parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc, uint8_t callee_type_id) MYCC;
+
+void far_parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc, uint8_t callee_type_id) MYCC {
+    get_token();
+    uint8_t argcount = 0;
+    uint8_t expected_count = 0xFF;
+    uint8_t sig_id = 0xFF;
+    uint8_t is_variadic = 0;
+    uint8_t calling_convention = 0;
+
+    if (is_func_or_proto(sym)) {
+        expected_count = (uint8_t)sym->fn.arg_count;
+        if (sym->fn.signature_id != 0xFF) sig_id = sym->fn.signature_id;
+    } else if (IS_VARIABLE(*sym) || IS_ARGUMENT(*sym) || ptr_loc) {
+        uint8_t t = ptr_loc ? callee_type_id : sym->type_id;
+        if (type_is_function(type_get_element_type_id(t)) && type_get_indirection(t) == 1) {
+            uint8_t ftype = type_get_element_type_id(t);
+            sig_id = type_get_function_sig(ftype);
+            expected_count = signature_get_arg_count(sig_id);
+        }
+    }
+    if (!infunc) sym->flags |= SYM_FLAG_USED;
+    callgraph_add_edge(currfunc_id, callgraph_add_func(sym->name_id));
+    updatesym(sym);
+
+    calling_convention = signature_get_calling_convention(sig_id);
+    if (sig_id != 0xFF) is_variadic = signature_is_variadic(sig_id);
+
+    SYMBOL tmp_sym;
+    uint8_t have_tmp = 0;
+    if (ptr_loc == PTR_IN_HL) {
+        ARENA_MARKER marker = arena_get_marker();
+        char *tmpname = arena_alloc(8);
+        snprintf(tmpname, 8, "t%d", newlbl());
+        tmp_sym = decl_in_scope(TYPE_ID_INT, VARIABLE, tmpname);
+        emit_store_sym(&tmp_sym);
+        ptr_loc = PTR_IN_SYMBOL;
+        have_tmp = 1;
+        arena_free_to_marker(marker);
+    }
+
+    while (tok != tokRParen) {
+        if (!is_variadic && expected_count != 0xFF && argcount >= expected_count) {
+            error(errArgMismatch);
+            break;
+        }
+
+        EXPR_RESULT arg_result;
+        if (tok == tokLBrace) {
+            uint8_t elem_type_id = TYPE_ID_CHAR;
+            uint16_t expected_arr_len = 0;
+            if (sig_id != 0xFF && argcount < expected_count) {
+                uint8_t expected_type = signature_get_arg_type(sig_id, argcount);
+                if (type_is_array(expected_type) || type_is_pointer(expected_type)) {
+                    elem_type_id = type_get_element_type_id(expected_type);
+                    if (type_is_array(expected_type))
+                        expected_arr_len = type_get_array_length(expected_type);
+                }
+            }
+
+            get_token();
+            uint16_t skiplbl = newlbl();
+            uint16_t datalbl = newlbl();
+            emit_ld_immed(); emit_lblref(datalbl); emit_nl();
+            emit_jp(skiplbl);
+            emit_lbl(datalbl);
+            emit_ch(' ');
+
+            if (type_is_struct(elem_type_id) && tok != tokLBrace) {
+                parse_struct_initializer_fields(elem_type_id);
+            } else if (type_is_struct(elem_type_id)) {
+                int s_id = (int)type_get_struct_id(elem_type_id) - 1;
+                uint8_t first_needs_brace = 0;
+                if (get_field_count(s_id) > 0) {
+                    uint8_t ft = get_struct_field(s_id, 0).type_id;
+                    first_needs_brace = type_is_array(ft) || type_is_struct(ft);
+                }
+                if (first_needs_brace)
+                    parse_struct_initializer_fields(elem_type_id);
+                else
+                    parse_brace_initializer_elements(elem_type_id, expected_arr_len);
+            } else {
+                uint16_t actual_count = parse_brace_initializer_elements(elem_type_id, expected_arr_len);
+                if (expected_arr_len > 0 && actual_count != expected_arr_len)
+                    error(errArgMismatch);
+            }
+            expect(tokRBrace, '}');
+            emit_lbl(skiplbl);
+            arg_result.type_id = type_make_pointer(elem_type_id, 1);
+            arg_result.has_sym = 0;
+            arg_result.value = 0;
+        } else {
+            arg_result = parse_expr(0, 0);
+        }
+
+        if (type_is_struct(arg_result.type_id) && !type_is_pointer(arg_result.type_id))
+            error(errTypeError);
+
+        if (sig_id != 0xFF && argcount < expected_count && argcount < MAX_FUNC_ARGS) {
+            uint8_t expected_type = signature_get_arg_type(sig_id, argcount);
+            uint8_t actual_type = arg_result.type_id;
+            if (arg_result.has_sym) {
+                if (is_func_or_proto(&arg_result.sym)) {
+                    uint8_t fsig = arg_result.sym.fn.signature_id;
+                    uint8_t ftype = type_make_function(fsig);
+                    actual_type = type_make_pointer(ftype, 1);
+                } else {
+                    actual_type = arg_result.sym.type_id;
+                }
+            }
+
+            if (!type_check_compatible(actual_type, expected_type))
+                error(errTypeError);
+
+            if (type_is_fixed(expected_type) && !type_is_fixed(actual_type) &&
+                (type_is_integral(actual_type) || type_is_const(actual_type))) {
+                emit_int_to_fixed();
+            } else if (!type_is_fixed(expected_type) && type_is_fixed(actual_type) &&
+                       type_is_integral(expected_type)) {
+                emit_fixed_to_int();
+            }
+        }
+
+        emit_push();
+        ++argcount;
+        if (tok != tokComma) break;
+        get_token();
+    }
+
+    uint8_t variadic_count = 0;
+    if (is_variadic && expected_count != 0xFF) {
+        if (argcount < expected_count) error(errArgMismatch);
+        variadic_count = argcount - expected_count;
+    }
+    if (is_variadic) {
+        emit_ld_immed_n(variadic_count);
+        emit_push();
+    }
+    if (!is_variadic && expected_count != 0xFF && argcount != expected_count)
+        error(errArgMismatch);
+
+    expect_RParen();
+    if (have_tmp) {
+        emit_ld_symval(&tmp_sym);
+        ptr_loc = PTR_IN_HL;
+    }
+
+    emit_callsym(sym, ptr_loc);
+    if (calling_convention == 1) return;
+
+    int cleanup_count = (expected_count != 0xFF) ? expected_count : argcount;
+    if (is_variadic) cleanup_count = argcount + 1;
+    emit_clean_stack(cleanup_count * 2);
+}
 
 uint8_t page_map[256];  /* page map for banked code generation */
 extern uint8_t page_count; /* current page order for banked code generation */
