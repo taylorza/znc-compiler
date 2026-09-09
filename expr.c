@@ -210,7 +210,7 @@ static void emit_sym_address_with_offset(SYMBOL *sym, uint16_t offset) MYCC {
 /* Helper: Handle prefix/postfix increment/decrement for lvalue at address in HL or simple sym.
  * Returns 1 if handled, 0 if no inc/dec operator present.
  */
-static uint8_t handle_incdec_internal(uint8_t is_prefix, SYMBOL *sym, uint8_t lvalue_type_id, uint8_t addr_in_hl, TOKEN op_override) MYCC {
+static uint8_t handle_incdec_internal(EXPR_RESULT *result, uint8_t is_prefix, uint8_t addr_in_hl, TOKEN op_override) MYCC {
     TOKEN op = (op_override != tokNone) ? op_override : tok;
     if (op != tokInc && op != tokDec) return 0;
     
@@ -223,6 +223,8 @@ static uint8_t handle_incdec_internal(uint8_t is_prefix, SYMBOL *sym, uint8_t lv
     }
     
     uint8_t isdec = (op == tokDec);
+    SYMBOL *sym = result->has_sym ? &result->sym : NULL;
+    uint8_t lvalue_type_id = result->type_id;
     
     /* Compute step size */
     uint16_t step;
@@ -303,10 +305,7 @@ static uint8_t lookup_struct_member(uint8_t check_type_id, FIELDINFO *fi_out, ui
 }
 
 /* Binary operator handler extracted to its own function to minimise the stack
- * frame of parse_op_right during recursive calls.  The locals here (r_result,
- * scaleL/R, flags) are only live while this helper is on the stack, so they
- * do not inflate the frame of the outer loop during tokOr/tokAnd/ternary
- * recursion paths. */
+ * frame of parse_op_right during recursive calls. */
 static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
     uint16_t scaleL = 0;
     uint16_t scaleR = 0;
@@ -1065,8 +1064,7 @@ static void parse_factor_postfix(EXPR_RESULT* result, uint8_t* dereference, uint
 
         if (tok == tokInc || tok == tokDec) {
             if (result->has_sym || *addr_in_hl) {
-                handle_incdec_internal(0, result->has_sym ? &result->sym : NULL,
-                              result->type_id, *addr_in_hl, tokNone);
+                handle_incdec_internal(result, 0, *addr_in_hl, tokNone);
                 *addr_in_hl = 0;
                 *dereference = 0;
                 result->has_sym = 0;
@@ -1210,8 +1208,9 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
 
                 /* This is ++(*ptr) or --(*ptr) (prefix) */
                 TOKEN op = (flags & PF_PREFIX_INC) ? tokInc : tokDec;
-                handle_incdec_internal(1, NULL, elem_type_id, 1, op);
+                factor_result.has_sym = 0;
                 factor_result.type_id = elem_type_id;
+                handle_incdec_internal(&factor_result, 1, 1, op);
                 /* Clear the flags so they don't get processed again */
                 flags &= ~(PF_PREFIX_INC | PF_PREFIX_DEC);
                 break;
@@ -1438,8 +1437,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
     /* Handle prefix ++/-- operators (applied after postfix operators are done) */
     if ((flags & (PF_PREFIX_INC | PF_PREFIX_DEC)) && !type_is_const(factor_result.type_id)) {
         TOKEN prefix_op = (flags & PF_PREFIX_INC) ? tokInc : tokDec;
-        handle_incdec_internal(1, factor_result.has_sym ? &factor_result.sym : NULL, 
-                             factor_result.type_id, addr_in_hl, prefix_op);
+        handle_incdec_internal(&factor_result, 1, addr_in_hl, prefix_op);
         addr_in_hl = 0;  /* After inc/dec, value is in HL, not an address */
         dereference = 0;
         factor_result.has_sym = 0;
