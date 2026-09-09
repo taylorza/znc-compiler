@@ -150,9 +150,62 @@ void far_parse_compound_assign(TOKEN op, uint8_t dereference, SYMBOL *sym, uint8
     }
 }
 
+static void parse_incbin_data(SYMBOL *sym) MYCC {
+    uint16_t skiplbl = newlbl();
+    uint16_t datalbl = newlbl();
+
+    get_token();
+    expect_LParen();
+    if (tok != tokString) {
+        error(errExpected_s, "string");
+        return;
+    }
+
+    if (sym) {
+        emit_ld_immed();
+        emit_lblref(datalbl);
+        emit_nl();
+        emit_store_sym(sym);
+    }
+
+    emit_jp(skiplbl);
+    emit_lbl(datalbl);
+    emit_instr("incbin \"");
+    emit_str("%s", token);
+    emit_strln("\"");
+    emit_lbl(skiplbl);
+
+    get_token();
+    expect_RParen();
+    if (sym) {        
+        updatesym(sym);
+    }
+}
+
+void far_parse_incbin(EXPR_RESULT *result, uint8_t expected_type_id) MYCC {
+    uint8_t pointer_type_id = type_make_pointer(TYPE_ID_BYTE, 1);
+
+    if (type_is_pointer(expected_type_id)) {
+        pointer_type_id = expected_type_id;
+    } else if (type_is_array(expected_type_id)) {
+        pointer_type_id = type_make_pointer(type_get_element_type_id(expected_type_id), 1);
+    } else if (expected_type_id != 0) {
+        error(errTypeError);
+    }
+
+    parse_incbin_data(NULL);
+    result->type_id = pointer_type_id;
+    result->has_sym = 0;
+}
+
 
 void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint8_t type_id) MYCC {
     get_token(); // skip '='
+
+    if (!dereference && type_is_pointer(type_id) && tok == tokIncbin) {
+        parse_incbin_data(sym);
+        return;
+    }
 
     if (IS_DEFINED(*sym) && type_is_const(sym->type_id)) {
         EXPR_RESULT r = parse_expr_delayconst(0, sym->type_id);

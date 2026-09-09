@@ -5,6 +5,7 @@ Declare variables using a type and name. Declarations may include initialization
 ```c
 int x;              // uninitialized local or global depending on scope
 byte b = 42;        // initialized byte
+byte* spriteData = incbin("sprite.spr"); // pointer to assembler-included data
 fixed f = 1.5;      // fixed-point variable
 const int C = 10;   // compile-time constant integer
 const fixed PI = 3.14; // compile-time constant fixed-point

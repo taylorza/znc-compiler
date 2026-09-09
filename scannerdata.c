@@ -51,6 +51,7 @@ static const KEYWORD kw_f[] = {
 static const KEYWORD kw_i[] = {
     {"if", tokIf},
     {"in", tokIn},
+    {"incbin", tokIncbin},
     {"include", tokInclude},
     {"int", tokInt},
 };

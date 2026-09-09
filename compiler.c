@@ -404,17 +404,9 @@ static uint8_t make_const_type(uint8_t type_id) MYCC {
     if (type_is_void(type_id)) error(errTypeError);
     if (type_is_pointer(type_id)) error(errTypeError);
     if (type_is_array(type_id)) error(errTypeError);
-    
-    TypeKind kind = type_get_kind(type_id);
-    if (kind == TK_CHAR) return type_make_char(1);
-    else if (kind == TK_BYTE) return type_make_byte(1);
-    else if (kind == TK_UINT16) return type_make_uint16(1);
-    else if (kind == TK_INT) return type_make_int(1);
-    else if (kind == TK_FIXED) return type_make_fixed(1);
-    else if (kind == TK_STRUCT) {
-        uint8_t sid = type_get_struct_id(type_id);
-        return type_make_struct(sid, 1);
-    }
+
+    if (type_is_scalar(type_id)) return type_as_const(type_id);
+    error(errTypeError);
     return type_id;
 }
 

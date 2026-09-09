@@ -46,3 +46,9 @@ void parse_abs(EXPR_RESULT* result) MYCC {
     far_parse_abs(result);
     EPILOG
 }
+
+void parse_incbin(EXPR_RESULT *result, uint8_t expected_type_id) MYCC {
+    PROLOG(45)
+    far_parse_incbin(result, expected_type_id);
+    EPILOG
+}

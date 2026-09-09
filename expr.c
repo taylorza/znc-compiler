@@ -143,15 +143,6 @@ static uint8_t unsigned_operation_semantics(EXPR_RESULT *left, EXPR_RESULT *righ
     return type_is_unsigned_scalar(type_common_scalar_type(left->type_id, right->type_id, 0));
 }
 
-static uint8_t make_runtime_scalar_type(uint8_t type_id) MYCC {
-    if (type_is_char(type_id)) return TYPE_ID_CHAR;
-    if (type_is_byte(type_id)) return TYPE_ID_BYTE;
-    if (type_is_uint16(type_id)) return TYPE_ID_UINT16;
-    if (type_is_int(type_id)) return TYPE_ID_INT;
-    if (type_is_fixed(type_id)) return TYPE_ID_FIXED;
-    return type_id;
-}
-
 static uint8_t is_unsigned_integer_operation(EXPR_RESULT *left, EXPR_RESULT *right) MYCC {
     if (type_is_pointer(left->type_id) || type_is_pointer(right->type_id))
         return 0;
@@ -225,7 +216,7 @@ static uint8_t handle_incdec_internal(EXPR_RESULT *result, uint8_t is_prefix, ui
     uint8_t isdec = (op == tokDec);
     SYMBOL *sym = result->has_sym ? &result->sym : NULL;
     uint8_t lvalue_type_id = result->type_id;
-    
+
     /* Compute step size */
     uint16_t step;
     if (type_is_pointer(lvalue_type_id) || type_is_array(lvalue_type_id)) {
@@ -590,11 +581,6 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
         default:
             error(errIllegalOp);
             break;
-    }
-
-    /* After emitting runtime code, result is no longer const or a simple symbol */
-    if (type_is_const(left->type_id)) {
-        left->type_id = make_runtime_scalar_type(left->type_id);
     }
 
     /* Comparison/relational operators always produce an int (0 or 1) result */  
@@ -1285,6 +1271,10 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             parse_onearg(); // (expr)
             emit_rtl("puts");
             factor_result.type_id = TYPE_ID_INT; 
+            break;
+
+        case tokIncbin:
+            parse_incbin(&factor_result, expected_type_id);
             break;
 
         case tokIn:            
