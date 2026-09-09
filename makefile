@@ -6,7 +6,7 @@ TARGET = +zxn
 ZCC     = zcc
 ASM     = z80asm
 
-MAX_ALLOCS = 200000
+MAX_ALLOCS = 20000
 CFLAGS = --list -m -c -clib=sdcc_iy -O3 -SO3 -opt-code-size --max-allocs-per-node$(MAX_ALLOCS)
 CFLAGS_O2 = --list -m -c -clib=sdcc_iy -O2 -SO2 -opt-code-size --max-allocs-per-node$(MAX_ALLOCS)
 AFLAGS =

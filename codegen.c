@@ -377,7 +377,9 @@ void emit_callsym(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
         }
         else {
             /* Emit a call to the bank-switching stub */
-            if (sym->bank == 255) error(errInvalidBank);
+            if (sym->bank == 255) {
+                error(errInvalidBank);
+            }
             emit_instrln("ld a,%d", sym->bank);
             emit_ldde_immed(); emit_sname_id(sym->name_id);
             emit_nl();
