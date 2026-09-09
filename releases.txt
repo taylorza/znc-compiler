@@ -1,6 +1,7 @@
 2026/09/06 - Version 0.6f
 - Enhancement - Sized array arguments are checked against the declared size of the array. (e.g., void foo(int[5] a) { ... } will generate an error if called with foo(a) where a is int[4])
 - Enhancement - ZOPT added NOT operator and all expressions are pre-tokenized
+- Enhancement - Compiler now emits "options case_s" at the start of the entry point to enforce case-sensitive symbol handling
 - Fix - crt.znc saves and restores the global transparency register (0x14)
 - Fix - Reporting of remaining or overflow space for DOT and BANKs
 

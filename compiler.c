@@ -126,7 +126,8 @@ void parse(const char* sourcefile, char* outfilename, uint8_t entrypoint) MYCC {
         else if (t == tokOrg) parse_org();
     }
 
-    if (entrypoint) {        
+    if (entrypoint) { 
+        emit_instrln("options case_s");       
         if (tokMakeType == tokNex) {
             start_lbl = newlbl();
             stack_lbl = newlbl();
