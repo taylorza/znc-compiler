@@ -38,7 +38,7 @@ void skip_statement_far(void) MYCC;
 void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC;
 void skip_statement(void) MYCC;
 void parse_decl(void) MYCC;
-void parse_type(uint8_t* type_id_out) MYCC;
+void far_parse_type(uint8_t* type_id_out) MYCC;
 void far_parse_break(uint16_t brklbl) MYCC;
 
 uint8_t page_map[256];  /* page map for banked code generation */
@@ -290,6 +290,65 @@ void far_parse_for(void) MYCC {
     pop_frame(blockframe);
 }
 
+void far_parse_type(uint8_t *type_id_out) MYCC {
+    uint8_t base_type_id = TYPE_ID_VOID;
+
+    switch (tok) {
+        case tokVoid:  base_type_id = TYPE_ID_VOID;   break;
+        case tokChar:  base_type_id = TYPE_ID_CHAR;   break;
+        case tokByte:  base_type_id = TYPE_ID_BYTE;   break;
+        case tokUint:  base_type_id = TYPE_ID_UINT16; break;
+        case tokInt:   base_type_id = TYPE_ID_INT;    break;
+        case tokFixed: base_type_id = TYPE_ID_FIXED;  break;
+        case tokIdent: {
+            int sid = find_struct(token);
+            if (sid >= 0) {
+                base_type_id = type_make_struct((uint8_t)(sid + 1), 0);
+            } else {
+                int type_id = type_find_by_name(token);
+                if (type_id != -1) {
+                    base_type_id = (uint8_t)type_id;
+                } else {
+                    error(errNotDefined_s, token);
+                    tok = tokInt;
+                    base_type_id = TYPE_ID_INT;
+                }
+            }
+            break;
+        }
+        default:
+            error(errNotDefined_s, token);
+            break;
+    }
+
+    get_token();
+    while (tok == tokStar || tok == tokLBrack) {
+        if (tok == tokStar) {
+            get_token();
+            base_type_id = type_make_pointer(base_type_id, 1);
+        } else {
+            get_token();
+            if (tok == tokRBrack) {
+                base_type_id = type_make_array(base_type_id, 0);
+            } else {
+                expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
+                if (!type_is_const(expr_result.type_id)) error(errConstExpected);
+                if (type_is_fixed(expr_result.type_id))
+                    expr_result.value = (uint16_t)((int16_t)expr_result.value >> 4);
+                if (expr_result.value > 0) {
+                    if (base_type_id == TYPE_ID_VOID) error(errTypeError);
+                    base_type_id = type_make_array(base_type_id, expr_result.value);
+                } else {
+                    base_type_id = type_make_pointer(base_type_id, 1);
+                }
+            }
+            expect(tokRBrack, ']');
+        }
+    }
+
+    *type_id_out = base_type_id;
+}
+
 void far_parse_struct_def(void) MYCC {
     static char name[MAX_IDENT_LEN + 1];
 
@@ -312,7 +371,7 @@ void far_parse_struct_def(void) MYCC {
 
     while (tok != tokRBrace && tok != tokEOS) {
         uint8_t ftype_id;
-        parse_type(&ftype_id);
+        far_parse_type(&ftype_id);
 
         for (;;) {
             if (tok != tokIdent) error(errExpected_s, "field name");

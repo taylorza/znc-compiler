@@ -82,6 +82,7 @@ void parse_make(const char* outfilename) MYCC;
  * Far declarations for compilerex.c (BANK_47) implementations        *
  * ------------------------------------------------------------------ */
 void far_parse_include(void) MYCC;
+void far_parse_type(uint8_t* type_id_out) MYCC;
 void far_parse_if(uint16_t brklbl, uint16_t contlbl) MYCC;
 void far_parse_for(void) MYCC;
 void far_parse_switch(uint16_t contlbl) MYCC;
@@ -540,83 +541,9 @@ void parse_asm(void) MYCC {
 }
 
 void parse_type(uint8_t *type_id_out) MYCC {
-    /* Initialize to void */
-    uint8_t base_type_id = TYPE_ID_VOID;
-    uint8_t is_const_flag = 0;
-    uint8_t struct_id = 0;
-
-    switch (tok) {
-        case tokVoid: 
-            base_type_id = TYPE_ID_VOID;
-            break;
-        case tokChar: 
-            base_type_id = TYPE_ID_CHAR;
-            break;
-        case tokByte:
-            base_type_id = TYPE_ID_BYTE;
-            break;
-        case tokUint:
-            base_type_id = TYPE_ID_UINT16;
-            break;
-        case tokInt:
-            base_type_id = TYPE_ID_INT;
-            break;
-        case tokFixed:
-            base_type_id = TYPE_ID_FIXED;
-            break;
-        case tokIdent: {
-            /* Ident could be a struct type name or a registered named type (delegate) */
-            int sid = find_struct(token);
-            if (sid >= 0) {
-                struct_id = sid + 1; /* 1-based id */
-                base_type_id = type_make_struct(struct_id, is_const_flag);
-            } else {
-                int t = type_find_by_name(token);
-                if (t != -1) {
-                    base_type_id = (uint8_t)t;
-                } else {
-                    error(errNotDefined_s, token);
-                    tok = tokInt;
-                    base_type_id = TYPE_ID_INT;
-                }
-            }
-            break;
-        }
-        default:
-            error(errNotDefined_s, token);           
-            break;
-    }
-
-    get_token();
-
-    /* Handle multiple levels of pointer/array suffixes */
-    while (tok == tokStar || tok == tokLBrack) {
-        if (tok == tokStar) {
-            get_token(); // skip '*'
-            base_type_id = type_make_pointer(base_type_id, 1);
-        } else if (tok == tokLBrack) {
-            get_token(); // skip '['
-            if (tok == tokRBrack) {
-                /* Empty brackets [] mean an inferred-size array */
-                base_type_id = type_make_array(base_type_id, 0);
-            } else {
-                expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
-                if (!type_is_const(expr_result.type_id)) error(errConstExpected);
-                /* Convert const fixed dimension to int */
-                if (type_is_fixed(expr_result.type_id))
-                    expr_result.value = (uint16_t)((int16_t)expr_result.value >> 4);
-                if (expr_result.value > 0) {
-                    if (base_type_id == TYPE_ID_VOID) error(errTypeError);
-                    base_type_id = type_make_array(base_type_id, expr_result.value);
-                } else {
-                    base_type_id = type_make_pointer(base_type_id, 1); // zero means pointer
-                }
-            }
-            expect(tokRBrack, ']');
-        }
-    }
-    
-    *type_id_out = base_type_id;
+    PROLOG(47)
+    far_parse_type(type_id_out);
+    EPILOG
 }
 
 void parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc, uint8_t callee_type_id) MYCC {
