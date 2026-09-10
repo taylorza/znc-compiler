@@ -12,6 +12,10 @@
         "arch.h": "c",
         "config_zxn.h": "c",
         "config_zx.h": "c",
-        "stdlib.h": "c"
+        "stdlib.h": "c",
+        "*.asm": "asm-z80-sjasmplus"
+    },
+    "cSpell.enabledFileTypes": {
+        "asm-x86-nasm": false
     }
 }
