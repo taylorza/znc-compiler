@@ -1,18 +1,7 @@
 {
     "files.associations": {
-        "stdint.h": "c",
-        "screen.h": "c",
-        "stddef.h": "c",
-        "font.h": "c",
-        "znc.h": "c",
-        "ctype.h": "c",
-        "string.h": "c",
-        "zxn.h": "c",
-        "esxdos.h": "c",
-        "arch.h": "c",
-        "config_zxn.h": "c",
-        "config_zx.h": "c",
-        "stdlib.h": "c",
+        "*.h": "c",
+        "*.c": "c",
         "*.asm": "asm-z80-sjasmplus"
     },
     "cSpell.enabledFileTypes": {
