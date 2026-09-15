@@ -1,36 +1,29 @@
 #ifndef STRING__
 const byte STRING__=1;
 
-char* strcpy(char *dst, char *src) __asm__ {
-  push ix
-  ld ix,0
-  add ix,sp
+char* strcpy(char *dst, char *src) __znccall(1) __asm__ {
+  pop bc  ; return value
+  pop hl  ; source
+  pop de  ; destination
 
-  ld d,(ix+7)
-  ld e,(ix+6)
-  
-  ld h,(ix+5)
-  ld l,(ix+4) 
+  push bc ; restore return address
 
+  xor a ; <------ Was missing
 .n
   cp (hl)
   ldi
   jr nz,.n
 
 .x
-  ex de,hl
-  pop ix
   ret
 }
 
-int strlen(char *s) __asm__ {
-  push ix
-  ld ix,0
-  add ix,sp
+int strlen(char *s) __znccall(1) __asm__ {
+  pop bc ; return address
+  pop hl ; string pointer
 
-  ld h,(ix+5)
-  ld l,(ix+4) 
-
+  push bc ; restore return address
+  
   xor a
   ld c,a
   ld b,a
@@ -39,20 +32,14 @@ int strlen(char *s) __asm__ {
   ld hl, 0xffff
   sbc hl,bc
 
-  pop ix
   ret
 }
 
-int strcmp(char *s1, char *s2) __asm__ {
-  push ix
-  ld ix,0
-  add ix,sp
-
-  ld d,(ix+7)
-  ld e,(ix+6)
-  
-  ld h,(ix+5)
-  ld l,(ix+4) 
+int strcmp(char *s1, char *s2) __znccall(1) __asm__ {
+  pop bc  ; return address
+  pop hl  ; s2
+  pop de  ; s1
+  push bc ; restore return address
 
 .l
   ld a,(de)
@@ -62,33 +49,26 @@ int strcmp(char *s1, char *s2) __asm__ {
   or a
   jr nz,.l
   
-  dec de
   ld h,a
   ld l,a
-  jr .x
+  ret
 
 .n
   dec hl
   sub (hl)
   ld h,a
 
-.x
-  pop ix
   ret
 }
 
-char* strcat(char *s1, char *s2) __asm__ {
-  push ix
-  ld ix,0
-  add ix,sp
+char* strcat(char *s1, char *s2) __znccall(1) __asm__ {
+  pop bc  ; return address
+  pop hl  ; s2
+  pop de  ; s1
 
-  ld d,(ix+7)
-  ld e,(ix+6)
-  
-  ld h,(ix+5)
-  ld l,(ix+4) 
+  push bc ; restore return address
  
-  push de
+  push de ; save s1 pointer
 .z
   ld a,(de)
   or a
@@ -100,70 +80,70 @@ char* strcat(char *s1, char *s2) __asm__ {
   cp (hl)
   ldi
   jr nz,.l
-  pop hl
 
-  pop ix
+  pop hl ; return s1 pointer
   ret
 }
 
-char* strstr(char *s1, char *s2) __asm__ {
-  push ix
-  ld ix,0
-  add ix,sp
+char* strstr(char *s1, char *s2) __znccall(1) __asm__ {
+_
+  pop bc          ; return address
+  pop de          ; DE = s2 (needle)
+  pop hl          ; HL = s1 (haystack)
+  push bc         ; restore return address
 
-  ld h,(ix+7)
-  ld l,(ix+6)
-  
-  ld d,(ix+5)
-  ld e,(ix+4)
-
-  ld a,(de)
+  ld a,(de)       ; needle empty?
   or a
-  jr z,.ret
+  jr z,.ret_hs    ; return haystack
 
-.l1
-  ld a,(hl)
+.outer
+  ld a,(hl)       ; haystack ended?
   or a
-  jr z,.no
+  jr z,.nf        ; no match
 
-  ld a,(de)
-  cp (hl)
+  ld a,(de)       ; needle[0]
+  cp (hl)         ; haystack[i] ?
   jr nz,.next
 
-  push hl
-  push de
-  inc hl
-  inc de
-.l2
-  ld a,(de)
-  or a
-  jr z,.yes
-  
-  cp (hl)
-  jr nz,.rest
-   
-  inc hl
-  inc de
-  jr .l2
-.rest
-  pop de
-  pop hl
-.next
-  inc hl
-  jr .l1
+  ; possible match starting at HL
+  push hl         ; save haystack start
+  push de         ; save needle start
 
-.no
-  ld hl,0
-  pop ix
-  ret
+  inc hl
+  inc de
+
+.inner
+  ld a,(de)       ; needle[j]
+  or a
+  jr z,.yes       ; full match
+
+  cp (hl)         ; haystack[i+j] ?
+  jr nz,.restore
+
+  inc hl
+  inc de
+  jr .inner
+
+.restore
+  pop de          ; restore needle
+  pop hl          ; restore haystack
+.next
+  inc hl          ; advance haystack
+  jr .outer
 
 .yes
   pop de
   pop hl
-.ret
-  pop ix
+  ret             ; HL = match position
+
+.ret_hs
+  ret             ; HL already = haystack
+
+.nf
+  ld hl,0
   ret
 }
+
 
 char* strchr(char *str, char ch) __znccall(1) __asm__ {
 _

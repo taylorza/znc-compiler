@@ -1,12 +1,13 @@
 // datetime.znc
 // ------------------------
-// v 0.0.2      11-Oct-2025
-// (C)2025  by nuntis/spayz
+// v 0.0.3      18-May-2026
+//          by nuntis/spayz
 // ------------------------
-// The code and libraries within are distributed under the terms of the 
-// Lesser GNU General Public License.
-// Specific permission is granted to Chris Taylor (aka taylorza on itcho.io)
-// to use any of this code as he sees fit.
+// The code and libraries within are distributed under
+// the terms of the MIT No Attributtion License.
+// Specific permission is granted to Chris Taylor
+// (aka taylorza on itcho.io) to use any of this code
+// as he sees fit.
 // https://github.com/Nuntis-Spayz/sev-znc-libs
 
 #ifndef DATETIME__
@@ -18,7 +19,6 @@ const byte DT_DAY   = 2;
 const byte DT_HOUR  = 3;
 const byte DT_MINS  = 4;
 const byte DT_SECS  = 5;
-
 
 // ***************************************************************************
 // * M_GETDATE ($8e)                                                         *
@@ -35,7 +35,7 @@ const byte DT_SECS  = 5;
 //      Fc=1 if no RTC, or invalid date/time, and:
 //      BC=0, DE=0, HL undefined
 
-int getDateTime(int[] dt) __asm__ {
+int getDateTime(int[6] dt) __asm__ {
   
   push ix
   ld ix,0
@@ -46,7 +46,7 @@ int getDateTime(int[] dt) __asm__ {
   push hl
   
   rst 0x08
-  db $8e // * M_GETDATE
+  db $8e // M_GETDATE
   
   pop ix
   
@@ -122,35 +122,35 @@ int getDateTime(int[] dt) __asm__ {
 
   ; Input : DE = DOS time (2s resolution)
   ;         IX = base pointer
-  ; Output: (IX+6) = hour (0...23)
-  ;         (IX+8) = minute (0...59)
+  ; Output: (IX+6) = hour (0-23)
+  ;         (IX+8) = minute (0-59)
   ; Clobbers: A, H, L
   
-  ; --- Extract Minutes (bits 5...10) ---
+  ; Extract Minutes (bits 5-10)
   ld a, e
   srl a          ; >>1
   srl a          ; >>2
   srl a          ; >>3
   srl a          ; >>4
-  srl a          ; >>5  -> A = bits 5...7 now in bits 0...2
-  ld l, a        ; L = low part of minutes (bits 5...7)
+  srl a          ; >>5  -> A = bits 5-7 now in bits 0-2
+  ld l, a        ; L = low part of minutes (bits 5-7)
   
-  ld a, d        ; high byte: bits 8...15
+  ld a, d        ; high byte: bits 8-15
   sla a          ; <<1 (bit 7 becomes bit 0)
   sla a          ; <<2
   sla a          ; <<3
-  and 0x38       ; isolate bits 8...10 (now in bits 3...5)
+  and 0x38       ; isolate bits 8-10 (now in bits 3-5)
   or l           ; combine with low bits from E>>5
-  and 0x3F       ; keep only 6 bits = 0...59
+  and 0x3F       ; keep only 6 bits = 0-59
   ld (ix+8), a   ; store minutes
   ld (ix+9),0
  
-  ; --- Extract Hours (bits 11...15) ---
+  ; Extract Hours (bits 11-15)
   ld a, d
   srl a          ; >>1
   srl a          ; >>2
   srl a          ; >>3
-  and 0x1F       ; keep 5 bits = 0...23
+  and 0x1F       ; keep 5 bits = 0-23
   ld (ix+6), a   ; store hours
   ld (ix+7),0
   

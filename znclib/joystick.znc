@@ -1,12 +1,13 @@
 // joystick.znc
 // ------------------------
-// v 0.0.6      25-Oct-2025
-// (C)2025  by nuntis/spayz
+// v 0.0.7      18-May-2026
+// (C)2026  by nuntis/spayz
 // ------------------------
-// The code and libraries within are distributed under the terms of the 
-// Lesser GNU General Public License.
-// Specific permission is granted to Chris Taylor (aka taylorza on itcho.io)
-// to use any of this code as he sees fit.
+// The code and libraries within are distributed under
+// the terms of the MIT No Attributtion License.
+// Specific permission is granted to Chris Taylor
+// (aka taylorza on itcho.io) to use any of this
+// code as he sees fit.
 // https://github.com/Nuntis-Spayz/sev-znc-libs
 
 #ifndef JOYSTICK__
@@ -22,7 +23,7 @@ const int JOYSTK_C     =0x0020;
 const int JOYSTK_A     =0x0040;
 
 const int JOYSTK_START =0x0080;
-const int JOYSTK_SELECT=0x0100;
+const int JOYSTK_SELCT =0x0100;
 
 const int JOYSTK_Y     =0x0200;
 const int JOYSTK_Z     =0x0400;

@@ -1,44 +1,43 @@
-    ld a,h
-    xor d
-    sra a             ; arithmetic shift → sign in bit 0
-    ld b,a            ; B = 0 if positive, FFh if negative
+    ld b, 0             ; Initialize sign tracker in B
 
-    ; ---- Make HL absolute ----
-    ld a,h
-    sra h             ; replicate sign into all bits
-    xor h
-    sub h
-    ld h,a
+    ; Check sign of HL
+    bit 7, h
+    jr z, .chk_de
+    inc b               ; HL is negative, toggle sign tracker
 
-    ld a,l
-    xor h             ; apply same mask
-    sub h
-    ld l,a
+    ; Negate HL (HL = 0 - HL)
+    xor a
+    sub l
+    ld l, a
+    sbc a, h
+    sub a, l
+    ld h, a
 
-    ; ---- Make DE absolute ----
-    ld a,d
-    sra d
-    xor d
-    sub d
-    ld d,a
+.chk_de:
+    ; Check sign of DE
+    bit 7, d
+    jr z, .mult
+    inc b               ; DE is negative, toggle sign tracker
 
-    ld a,e
-    xor d
-    sub d
-    ld e,a
+    ; Negate DE (DE = 0 - DE)
+    xor a
+    sub e
+    ld e, a
+    sbc a, d
+    sub a, e
+    ld d, a
 
-    call ccumult
+.mult:
+    call ccumult        ; Core math routine (Destroys A, C, DE, HL; Preserves B)
+    
+    ; Test if the result needs to be negative
+    bit 0, b            ; If B is odd (1), result must be negative
+    ret z               ; If B is even (0 or 2), result is already correct
 
-    ; ---- Apply final sign correction without branch ----
-    ld a,b
-    or a
-    jr z,.nofix
-
-    ld a,h
-    cpl
-    ld h,a
-    ld a,l
-    cpl
-    ld l,a
-    inc hl
-.nofix
+    ; Negate HL to restore the negative sign
+    xor a
+    sub l
+    ld l, a
+    sbc a, h
+    sub a, l
+    ld h, a

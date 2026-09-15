@@ -3,10 +3,11 @@
 // v 0.0.1      23-Sep-2025
 // (C)2025  by nuntis/spayz
 // ------------------------
-// The code and libraries within are distributed under the terms of the 
-// Lesser GNU General Public License.
-// Specific permission is granted to Chris Taylor (aka taylorza on itcho.io)
-// to use any of this code as he sees fit.
+// The code and libraries within are distributed under
+// the terms of the MIT No Attributtion License.
+// Specific permission is granted to Chris Taylor
+// (aka taylorza on itcho.io) to use any of this
+// code as he sees fit.
 // https://github.com/Nuntis-Spayz/sev-znc-libs
 
 #ifndef VERSION__

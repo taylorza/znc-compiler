@@ -1,51 +1,9 @@
 make dot "feature_test.dot";
+include "dotn.znc"
 
-// ============================================================
-// Test group switches - set to 0 to exclude a group
-// ============================================================
-const byte TEST_G1 = 1;
-const byte TEST_G2 = 0;
-const byte TEST_G3 = 0;
-const byte TEST_G4 = 0;
-
-const byte TEST_BASIC   = TEST_G1;   // typ_glb, const, arith, bitwise, compare, ternary, incdec
-const byte TEST_FLOW    = TEST_G1;
-const byte TEST_ARRAYS  = TEST_G1;   // arrays, ptrs
-const byte TEST_STRUCTS = TEST_G1;   // structs
-const byte TEST_VARGS   = TEST_G1;   // vargs
-const byte TEST_ASM     = TEST_G1;   // asm
-const byte TEST_CCOMP   = TEST_G1;   // ccomp (conditional compilation)
-const byte TEST_ENUM    = TEST_G1;   // enum declarations and type conversions
-
-const byte TEST_FIXED   = TEST_G2;
-const byte TEST_PTRADV  = TEST_G2;   // rawref, tconv
-const byte TEST_FORINIT = TEST_G2;   // for-initializer declarations
-const byte TEST_ELIF    = TEST_G2;   // #elif
-const byte TEST_COMPOUND = TEST_G2;  // compound assignment operators
-const byte TEST_INITEX  = TEST_G2;   // initializer + brace-argument enhancements
-
-// Derived: delegate tests run in TEST_G4
-const byte TEST_RECURSE = TEST_G3;   // recursion
-const byte TEST_TYPEMIX = TEST_G3;   // type coercion / byte-char mixing
-const byte TEST_NCALL   = TEST_G3;   // nested / chained function calls
-const byte TEST_PTRST   = TEST_G3;   // pointer to struct member / array element
-const byte TEST_MUTREC = TEST_G3;    // mutual recursion
-const byte TEST_MEM_PTR = TEST_G3;   // pointer to nested struct member
-const byte TEST_CALLCON = TEST_G3;   // test calling conventions
-const byte TEST_ADDROF = TEST_G3;   // &arr[c/r], &ptr[c/r], &sptr.f, &a[i].f, &p[i].f
-
-// Derived:
-#if TEST_G4
-const byte TEST_DLGFNS = 1;
-#else
-const byte TEST_DLGFNS = 0;
-#endif
-
-#if TEST_G4
 uint[3] g_u16_vals = {0, 32768, 65535};
 uint g_u16 = 50000;
 uint g_u16_folded = 65535 / 2;
-#endif
 
 // ============================================================
 // Section 1: Compile-time constants
@@ -102,6 +60,11 @@ struct StrBox {
 enum Color { RED, GREEN, BLUE };
 enum Dir   { NORTH, SOUTH, EAST, WEST };
 
+void run_bank1() bank(1);
+void run_bank2() bank(2);
+void run_bank3() bank(3);
+void run_bank4() bank(4);
+
 // ============================================================
 // Section 4: Global variables of every scalar type
 // ============================================================
@@ -120,719 +83,10 @@ int[]  g_nums = {10, 20, 30, 40};
 byte[] g_str  = "ZNC";
 byte[] g_cat  = "Hel" "lo";          // adjacent string literal concat
 
-// ============================================================
-// Section 6: Conditional compilation
-// ============================================================
-#if TEST_CCOMP
-#ifdef __DOT
 int cond_dot = 1;
-#else
-int cond_dot = 0;
-#endif
-
-#ifndef __NEX
 int not_nex = 1;
-#else
-int not_nex = 0;
-#endif
-
-#if FEATURE
 int feature_on = 1;
-#else
-int feature_on = 0;
-#endif
-#endif
 
-// ============================================================
-// Section 7: Function definitions
-// ============================================================
-
-// --- Functions used as delegates ---
-#if TEST_DLGFNS
-int do_add(int a, int b) { return a + b; }
-int do_sub(int a, int b) { return a - b; }
-BinOp[] dlg_tbl = {do_add, do_sub, do_add};
-#endif
-
-// --- Variadic function ---
-#if TEST_VARGS
-int sum_va(int cnt, ...) {
-    va_list args;
-    int total = 0;
-    va_start(args, cnt);
-    while (cnt--) total = total + va_arg(args, int);
-    va_end(args);
-    return total;
-}
-#endif
-
-
-// --- Inline-assembly function: two's-complement negation ---
-// Calling convention: arg n is on the stack (16-bit), result in HL.
-#if TEST_ASM
-int asm_neg(int n) __asm__ {
-_
-    pop  bc             // save return address
-    pop  hl             // n (consume arg from stack)
-    push hl             // restore n so caller's pop af cleanup is balanced
-    push bc             // restore return address
-    ld   a, h
-    cpl
-    ld   h, a
-    ld   a, l
-    cpl
-    ld   l, a
-    inc  hl             // HL = ~n + 1 = -n (two's complement)
-    ret
-}
-#endif
-
-// --- Print a non-negative decimal integer ---
-void printnum(int n) {
-    if (n == 0) { putc('0'); return; }
-    int div = 10000;
-    while ((n / div) == 0) div = div / 10;
-    while (div) {
-        putc(n / div + '0');
-        n = n % div;
-        div = div / 10;
-    }
-}
-
-// --- Report a single test result ---
-// ZX Spectrum colour codes: putc(16) = INK, 0=black, 2=red, 4=green
-void chk(char *name, int ok) {
-    puts(name);
-    if (ok) {
-        putc(16); putc(4);   // INK green
-        puts(":OK");
-        putc(16); putc(0);   // INK black
-        puts("\r");
-        pass_count = pass_count + 1;
-    } else {
-        putc(16); putc(2);   // INK red
-        puts(":FAIL");
-        putc(16); putc(0);   // INK black
-        puts("\r");
-        fail_count = fail_count + 1;
-    }
-}
-
-// --- Feature test functions ---
-
-#if TEST_INITEX
-int sum_b4(byte[] a) {
-    return a[0] + a[1] + a[2] + a[3];
-}
-
-int sum_i3(int[] a) {
-    return a[0] + a[1] + a[2];
-}
-
-fixed sum_f3(fixed[] a) {
-    return a[0] + a[1] + a[2];
-}
-
-int sprite_mix(SpriteInit[] s) {
-    return s[0].x + s[1].y + s[2].vel + s[0].pixels[2] + s[1].pixels[1] + s[2].pixels[0];
-}
-
-void test_initex() {
-    // Brace-array literal passed directly as function argument
-    chk("ia_arg_b4", sum_b4({1, 2, 3, 4}) == 10);
-    chk("ia_arg_i3", sum_i3({10, 20, 30}) == 60);
-    chk("ia_arg_f3", sum_f3({1, 2.5, 0.5}) == 4.0);
-
-    // Struct initializer with fixed-size array member type[n]
-    SpriteInit one = {5, 6, 42, {7, 8, 9}};
-    chk("ia_st_one_v", one.vel == 42);
-    chk("ia_st_one_a", one.pixels[1] == 8);
-
-    // Array of structs initialized with nested fixed-size array members
-    SpriteInit[3] arr = {
-        {10, 20, 100, {1, 2, 3}},
-        {30, 40, 200, {4, 5, 6}},
-        {50, 60, 300, {7, 8, 9}}
-    };
-    chk("ia_st_arr_0", arr[0].pixels[2] == 3);
-    chk("ia_st_arr_1", arr[1].pixels[0] == 4);
-    chk("ia_st_arr_2", arr[2].pixels[1] == 8);
-
-    // Struct-array literal passed directly as argument
-    chk("ia_st_arg", sprite_mix({
-        {1, 2, 10, {4, 5, 6}},
-        {3, 4, 20, {7, 8, 9}},
-        {5, 6, 30, {1, 2, 3}}
-    }) == 50);
-
-    // char[n] field initialized with a string literal (inline byte path)
-    NamedVal nv = {"Hello", 7};
-    chk("ia_charr_0", nv.name[0] == 'H');
-    chk("ia_charr_4", nv.name[4] == 'o');
-    chk("ia_charr_v", nv.val == 7);
-
-    // fixed[n] array member with int constant coercion (int->Q4 path)
-    FxPair fp = {{3, 4}, 99};
-    chk("ia_fxarr_0", fp.pts[0] == 3.0);
-    chk("ia_fxarr_1", fp.pts[1] == 4.0);
-    chk("ia_fxarr_t", fp.tag == 99);
-}
-#endif
-
-#if TEST_BASIC
-void test_escape() {
-    // \' in character literals
-    chk("esc_squot_c",  '\'' == 39);
-    // \' in string literals
-    byte[] sq = "it\'s";
-    chk("esc_squot_s",  sq[2] == '\'');
-    // Other escapes still work alongside \'
-    chk("esc_bs",   '\\' == 92);
-    chk("esc_dquot", '"' == 34);
-    chk("esc_tab",  '\t' == 9);
-    chk("esc_cr",   '\r' == 13);
-    chk("esc_nl",   '\n' == 10);
-    chk("esc_nul",  '\0' == 0);
-    chk("esc_hex",  '\x41' == 'A');
-}
-
-void test_typ_glb() {
-    // Global scalar types
-    chk("g_int",   g_int  == 100);
-    chk("g_char",  g_char == 'Z');
-    chk("g_byte",  g_byte == 42);
-    // Local scalar types
-    int  li = 1000;
-    char lc = 65;
-    byte lb = 100;
-    chk("l_int",   li == 1000);
-    chk("l_char",  lc == 65);
-    chk("l_byte",  lb == 100);
-}
-
-void test_const() {
-    // Global const folded into code
-    chk("const_gval",  CVAL == 77);
-    chk("const_expr",  CVAL * 2 == 154);
-    chk("const_true",  CTRUE == 1);
-    chk("const_false", CFALSE == 0);
-    // Local const
-    const int K = 55;
-    chk("const_local", K == 55);
-    chk("const_locex", K + 1 == 56);
-}
-
-void test_arith() {
-    int a = 17;
-    int b = 5;
-    chk("add", a + b == 22);
-    chk("sub", a - b == 12);
-    chk("mul", a * b == 85);
-    chk("div", a / b == 3);
-    chk("mod", a % b == 2);
-    chk("neg", 0 - a == -17);
-}
-
-void test_bitwise() {
-    int x = 0xA;    // 0b1010
-    int y = 0xC;    // 0b1100
-    chk("bw_and", (x & y)  == 0x8);    // 0b1000
-    chk("bw_or",  (x | y)  == 0xE);    // 0b1110
-    chk("bw_xor", (x ^ y)  == 0x6);    // 0b0110
-    chk("bw_shl", (x << 1) == 0x14);   // 0b10100
-    chk("bw_shr", (x >> 1) == 0x5);    // 0b0101
-    chk("bw_not", (~0) == -1);          // all bits set = -1 signed
-}
-
-void test_compare() {
-    int a = 5;
-    int b = 10;
-    chk("eq",      a == 5);
-    chk("ne",      a != b);
-    chk("lt",      a < b);
-    chk("le",      a <= 5);
-    chk("gt",      b > a);
-    chk("ge",      b >= 10);
-    chk("log_and", a > 0 && b > 0);
-    chk("log_or",  a > 10 || b > 5);
-    chk("log_not", !0);
-}
-
-void test_ternary() {
-    int x = 5;
-    chk("tern_t", (x > 3  ? 1 : 0) == 1);
-    chk("tern_f", (x > 10 ? 1 : 0) == 0);
-    // Ternary producing non-literal values
-    int r = (x == 5 ? x * 2 : 0);
-    chk("tern_expr", r == 10);
-}
-
-void test_incdec() {
-    int x = 5;
-    int y;
-    y = x++;
-    chk("post_inc_ret", y == 5);
-    chk("post_inc_x",   x == 6);
-    y = ++x;
-    chk("pre_inc_ret",  y == 7);
-    chk("pre_inc_x",    x == 7);
-    y = x--;
-    chk("post_dec_ret", y == 7);
-    chk("post_dec_x",   x == 6);
-    y = --x;
-    chk("pre_dec_ret",  y == 5);
-    chk("pre_dec_x",    x == 5);
-    // Indexed lvalue inc/dec
-    int[2] arr;
-    arr[0] = 10;
-    arr[0]++;
-    chk("arr_idx_inc",  arr[0] == 11);
-    arr[1] = 20;
-    arr[1]--;
-    chk("arr_idx_dec",  arr[1] == 19);
-}
-#endif
-
-#if TEST_FLOW
-void test_while() {
-    // Basic while accumulation
-    int i = 0;
-    int s = 0;
-    while (i < 5) { s = s + i; i = i + 1; }
-    chk("while_sum", s == 10);
-    // While with postfix-decrement condition
-    int c = 3;
-    int n = 0;
-    while (c--) n = n + 1;
-    chk("while_dec", n == 3);
-}
-
-void test_for() {
-    // Standard counting loop
-    int s = 0;
-    for (int i = 1; i <= 5; i = i + 1) s = s + i;
-    chk("for_sum", s == 15);
-    // Loop with pre-increment step
-    int t = 0;
-    for (int j = 0; j < 4; ++j) t = t + 1;
-    chk("for_preinc", t == 4);
-    // Infinite loop exited by break
-    int n = 0;
-    for (;;) { n = n + 1; if (n == 3) break; }
-    chk("for_inf_brk", n == 3);
-}
-
-void test_brkcont() {
-    // break exits loop early
-    int s = 0;
-    for (int i = 0; i < 10; i = i + 1) {
-        if (i == 5) break;
-        s = s + 1;
-    }
-    chk("break", s == 5);
-    // continue skips even numbers
-    s = 0;
-    for (int i = 0; i < 10; i = i + 1) {
-        if (i % 2 == 0) continue;
-        s = s + 1;
-    }
-    chk("continue", s == 5);
-}
-
-void test_switch() {
-    int r = 0;
-    // Matching a specific case
-    switch (2) {
-        case 1: r = 10; break;
-        case 2: r = 20; break;
-        default: r = 99; break;
-    }
-    chk("sw_match", r == 20);
-    // Case fall-through (no break between case 1 and case 2)
-    r = 0;
-    switch (1) {
-        case 1:
-        case 2: r = r + 1; break;
-        default: break;
-    }
-    chk("sw_fall", r == 1);
-    // Default branch
-    switch (99) {
-        case 0: r = 0; break;
-        default: r = 7; break;
-    }
-    chk("sw_default", r == 7);
-}
-#endif
-
-#if TEST_ARRAYS
-void test_arrays() {
-    // Fixed-size local int array
-    int[4] arr;
-    arr[0] = 10; arr[1] = 20; arr[2] = 30; arr[3] = 40;
-    int s = 0;
-    for (int i = 0; i < 4; i = i + 1) s = s + arr[i];
-    chk("arr_sum",   s == 100);
-    // Fixed-size local byte array
-    byte[3] b;
-    b[0] = 'A'; b[1] = 'B'; b[2] = 'C';
-    chk("arr_byte",  b[1] == 'B');
-    // Global inferred-size int array
-    chk("arr_gint",  g_nums[0] == 10);
-    chk("arr_gint3", g_nums[3] == 40);
-    // Global inferred-size string
-    chk("arr_gstr0", g_str[0] == 'Z');
-    chk("arr_gstr1", g_str[1] == 'N');
-    // Adjacent string literal concatenation
-    chk("arr_gcat",  g_cat[4] == 'o');
-}
-
-void test_ptrs() {
-    // Address-of and dereference
-    int x = 42;
-    int *p = &x;
-    chk("ptr_rd",     *p == 42);
-    *p = 99;
-    chk("ptr_wr",     x == 99);
-    // Pointer arithmetic: int stride = 2
-    int[3] arr;
-    arr[0] = 1; arr[1] = 2; arr[2] = 3;
-    int *q = arr;
-    q = q + 1;
-    chk("ptr_arith",  *q == 2);
-    // a[b] is *(a+b)
-    chk("ptr_idx",    q[1] == 3);
-    // Byte pointer: stride = 1
-    byte[3] ba;
-    ba[0] = 10; ba[1] = 20; ba[2] = 30;
-    byte *bp = ba;
-    bp = bp + 2;
-    chk("bptr_arith", *bp == 30);
-    // void* compatible with any pointer base (scalar address assignment)
-    int addr = 0x4000;
-    byte *screen = addr;
-    chk("ptr_intaddr", screen == 0x4000);
-}
-#endif
-
-#if TEST_STRUCTS
-void test_structs() {
-    // Field access
-    Point p;
-    p.x = 3; p.y = 7;
-    chk("st_x",       p.x == 3);
-    chk("st_y",       p.y == 7);
-    // Pointer to struct (arrow-style via dot on pointer)
-    Point *pp = &p;
-    pp.x = 99;
-    chk("st_ptr_wr",  p.x == 99);
-    chk("st_ptr_rd",  pp.y == 7);
-    // Array of structs
-    Point[2] pts;
-    pts[0].x = 1; pts[0].y = 2;
-    pts[1].x = 3; pts[1].y = 4;
-    chk("st_arr_0x",  pts[0].x == 1);
-    chk("st_arr_1y",  pts[1].y == 4);
-    // Nested struct
-    Rect r;
-    r.tl.x = 0; r.tl.y = 0;
-    r.br.x = 10; r.br.y = 5;
-    chk("nested_w",   r.br.x - r.tl.x == 10);
-    chk("nested_h",   r.br.y - r.tl.y == 5);
-    // Pointer to struct containing nested struct
-    Rect *rp = &r;
-    rp.br.x = 20;
-    chk("nested_ptr", r.br.x == 20);
-}
-#endif
-
-#if TEST_G4
-void test_dlgs() {
-    BinOp op;
-    op = do_add;
-    chk("del_add", op(6, 4) == 10);
-    op = do_sub;
-    chk("del_sub", op(9, 4) == 5);
-
-    OpTable t;
-    t.fn = do_add;
-    chk("del_struct", t.fn(3, 4) == 7);
-
-    chk("del_arr_add", dlg_tbl[0](8, 2) == 10);
-    chk("del_arr_sub", dlg_tbl[1](8, 2) == 6);
-    chk("del_arr_dup", dlg_tbl[2](8, 2) == 10);
-
-    int i = 1;
-    chk("del_arr_idx", dlg_tbl[i](9, 3) == 6);
-    BinOp[] local_tbl = {do_sub, do_add};
-    chk("del_loc_add", local_tbl[1](4, 5) == 9);
-    chk("del_loc_sub", local_tbl[0](9, 5) == 4);
-
-    int r = 0;
-    for (BinOp fn = do_add; r < 3; r = r + 1) {
-        r = fn(r, 0);
-    }
-    chk("for_delegate", r == 3);
-}
-#endif
-
-#if TEST_VARGS
-void test_vargs() {
-    chk("va_1arg",  sum_va(1, 99) == 99);
-    chk("va_2args", sum_va(2, 10, 20) == 30);
-    chk("va_3args", sum_va(3, 5, 6, 7) == 18);
-}
-#endif
-
-#if TEST_ASM
-void test_asm() {
-    // __asm__ function: two's complement negation
-    chk("asm_fn_neg",  asm_neg(7)  == -7);
-    chk("asm_fn_zero", asm_neg(0)  == 0);
-    chk("asm_fn_neg2", asm_neg(-3) == 3);
-    // Inline __asm__ block that writes to a global variable
-    g_asm_var = 0;
-    __asm__ {
-        ld hl, 123
-        ld (_g_asm_var), hl
-    }
-    chk("asm_block", g_asm_var == 123);
-}
-#endif
-
-#if TEST_CCOMP
-void test_ccomp() {
-    // #ifdef __DOT (set by make dot)
-    chk("cond_ifdef",   cond_dot   == 1);
-    // #ifndef __NEX (not set for DOT builds)
-    chk("cond_ifndef",  not_nex    == 1);
-    // #if with a compile-time const
-    chk("cond_if",      feature_on == 1);
-}
-#endif
-
-#if TEST_FIXED
-void test_fixed() {
-    // Literal assignment
-    fixed a = 1.5;
-    fixed b = 0.5;
-    chk("fx_lit",    a == 1.5);
-    // Arithmetic
-    chk("fx_add",    a + b == 2.0);
-    chk("fx_sub",    a - b == 1.0);
-    chk("fx_mul",    a * b == 0.75);
-    fixed c = 3.0;
-    fixed d = 2.0;
-    chk("fx_div",    c / d == 1.5);
-    // Comparison
-    chk("fx_lt",     b < a);
-    chk("fx_gt",     a > b);
-    chk("fx_eq",     d == 2.0);
-    // Int-to-fixed implicit conversion
-    fixed e = 5;
-    chk("fx_i2fx",   e == 5.0);
-    // Fixed-to-int implicit conversion (fractional bits truncated)
-    int n = 2.75;
-    chk("fx_fx2i",   n == 2);
-    // const fixed: compile-time constant
-    const fixed HALF = 0.5;
-    chk("fx_const",  HALF == 0.5);
-    chk("fx_cexpr",  HALF + HALF == 1.0);
-    // Increment/decrement: step is 1.0 (0x10 in Q4)
-    fixed f = 1.5;
-    f++;
-    chk("fx_inc",    f == 2.5);
-    f--;
-    chk("fx_dec",    f == 1.5);
-    // Negative fixed literal
-    fixed neg = -1.5;
-    chk("fx_neg",    neg == -1.5);
-    // Global fixed variable
-    chk("fx_global", g_fixed == 2.5);
-    // Mixed fixed + int arithmetic
-    fixed mix = 2.0;
-    int   iv  = 3;
-    chk("fx_mix",    mix + iv == 5.0);
-}
-#endif
-
-#if TEST_PTRADV
-void test_rawref() {
-    byte[3] arr;
-    arr[0] = 11; arr[1] = 22; arr[2] = 33;
-    byte *ptr = arr;
-
-    // 8-bit case: int addr dereferenced as byte reads arr[0]
-    int baddr = arr;
-    byte b = *baddr;
-    chk("rawref_byte", b == 11);
-
-    // 16-bit case: int addr dereferenced as byte* does a word load
-    int paddr = &ptr;
-    byte *rp = *paddr;
-    chk("rawref_ptr",  rp[0] == 11);
-    chk("rawref_ptr2", rp[2] == 33);
-}
-
-void test_tconv() {
-    // Array index: runtime fixed should be converted to int
-    byte[4] barr2;
-    barr2[0] = 11; barr2[1] = 22; barr2[2] = 33; barr2[3] = 44;
-    fixed idxf = 2.0;
-    chk("idx_fixed_runtime", barr2[idxf] == 33);
-
-    // Array index: const fixed should be converted to int at compile time
-    const fixed CIDX = 1.0;
-    chk("idx_fixed_const", barr2[CIDX] == 22);
-
-    // Pointer arithmetic: fixed offset should be converted to int
-    int[3] iarr;
-    iarr[0] = 5; iarr[1] = 6; iarr[2] = 7;
-    int *pp = iarr;
-    fixed off = 1.0;
-    pp = pp + off;
-    chk("ptr_off_fixed", *pp == 6);
-
-    // Array dimension using const fixed should be accepted (converted to int)
-    const fixed LEN = 2.0;
-    int[LEN] arr2;
-    arr2[1] = 123;
-    chk("arr_dim_fixed_const", arr2[1] == 123);
-
-    // Shift count: runtime fixed and const fixed should be converted to int
-    int ss = 1;
-    fixed sh = 3.0;
-    ss = ss << sh;
-    chk("shift_fixed_runtime", ss == 8);
-
-    const fixed CSH = 2.0;
-    int ss2 = 1 << CSH;
-    chk("shift_fixed_const", ss2 == 4);
-
-    // Switch/case: const fixed used as case label should match after conversion
-    const int CFCASE = 2;
-    int rr = 0;
-    switch (2) {
-        case CFCASE: rr = 10; break;
-        default: rr = 0; break;
-    }
-    chk("switch_case_fixed_const", rr == 10);
-
-    // Truncation: fixed used as index should truncate fractional bits
-    fixed ftr = 2.5;
-    byte[4] b3;
-    b3[2] = 77;
-    chk("idx_fixed_trunc", b3[ftr] == 77);
-}
-#endif
-
-
-#if TEST_COMPOUND
-void test_compound() {
-    // --- int: arithmetic ---
-    int x = 10;
-    x += 5;  chk("ca_add",  x == 15);
-    x -= 3;  chk("ca_sub",  x == 12);
-    x *= 3;  chk("ca_mul",  x == 36);
-    x /= 4;  chk("ca_div",  x == 9);
-    x %= 4;  chk("ca_mod",  x == 1);
-
-    // --- int: bitwise and shift ---
-    int bv = 0xF0;
-    bv &= 0xFF;  chk("ca_and",  bv == 0xF0);
-    bv |= 0x0F;  chk("ca_or",   bv == 0xFF);
-    bv ^= 0xAA;  chk("ca_xor",  bv == 0x55);
-    bv <<= 2;    chk("ca_shl",  bv == 0x154);
-    bv >>= 1;    chk("ca_shr",  bv == 0xAA);
-
-    // --- char ---
-    char cv = 10;
-    cv += 5;   chk("ca_c_add",  cv == 15);
-    cv -= 3;   chk("ca_c_sub",  cv == 12);
-    cv *= 2;   chk("ca_c_mul",  cv == 24);
-    cv /= 4;   chk("ca_c_div",  cv == 6);
-    cv %= 4;   chk("ca_c_mod",  cv == 2);
-    cv |= 4;   chk("ca_c_or",   cv == 6);
-    cv &= 5;   chk("ca_c_and",  cv == 4);
-    cv ^= 3;   chk("ca_c_xor",  cv == 7);
-    cv <<= 1;  chk("ca_c_shl",  cv == 14);
-    cv >>= 1;  chk("ca_c_shr",  cv == 7);
-
-    // --- byte ---
-    byte yv = 20;
-    yv += 5;   chk("ca_y_add",  yv == 25);
-    yv -= 5;   chk("ca_y_sub",  yv == 20);
-    yv *= 3;   chk("ca_y_mul",  yv == 60);
-    yv /= 4;   chk("ca_y_div",  yv == 15);
-    yv %= 4;   chk("ca_y_mod",  yv == 3);
-    yv |= 12;  chk("ca_y_or",   yv == 15);
-    yv &= 6;   chk("ca_y_and",  yv == 6);
-    yv ^= 3;   chk("ca_y_xor",  yv == 5);
-    yv <<= 2;  chk("ca_y_shl",  yv == 20);
-    yv >>= 1;  chk("ca_y_shr",  yv == 10);
-
-    // --- fixed ---
-    fixed fv = 2.0;
-    fv += 1.5;  chk("ca_f_add",  fv == 3.5);
-    fv -= 0.5;  chk("ca_f_sub",  fv == 3.0);
-    fv *= 2.0;  chk("ca_f_mul",  fv == 6.0);
-    fv /= 3.0;  chk("ca_f_div",  fv == 2.0);
-
-    // --- int array element ---
-    int[3] arr;
-    arr[0] = 10;
-    arr[0] += 5;  chk("ca_arr_add", arr[0] == 15);
-    arr[1] = 20;
-    arr[1] -= 8;  chk("ca_arr_sub", arr[1] == 12);
-    arr[2] = 3;
-    arr[2] *= 4;  chk("ca_arr_mul", arr[2] == 12);
-
-    // --- byte array element ---
-    byte[2] ba;
-    ba[0] = 10;
-    ba[0] += 5;  chk("ca_ba_add",  ba[0] == 15);
-    ba[1] = 30;
-    ba[1] /= 3;  chk("ca_ba_div",  ba[1] == 10);
-
-    // --- int pointer dereference ---
-    int v = 100;
-    int *p = &v;
-    *p += 23;  chk("ca_ptr_add", v == 123);
-    *p -= 3;   chk("ca_ptr_sub", v == 120);
-    *p /= 10;  chk("ca_ptr_div", v == 12);
-
-    // --- struct member (direct) ---
-    Point pt;
-    pt.x = 10;  pt.y = 20;
-    pt.x += 5;  chk("ca_st_add",  pt.x == 15);
-    pt.y -= 8;  chk("ca_st_sub",  pt.y == 12);
-    pt.x *= 2;  chk("ca_st_mul",  pt.x == 30);
-    pt.y /= 4;  chk("ca_st_div",  pt.y == 3);
-    pt.x %= 7;  chk("ca_st_mod",  pt.x == 2);
-    pt.y |= 12; chk("ca_st_or",   pt.y == 15);
-    pt.x &= 3;  chk("ca_st_and",  pt.x == 2);
-    pt.y ^= 5;  chk("ca_st_xor",  pt.y == 10);
-    pt.x <<= 3; chk("ca_st_shl",  pt.x == 16);
-    pt.y >>= 1; chk("ca_st_shr",  pt.y == 5);
-
-    // --- struct member via pointer ---
-    Point *pp = &pt;
-    pp.x += 4;  chk("ca_stp_add", pt.x == 20);
-    pp.y -= 2;  chk("ca_stp_sub", pt.y == 3);
-
-    // --- nested struct member ---
-    Rect rc;
-    rc.br.x = 10;
-    rc.br.x += 5;  chk("ca_nest_add", rc.br.x == 15);
-    rc.br.y = 8;
-    rc.br.y *= 3;  chk("ca_nest_mul", rc.br.y == 24);
-}
-#endif
-
-// ============================================================
-// #elif test globals
-// ============================================================
-#if TEST_ELIF
 const int ELEVEL = 2;
 
 #if ELEVEL == 1
@@ -852,98 +106,880 @@ int elif_first = 2;
 #else
 int elif_first = 0;
 #endif
-#endif
 
-#if TEST_ELIF
-void test_elif() {
-    // First matching #elif branch is taken
-    chk("elif_match", elif_which == 2);
-    // No branch matched, #else taken
-    chk("elif_else",  elif_first == 0);
-    // Local #elif chain
-    const int V = 3;
-    int r = 0;
-#if V == 1
-    r = 1;
-#elif V == 2
-    r = 2;
-#elif V == 3
-    r = 3;
-#else
-    r = 99;
-#endif
-    chk("elif_local", r == 3);
-    // Nested #if inside skipped #elif branch
-    int n = 0;
-#if V == 9
-#if V == 9
-    n = 99;
-#endif
-#elif V == 3
-    n = 42;
-#endif
-    chk("elif_nested", n == 42);
-}
-#endif
-
-#if TEST_FORINIT
-void test_for_init() {
-    // const declaration in for initializer
-    int s = 0;
-    for (const int K = 3; s < K; s = s + 1) {}
-    chk("for_const", s == 3);
-
-    // struct declaration in for initializer
-    int sum = 0;
-    for (Point pv; sum < 2; sum = sum + 1) {
-        pv.x = sum;
+// --- Print a non-negative decimal integer ---
+void printnum(int n) {
+    if (n == 0) { putc('0'); return; }
+    int div = 10000;
+    while ((n / div) == 0) div = div / 10;
+    while (div) {
+        putc(n / div + '0');
+        n = n % div;
+        div = div / 10;
     }
-    chk("for_struct", sum == 2);
+}
+
+// --- Report a single test result ---
+void chk(char *name, int ok) {
+    puts(name);
+    if (ok) {
+        putc(16); putc(4);
+        puts(":OK");
+        putc(16); putc(0);
+        puts("\r");
+        pass_count = pass_count + 1;
+    } else {
+        putc(16); putc(2);
+        puts(":FAIL");
+        putc(16); putc(0);
+        puts("\r");
+        fail_count = fail_count + 1;
+    }
+}
+
+pass_count = 0;
+fail_count = 0;
+
+puts("ZNC Feature Test\r");
+puts("================\r");
+
+run_bank1();
+run_bank2();
+run_bank3();
+run_bank4();
+
+puts("================\r");
+puts("PASS: "); printnum(pass_count); puts("\r");
+puts("FAIL: "); printnum(fail_count); puts("\r");
+
+// ============================================================
+// Section 7: Function definitions
+// ============================================================
+
+// --- Functions used as delegates ---
+
+
+bank(1) {
+    int do_add(int a, int b) { return a + b; }
+    int do_sub(int a, int b) { return a - b; }
+    BinOp[] dlg_tbl = {do_add, do_sub, do_add};
+
+    // --- Variadic function ---
+    int sum_va(int cnt, ...) {
+        va_list args;
+        int total = 0;
+        va_start(args, cnt);
+        while (cnt--) total = total + va_arg(args, int);
+        va_end(args);
+        return total;
+    }
+
+
+    // --- Inline-assembly function: two's-complement negation ---
+    // Calling convention: arg n is on the stack (16-bit), result in HL.
+    int asm_neg(int n) __asm__ {
+_
+        pop  bc             // save return address
+        pop  hl             // n (consume arg from stack)
+        push hl             // restore n so caller's pop af cleanup is balanced
+        push bc             // restore return address
+        ld   a, h
+        cpl
+        ld   h, a
+        ld   a, l
+        cpl
+        ld   l, a
+        inc  hl             // HL = ~n + 1 = -n (two's complement)
+        ret
+    }
+
+// --- Feature test functions ---
+
+    void test_escape() {
+        // \' in character literals
+        chk("esc_squot_c",  '\'' == 39);
+        // \' in string literals
+        byte[] sq = "it\'s";
+        chk("esc_squot_s",  sq[2] == '\'');
+        // Other escapes still work alongside \'
+        chk("esc_bs",   '\\' == 92);
+        chk("esc_dquot", '"' == 34);
+        chk("esc_tab",  '\t' == 9);
+        chk("esc_cr",   '\r' == 13);
+        chk("esc_nl",   '\n' == 10);
+        chk("esc_nul",  '\0' == 0);
+        chk("esc_hex",  '\x41' == 'A');
+    }
+
+    void test_typ_glb() {
+        // Global scalar types
+        chk("g_int",   g_int  == 100);
+        chk("g_char",  g_char == 'Z');
+        chk("g_byte",  g_byte == 42);
+        // Local scalar types
+        int  li = 1000;
+        char lc = 65;
+        byte lb = 100;
+        chk("l_int",   li == 1000);
+        chk("l_char",  lc == 65);
+        chk("l_byte",  lb == 100);
+    }
+
+    void test_const() {
+        // Global const folded into code
+        chk("const_gval",  CVAL == 77);
+        chk("const_expr",  CVAL * 2 == 154);
+        chk("const_true",  CTRUE == 1);
+        chk("const_false", CFALSE == 0);
+        // Local const
+        const int K = 55;
+        chk("const_local", K == 55);
+        chk("const_locex", K + 1 == 56);
+    }
+
+    void test_arith() {
+        int a = 17;
+        int b = 5;
+        chk("add", a + b == 22);
+        chk("sub", a - b == 12);
+        chk("mul", a * b == 85);
+        chk("div", a / b == 3);
+        chk("mod", a % b == 2);
+        chk("neg", 0 - a == -17);
+    }
+
+    void test_bitwise() {
+        int x = 0xA;    // 0b1010
+        int y = 0xC;    // 0b1100
+        chk("bw_and", (x & y)  == 0x8);    // 0b1000
+        chk("bw_or",  (x | y)  == 0xE);    // 0b1110
+        chk("bw_xor", (x ^ y)  == 0x6);    // 0b0110
+        chk("bw_shl", (x << 1) == 0x14);   // 0b10100
+        chk("bw_shr", (x >> 1) == 0x5);    // 0b0101
+        chk("bw_not", (~0) == -1);          // all bits set = -1 signed
+    }
+
+    void test_compare() {
+        int a = 5;
+        int b = 10;
+        chk("eq",      a == 5);
+        chk("ne",      a != b);
+        chk("lt",      a < b);
+        chk("le",      a <= 5);
+        chk("gt",      b > a);
+        chk("ge",      b >= 10);
+        chk("log_and", a > 0 && b > 0);
+        chk("log_or",  a > 10 || b > 5);
+        chk("log_not", !0);
+    }
+
+    void test_ternary() {
+        int x = 5;
+        chk("tern_t", (x > 3  ? 1 : 0) == 1);
+        chk("tern_f", (x > 10 ? 1 : 0) == 0);
+        // Ternary producing non-literal values
+        int r = (x == 5 ? x * 2 : 0);
+        chk("tern_expr", r == 10);
+    }
+
+    void test_incdec() {
+        int x = 5;
+        int y;
+        y = x++;
+        chk("post_inc_ret", y == 5);
+        chk("post_inc_x",   x == 6);
+        y = ++x;
+        chk("pre_inc_ret",  y == 7);
+        chk("pre_inc_x",    x == 7);
+        y = x--;
+        chk("post_dec_ret", y == 7);
+        chk("post_dec_x",   x == 6);
+        y = --x;
+        chk("pre_dec_ret",  y == 5);
+        chk("pre_dec_x",    x == 5);
+        // Indexed lvalue inc/dec
+        int[2] arr;
+        arr[0] = 10;
+        arr[0]++;
+        chk("arr_idx_inc",  arr[0] == 11);
+        arr[1] = 20;
+        arr[1]--;
+        chk("arr_idx_dec",  arr[1] == 19);
+    }
+
+    void test_while() {
+        // Basic while accumulation
+        int i = 0;
+        int s = 0;
+        while (i < 5) { s = s + i; i = i + 1; }
+        chk("while_sum", s == 10);
+        // While with postfix-decrement condition
+        int c = 3;
+        int n = 0;
+        while (c--) n = n + 1;
+        chk("while_dec", n == 3);
+    }
+
+    void test_for() {
+        // Standard counting loop
+        int s = 0;
+        for (int i = 1; i <= 5; i = i + 1) s = s + i;
+        chk("for_sum", s == 15);
+        // Loop with pre-increment step
+        int t = 0;
+        for (int j = 0; j < 4; ++j) t = t + 1;
+        chk("for_preinc", t == 4);
+        // Infinite loop exited by break
+        int n = 0;
+        for (;;) { n = n + 1; if (n == 3) break; }
+        chk("for_inf_brk", n == 3);
+    }
+
+    void test_brkcont() {
+        // break exits loop early
+        int s = 0;
+        for (int i = 0; i < 10; i = i + 1) {
+            if (i == 5) break;
+            s = s + 1;
+        }
+        chk("break", s == 5);
+        // continue skips even numbers
+        s = 0;
+        for (int i = 0; i < 10; i = i + 1) {
+            if (i % 2 == 0) continue;
+            s = s + 1;
+        }
+        chk("continue", s == 5);
+    }
+
+    void test_switch() {
+        int r = 0;
+        // Matching a specific case
+        switch (2) {
+            case 1: r = 10; break;
+            case 2: r = 20; break;
+            default: r = 99; break;
+        }
+        chk("sw_match", r == 20);
+        // Case fall-through (no break between case 1 and case 2)
+        r = 0;
+        switch (1) {
+            case 1:
+            case 2: r = r + 1; break;
+            default: break;
+        }
+        chk("sw_fall", r == 1);
+        // Default branch
+        switch (99) {
+            case 0: r = 0; break;
+            default: r = 7; break;
+        }
+        chk("sw_default", r == 7);
+    }
+
+    void test_arrays() {
+        // Fixed-size local int array
+        int[4] arr;
+        arr[0] = 10; arr[1] = 20; arr[2] = 30; arr[3] = 40;
+        int s = 0;
+        for (int i = 0; i < 4; i = i + 1) s = s + arr[i];
+        chk("arr_sum",   s == 100);
+        // Fixed-size local byte array
+        byte[3] b;
+        b[0] = 'A'; b[1] = 'B'; b[2] = 'C';
+        chk("arr_byte",  b[1] == 'B');
+        // Global inferred-size int array
+        chk("arr_gint",  g_nums[0] == 10);
+        chk("arr_gint3", g_nums[3] == 40);
+        // Global inferred-size string
+        chk("arr_gstr0", g_str[0] == 'Z');
+        chk("arr_gstr1", g_str[1] == 'N');
+        // Adjacent string literal concatenation
+        chk("arr_gcat",  g_cat[4] == 'o');
+    }
+
+    void test_ptrs() {
+        // Address-of and dereference
+        int x = 42;
+        int *p = &x;
+        chk("ptr_rd",     *p == 42);
+        *p = 99;
+        chk("ptr_wr",     x == 99);
+        // Pointer arithmetic: int stride = 2
+        int[3] arr;
+        arr[0] = 1; arr[1] = 2; arr[2] = 3;
+        int *q = arr;
+        q = q + 1;
+        chk("ptr_arith",  *q == 2);
+        // a[b] is *(a+b)
+        chk("ptr_idx",    q[1] == 3);
+        // Byte pointer: stride = 1
+        byte[3] ba;
+        ba[0] = 10; ba[1] = 20; ba[2] = 30;
+        byte *bp = ba;
+        bp = bp + 2;
+        chk("bptr_arith", *bp == 30);
+        // void* compatible with any pointer base (scalar address assignment)
+        int addr = 0x4000;
+        byte *screen = addr;
+        chk("ptr_intaddr", screen == 0x4000);
+    }
+
+    void test_structs() {
+        // Field access
+        Point p;
+        p.x = 3; p.y = 7;
+        chk("st_x",       p.x == 3);
+        chk("st_y",       p.y == 7);
+        // Pointer to struct (arrow-style via dot on pointer)
+        Point *pp = &p;
+        pp.x = 99;
+        chk("st_ptr_wr",  p.x == 99);
+        chk("st_ptr_rd",  pp.y == 7);
+        // Array of structs
+        Point[2] pts;
+        pts[0].x = 1; pts[0].y = 2;
+        pts[1].x = 3; pts[1].y = 4;
+        chk("st_arr_0x",  pts[0].x == 1);
+        chk("st_arr_1y",  pts[1].y == 4);
+        // Nested struct
+        Rect r;
+        r.tl.x = 0; r.tl.y = 0;
+        r.br.x = 10; r.br.y = 5;
+        chk("nested_w",   r.br.x - r.tl.x == 10);
+        chk("nested_h",   r.br.y - r.tl.y == 5);
+        // Pointer to struct containing nested struct
+        Rect *rp = &r;
+        rp.br.x = 20;
+        chk("nested_ptr", r.br.x == 20);
+    }
+
+    void test_dlgs() {
+        BinOp op;
+        op = do_add;
+        chk("del_add", op(6, 4) == 10);
+        op = do_sub;
+        chk("del_sub", op(9, 4) == 5);
+
+        OpTable t;
+        t.fn = do_add;
+        chk("del_struct", t.fn(3, 4) == 7);
+
+        chk("del_arr_add", dlg_tbl[0](8, 2) == 10);
+        chk("del_arr_sub", dlg_tbl[1](8, 2) == 6);
+        chk("del_arr_dup", dlg_tbl[2](8, 2) == 10);
+
+        int i = 1;
+        chk("del_arr_idx", dlg_tbl[i](9, 3) == 6);
+        BinOp[] local_tbl = {do_sub, do_add};
+        chk("del_loc_add", local_tbl[1](4, 5) == 9);
+        chk("del_loc_sub", local_tbl[0](9, 5) == 4);
+
+        int r = 0;
+        for (BinOp fn = do_add; r < 3; r = r + 1) {
+            r = fn(r, 0);
+        }
+        chk("for_delegate", r == 3);
+    }
+
+    void test_vargs() {
+        chk("va_1arg",  sum_va(1, 99) == 99);
+        chk("va_2args", sum_va(2, 10, 20) == 30);
+        chk("va_3args", sum_va(3, 5, 6, 7) == 18);
+    }
+
+    void test_asm() {
+        // __asm__ function: two's complement negation
+        chk("asm_fn_neg",  asm_neg(7)  == -7);
+        chk("asm_fn_zero", asm_neg(0)  == 0);
+        chk("asm_fn_neg2", asm_neg(-3) == 3);
+        // Inline __asm__ block that writes to a global variable
+        g_asm_var = 0;
+        __asm__ {
+            ld hl, 123
+            ld (_g_asm_var), hl
+        }
+        chk("asm_block", g_asm_var == 123);
+    }
+
+    void test_ccomp() {
+        // #ifdef __DOT (set by make dot)
+        chk("cond_ifdef",   cond_dot   == 1);
+        // #ifndef __NEX (not set for DOT builds)
+        chk("cond_ifndef",  not_nex    == 1);
+        // #if with a compile-time const
+        chk("cond_if",      feature_on == 1);
+    }
+
+    void test_enum() {
+        // Member values auto-increment from 0
+        chk("en_red",   Color.RED   == 0);
+        chk("en_grn",   Color.GREEN == 1);
+        chk("en_blu",   Color.BLUE  == 2);
+        chk("en_north", Dir.NORTH   == 0);
+        chk("en_west",  Dir.WEST    == 3);
+
+        // Enum variable declaration and assignment
+        Color c = Color.GREEN;
+        chk("en_var",   c == 1);
+        chk("en_eq",    c == Color.GREEN);
+        chk("en_ne",    c != Color.RED);
+
+        // Enum-to-int implicit conversion
+        int n = Color.BLUE;
+        chk("en_e2i",   n == 2);
+
+        // Int-to-enum implicit conversion
+        Color c2 = 0;
+        chk("en_i2e",   c2 == Color.RED);
+
+        // Enum to byte and char
+        byte bv = Color.BLUE;
+        chk("en_e2b",   bv == 2);
+        char cv = Color.GREEN;
+        chk("en_e2c",   cv == 1);
+
+        // Arithmetic using enum member literals
+        int sum = Color.RED + Color.GREEN + Color.BLUE;
+        chk("en_arith", sum == 3);
+
+        // Enum variable in arithmetic expression
+        Color e = Color.BLUE;
+        int diff = e - 1;
+        chk("en_sub",   diff == 1);
+
+        // Comparison operators
+        chk("en_lt",    Color.RED  < Color.BLUE);
+        chk("en_gt",    Color.BLUE > Color.GREEN);
+
+        // Ternary with enum variable
+        Color sel = Color.GREEN;
+        int t = (sel == Color.GREEN ? 10 : 0);
+        chk("en_tern",  t == 10);
+
+        // Switch on enum variable with int case labels
+        int r = 0;
+        switch (c) {
+            case 0: r = 10; break;
+            case 1: r = 20; break;
+            case 2: r = 30; break;
+            default: r = 0; break;
+        }
+        chk("en_sw_i",  r == 20);
+
+        // Switch with enum member case labels
+        r = 0;
+        switch (Color.BLUE) {
+            case Color.RED:   r = 1; break;
+            case Color.GREEN: r = 2; break;
+            case Color.BLUE:  r = 3; break;
+            default:          r = 0; break;
+        }
+        chk("en_sw_e",  r == 3);
+
+        // Enum value as array index
+        int[3] lut;
+        lut[0] = 10; lut[1] = 20; lut[2] = 30;
+        chk("en_idx",   lut[Color.GREEN] == 20);
+
+        // Const int initialised from enum member
+        const int EN_K = Color.BLUE;
+        chk("en_const", EN_K == 2);
+    }
+
+    void run_bank1() {
+        test_escape();
+        test_typ_glb();
+        test_const();
+        test_arith();
+        test_bitwise();
+        test_compare();
+        test_ternary();
+        test_incdec();
+        test_while();
+        test_for();
+        test_brkcont();
+        test_switch();
+        test_arrays();
+        test_ptrs();
+        test_structs();
+        test_dlgs();
+        test_vargs();
+        test_asm();
+        test_ccomp();
+        test_enum();
+    }
+
 
 }
+
+
+bank(2) {
+    int sum_b4(byte[] a) {
+        return a[0] + a[1] + a[2] + a[3];
+    }
+
+    int sum_i3(int[] a) {
+        return a[0] + a[1] + a[2];
+    }
+
+    fixed sum_f3(fixed[] a) {
+        return a[0] + a[1] + a[2];
+    }
+
+    int sprite_mix(SpriteInit[] s) {
+        return s[0].x + s[1].y + s[2].vel + s[0].pixels[2] + s[1].pixels[1] + s[2].pixels[0];
+    }
+
+    void test_initex() {
+        // Brace-array literal passed directly as function argument
+        chk("ia_arg_b4", sum_b4({1, 2, 3, 4}) == 10);
+        chk("ia_arg_i3", sum_i3({10, 20, 30}) == 60);
+        chk("ia_arg_f3", sum_f3({1, 2.5, 0.5}) == 4.0);
+
+        // Struct initializer with fixed-size array member type[n]
+        SpriteInit one = {5, 6, 42, {7, 8, 9}};
+        chk("ia_st_one_v", one.vel == 42);
+        chk("ia_st_one_a", one.pixels[1] == 8);
+
+        // Array of structs initialized with nested fixed-size array members
+        SpriteInit[3] arr = {
+            {10, 20, 100, {1, 2, 3}},
+            {30, 40, 200, {4, 5, 6}},
+            {50, 60, 300, {7, 8, 9}}
+        };
+        chk("ia_st_arr_0", arr[0].pixels[2] == 3);
+        chk("ia_st_arr_1", arr[1].pixels[0] == 4);
+        chk("ia_st_arr_2", arr[2].pixels[1] == 8);
+
+        // Struct-array literal passed directly as argument
+        chk("ia_st_arg", sprite_mix({
+            {1, 2, 10, {4, 5, 6}},
+            {3, 4, 20, {7, 8, 9}},
+            {5, 6, 30, {1, 2, 3}}
+        }) == 50);
+
+        // char[n] field initialized with a string literal (inline byte path)
+        NamedVal nv = {"Hello", 7};
+        chk("ia_charr_0", nv.name[0] == 'H');
+        chk("ia_charr_4", nv.name[4] == 'o');
+        chk("ia_charr_v", nv.val == 7);
+
+        // fixed[n] array member with int constant coercion (int->Q4 path)
+        FxPair fp = {{3, 4}, 99};
+        chk("ia_fxarr_0", fp.pts[0] == 3.0);
+        chk("ia_fxarr_1", fp.pts[1] == 4.0);
+        chk("ia_fxarr_t", fp.tag == 99);
+    }
+
+    void test_fixed() {
+        // Literal assignment
+        fixed a = 1.5;
+        fixed b = 0.5;
+        chk("fx_lit",    a == 1.5);
+        // Arithmetic
+        chk("fx_add",    a + b == 2.0);
+        chk("fx_sub",    a - b == 1.0);
+        chk("fx_mul",    a * b == 0.75);
+        fixed c = 3.0;
+        fixed d = 2.0;
+        chk("fx_div",    c / d == 1.5);
+        // Comparison
+        chk("fx_lt",     b < a);
+        chk("fx_gt",     a > b);
+        chk("fx_eq",     d == 2.0);
+        // Int-to-fixed implicit conversion
+        fixed e = 5;
+        chk("fx_i2fx",   e == 5.0);
+        // Fixed-to-int implicit conversion (fractional bits truncated)
+        int n = 2.75;
+        chk("fx_fx2i",   n == 2);
+        // const fixed: compile-time constant
+        const fixed HALF = 0.5;
+        chk("fx_const",  HALF == 0.5);
+        chk("fx_cexpr",  HALF + HALF == 1.0);
+        // Increment/decrement: step is 1.0 (0x10 in Q4)
+        fixed f = 1.5;
+        f++;
+        chk("fx_inc",    f == 2.5);
+        f--;
+        chk("fx_dec",    f == 1.5);
+        // Negative fixed literal
+        fixed neg = -1.5;
+        chk("fx_neg",    neg == -1.5);
+        // Global fixed variable
+        chk("fx_global", g_fixed == 2.5);
+        // Mixed fixed + int arithmetic
+        fixed mix = 2.0;
+        int   iv  = 3;
+        chk("fx_mix",    mix + iv == 5.0);
+    }
+
+    void test_rawref() {
+        byte[3] arr;
+        arr[0] = 11; arr[1] = 22; arr[2] = 33;
+        byte *ptr = arr;
+
+        // 8-bit case: int addr dereferenced as byte reads arr[0]
+        int baddr = arr;
+        byte b = *baddr;
+        chk("rawref_byte", b == 11);
+
+        // 16-bit case: int addr dereferenced as byte* does a word load
+        int paddr = &ptr;
+        byte *rp = *paddr;
+        chk("rawref_ptr",  rp[0] == 11);
+        chk("rawref_ptr2", rp[2] == 33);
+    }
+
+    void test_tconv() {
+        // Array index: runtime fixed should be converted to int
+        byte[4] barr2;
+        barr2[0] = 11; barr2[1] = 22; barr2[2] = 33; barr2[3] = 44;
+        fixed idxf = 2.0;
+        chk("idx_fixed_runtime", barr2[idxf] == 33);
+
+        // Array index: const fixed should be converted to int at compile time
+        const fixed CIDX = 1.0;
+        chk("idx_fixed_const", barr2[CIDX] == 22);
+
+        // Pointer arithmetic: fixed offset should be converted to int
+        int[3] iarr;
+        iarr[0] = 5; iarr[1] = 6; iarr[2] = 7;
+        int *pp = iarr;
+        fixed off = 1.0;
+        pp = pp + off;
+        chk("ptr_off_fixed", *pp == 6);
+
+        // Array dimension using const fixed should be accepted (converted to int)
+        const fixed LEN = 2.0;
+        int[LEN] arr2;
+        arr2[1] = 123;
+        chk("arr_dim_fixed_const", arr2[1] == 123);
+
+        // Shift count: runtime fixed and const fixed should be converted to int
+        int ss = 1;
+        fixed sh = 3.0;
+        ss = ss << sh;
+        chk("shift_fixed_runtime", ss == 8);
+
+        const fixed CSH = 2.0;
+        int ss2 = 1 << CSH;
+        chk("shift_fixed_const", ss2 == 4);
+
+        // Switch/case: const fixed used as case label should match after conversion
+        const int CFCASE = 2;
+        int rr = 0;
+        switch (2) {
+            case CFCASE: rr = 10; break;
+            default: rr = 0; break;
+        }
+        chk("switch_case_fixed_const", rr == 10);
+
+        // Truncation: fixed used as index should truncate fractional bits
+        fixed ftr = 2.5;
+        byte[4] b3;
+        b3[2] = 77;
+        chk("idx_fixed_trunc", b3[ftr] == 77);
+    }
+
+    void test_compound() {
+        // --- int: arithmetic ---
+        int x = 10;
+        x += 5;  chk("ca_add",  x == 15);
+        x -= 3;  chk("ca_sub",  x == 12);
+        x *= 3;  chk("ca_mul",  x == 36);
+        x /= 4;  chk("ca_div",  x == 9);
+        x %= 4;  chk("ca_mod",  x == 1);
+
+        // --- int: bitwise and shift ---
+        int bv = 0xF0;
+        bv &= 0xFF;  chk("ca_and",  bv == 0xF0);
+        bv |= 0x0F;  chk("ca_or",   bv == 0xFF);
+        bv ^= 0xAA;  chk("ca_xor",  bv == 0x55);
+        bv <<= 2;    chk("ca_shl",  bv == 0x154);
+        bv >>= 1;    chk("ca_shr",  bv == 0xAA);
+
+        // --- char ---
+        char cv = 10;
+        cv += 5;   chk("ca_c_add",  cv == 15);
+        cv -= 3;   chk("ca_c_sub",  cv == 12);
+        cv *= 2;   chk("ca_c_mul",  cv == 24);
+        cv /= 4;   chk("ca_c_div",  cv == 6);
+        cv %= 4;   chk("ca_c_mod",  cv == 2);
+        cv |= 4;   chk("ca_c_or",   cv == 6);
+        cv &= 5;   chk("ca_c_and",  cv == 4);
+        cv ^= 3;   chk("ca_c_xor",  cv == 7);
+        cv <<= 1;  chk("ca_c_shl",  cv == 14);
+        cv >>= 1;  chk("ca_c_shr",  cv == 7);
+
+        // --- byte ---
+        byte yv = 20;
+        yv += 5;   chk("ca_y_add",  yv == 25);
+        yv -= 5;   chk("ca_y_sub",  yv == 20);
+        yv *= 3;   chk("ca_y_mul",  yv == 60);
+        yv /= 4;   chk("ca_y_div",  yv == 15);
+        yv %= 4;   chk("ca_y_mod",  yv == 3);
+        yv |= 12;  chk("ca_y_or",   yv == 15);
+        yv &= 6;   chk("ca_y_and",  yv == 6);
+        yv ^= 3;   chk("ca_y_xor",  yv == 5);
+        yv <<= 2;  chk("ca_y_shl",  yv == 20);
+        yv >>= 1;  chk("ca_y_shr",  yv == 10);
+
+        // --- fixed ---
+        fixed fv = 2.0;
+        fv += 1.5;  chk("ca_f_add",  fv == 3.5);
+        fv -= 0.5;  chk("ca_f_sub",  fv == 3.0);
+        fv *= 2.0;  chk("ca_f_mul",  fv == 6.0);
+        fv /= 3.0;  chk("ca_f_div",  fv == 2.0);
+
+        // --- int array element ---
+        int[3] arr;
+        arr[0] = 10;
+        arr[0] += 5;  chk("ca_arr_add", arr[0] == 15);
+        arr[1] = 20;
+        arr[1] -= 8;  chk("ca_arr_sub", arr[1] == 12);
+        arr[2] = 3;
+        arr[2] *= 4;  chk("ca_arr_mul", arr[2] == 12);
+
+        // --- byte array element ---
+        byte[2] ba;
+        ba[0] = 10;
+        ba[0] += 5;  chk("ca_ba_add",  ba[0] == 15);
+        ba[1] = 30;
+        ba[1] /= 3;  chk("ca_ba_div",  ba[1] == 10);
+
+        // --- int pointer dereference ---
+        int v = 100;
+        int *p = &v;
+        *p += 23;  chk("ca_ptr_add", v == 123);
+        *p -= 3;   chk("ca_ptr_sub", v == 120);
+        *p /= 10;  chk("ca_ptr_div", v == 12);
+
+        // --- struct member (direct) ---
+        Point pt;
+        pt.x = 10;  pt.y = 20;
+        pt.x += 5;  chk("ca_st_add",  pt.x == 15);
+        pt.y -= 8;  chk("ca_st_sub",  pt.y == 12);
+        pt.x *= 2;  chk("ca_st_mul",  pt.x == 30);
+        pt.y /= 4;  chk("ca_st_div",  pt.y == 3);
+        pt.x %= 7;  chk("ca_st_mod",  pt.x == 2);
+        pt.y |= 12; chk("ca_st_or",   pt.y == 15);
+        pt.x &= 3;  chk("ca_st_and",  pt.x == 2);
+        pt.y ^= 5;  chk("ca_st_xor",  pt.y == 10);
+        pt.x <<= 3; chk("ca_st_shl",  pt.x == 16);
+        pt.y >>= 1; chk("ca_st_shr",  pt.y == 5);
+
+        // --- struct member via pointer ---
+        Point *pp = &pt;
+        pp.x += 4;  chk("ca_stp_add", pt.x == 20);
+        pp.y -= 2;  chk("ca_stp_sub", pt.y == 3);
+
+        // --- nested struct member ---
+        Rect rc;
+        rc.br.x = 10;
+        rc.br.x += 5;  chk("ca_nest_add", rc.br.x == 15);
+        rc.br.y = 8;
+        rc.br.y *= 3;  chk("ca_nest_mul", rc.br.y == 24);
+    }
+
+    void test_elif() {
+        // First matching #elif branch is taken
+        chk("elif_match", elif_which == 2);
+        // No branch matched, #else taken
+        chk("elif_else",  elif_first == 0);
+        // Local #elif chain
+        const int V = 3;
+        int r = 0;
+#if V == 1
+        r = 1;
+#elif V == 2
+        r = 2;
+#elif V == 3
+        r = 3;
+#else
+        r = 99;
 #endif
-
-#if TEST_RECURSE
-int fib(int n) {
-    if (n <= 1) return n;
-    return fib(n - 1) + fib(n - 2);
-}
-
-int fact(int n) {
-    if (n <= 1) return 1;
-    return n * fact(n - 1);
-}
-
-void test_recurse() {
-    chk("rec_fib0",  fib(0)  == 0);
-    chk("rec_fib1",  fib(1)  == 1);
-    chk("rec_fib6",  fib(6)  == 8);
-    chk("rec_fact0", fact(0) == 1);
-    chk("rec_fact5", fact(5) == 120);
-}
+        chk("elif_local", r == 3);
+        // Nested #if inside skipped #elif branch
+        int n = 0;
+#if V == 9
+#if V == 9
+        n = 99;
 #endif
-
-// Additional advanced tests controlled by TEST_G3
-#if TEST_MUTREC
-// Mutual recursion (two functions calling each other)
-int is_even(int n);
-int is_odd(int n);
-int is_even(int n) {
-    if (n == 0) return 1;
-    return is_odd(n - 1);
-}
-int is_odd(int n) {
-    if (n == 0) return 0;
-    return is_even(n - 1);
-}
-
-void test_mutrec() {
-    chk("mut_rec_even4", is_even(4) == 1);
-    chk("mut_rec_odd5",  is_odd(5)  == 1);
-}
+#elif V == 3
+        n = 42;
 #endif
+        chk("elif_nested", n == 42);
+    }
 
-#if TEST_MEM_PTR
+    void test_for_init() {
+        // const declaration in for initializer
+        int s = 0;
+        for (const int K = 3; s < K; s = s + 1) {}
+        chk("for_const", s == 3);
+
+        // struct declaration in for initializer
+        int sum = 0;
+        for (Point pv; sum < 2; sum = sum + 1) {
+            pv.x = sum;
+        }
+        chk("for_struct", sum == 2);
+
+    }
+
+    void run_bank2() {
+        test_fixed();
+        test_rawref();
+        test_tconv();
+        test_for_init();
+        test_elif();
+        test_compound();
+        test_initex();
+    }
+
+
+}
+
+
+bank(3) {
+    int fib(int n) {
+        if (n <= 1) return n;
+        return fib(n - 1) + fib(n - 2);
+    }
+
+    int fact(int n) {
+        if (n <= 1) return 1;
+        return n * fact(n - 1);
+    }
+
+    void test_recurse() {
+        chk("rec_fib0",  fib(0)  == 0);
+        chk("rec_fib1",  fib(1)  == 1);
+        chk("rec_fib6",  fib(6)  == 8);
+        chk("rec_fact0", fact(0) == 1);
+        chk("rec_fact5", fact(5) == 120);
+    }
+
+    // Additional advanced tests
+    // Mutual recursion (two functions calling each other)
+    int is_even(int n);
+    int is_odd(int n);
+    int is_even(int n) {
+        if (n == 0) return 1;
+        return is_odd(n - 1);
+    }
+
+    int is_odd(int n) {
+        if (n == 0) return 0;
+        return is_even(n - 1);
+    }
+
+    void test_mutrec() {
+        chk("mut_rec_even4", is_even(4) == 1);
+        chk("mut_rec_odd5",  is_odd(5)  == 1);
+    }
+
 // Pointer to nested struct member address and modification via pointer
 void test_mem_ptr() {
     Rect r;
@@ -954,17 +990,15 @@ void test_mem_ptr() {
     // Ensure taking address of nested member and reading via pointer works
     int val = *px;
     chk("mptr_rd", val == 99);
-}
-#endif
+    }
 
-#if TEST_G3
 int fxsum(FxPair* fp) {
     return fp.pts[0] + fp.pts[1] + fp.tag;
-}
+    }
 
 int spsum(SpriteInit* s) {
     return s[0].x + s[1].y + s[2].vel + s[0].pixels[2] + s[1].pixels[1] + s[2].pixels[0];
-}
+    }
 
 // Parenthesized dereference coverage for symbol, const address, prefix-inc and expression forms
 void test_par_dref() {
@@ -973,13 +1007,13 @@ void test_par_dref() {
 
     int addr = arr;
     chk("pd_sym", (*addr) == 11);
-    
+
     byte *p = arr;
     ++(*p);
     chk("pd_preinc", arr[0] == 12);
 
     chk("pd_expr", (*(p + 1)) == 22);
-}
+    }
 
 void test_par_unop() {
     const int C = 5;
@@ -987,7 +1021,7 @@ void test_par_unop() {
     int r = -(C - v);
     chk("par_unop_neg", r == -2);
     chk("par_unop_cmpl", ~(C - v) == -3);
-}
+    }
 
 void test_arrdec() {
     // Array-of-struct initializers with pointer fields should keep string refs
@@ -1010,7 +1044,7 @@ void test_arrdec() {
 
     // Brace-initializer passed directly to a function argument
     chk("ad_fcall", fxsum({{7, 8}, 9}) == 24);
-}
+    }
 
 void test_brinit() {
     // --- Padding: fewer elements than the declared array size ---
@@ -1034,576 +1068,421 @@ void test_brinit() {
 
     // --- Single struct with array-member passed to pointer param ---
     // First field is fixed[2] (needs '{'), so brace disambiguation
-    // correctly identifies this as a single-struct literal.
-    chk("bi_fc_fx", fxsum({{3, 5}, 2}) == 10);
+        // correctly identifies this as a single-struct literal.
+        chk("bi_fc_fx", fxsum({{3, 5}, 2}) == 10);
 
-    // --- Array-of-structs passed to pointer param ---
-    // First field is scalar (byte x), so brace disambiguation
-    // correctly identifies this as an array-of-structs literal.
-    chk("bi_fc_sp", spsum({
-        {1, 2, 10, {4, 5, 6}},
-        {3, 4, 20, {7, 8, 9}},
-        {5, 6, 30, {1, 2, 3}}
-    }) == 50);
+        // --- Array-of-structs passed to pointer param ---
+        // First field is scalar (byte x), so brace disambiguation
+        // correctly identifies this as an array-of-structs literal.
+        chk("bi_fc_sp", spsum({
+            {1, 2, 10, {4, 5, 6}},
+            {3, 4, 20, {7, 8, 9}},
+            {5, 6, 30, {1, 2, 3}}
+        }) == 50);
 
-    // --- FxPair[] (pointer to FxPair) assignment from array-of-structs ---
-    FxPair[] fpa = { {{2, 4}, 1}, {{6, 8}, 2} };
-    chk("bi_fpa0", fpa[0].pts[0] == 2.0 && fpa[0].tag == 1);
-    chk("bi_fpa1", fpa[1].pts[1] == 8.0 && fpa[1].tag == 2);
-}
-#endif
-
-#if TEST_TYPEMIX
-void test_typemix() {
-    // byte is unsigned
-    byte bv = 127;
-    bv = bv + 1;
-    chk("tmx_bsgn",   bv == 128);
-
-    // char: overflow behaviour
-    char cv = 127;
-    cv = cv + 1;
-    chk("tmx_csgn",   cv == -128);
-
-    // 8-bit wrap: 255 + 1 == 0
-    byte bw = 255;
-    bw = bw + 1;
-    chk("tmx_bwrap",  bw == 0);
-
-    // int = byte + char widens to int (signed values)
-    byte  bb = 10;
-    char  cc = -3;
-    int   iv = bb + cc;
-    chk("tmx_bci",    iv == 7);
-
-    // assign int to byte: truncation to low 8 bits (signed)
-    int   big = 0x1234;
-    byte  lo  = big;
-    chk("tmx_i2b",    lo == 0x34);
-
-    // 0xFF stored as char is -1 (signed)
-    int   ni  = 0xFF;
-    char  sc  = ni;
-    chk("tmx_i2c",    sc == -1);
-
-    // 0xFF stored as byte is 255 (unsigned)
-    byte  sb  = ni;
-    chk("tmx_i2by",   sb == 255);
-
-    // comparison: byte vs int
-    byte  bx = 100;
-    int   ix = 100;
-    chk("tmx_beqi",   bx == ix);
-
-    // byte holds values > 127 (unsigned range)
-    byte bhi = 200;
-    chk("tmx_byte_hi", bhi == 200);
-
-    // byte > 127 is true (unsigned); same bits in char would be negative
-    chk("tmx_bgt127",  bhi > 127);
-    char csame = bhi;                         // 0xC8 reinterpreted as signed = -56
-    chk("tmx_b2c",     csame == -56);
-    chk("tmx_clt127",  csame < 0);
-
-    // char negative → byte reinterprets as unsigned
-    char cneg = -10;                          // 0xF6
-    chk("tmx_char_neg", cneg < 0);
-    byte cunsigned = cneg;                    // 0xF6 as unsigned = 246
-    chk("tmx_c2b",     cunsigned == 246);
-
-    // byte + char with values that expose signed/unsigned: 200 + (-10) = 190
-    byte  bm = 200;
-    char  cm = -10;
-    int   rm = bm + cm;
-    chk("tmx_bcadd",   rm == 190);
-
-    // byte - char: 200 - (-10) = 210
-    int   rs = bm - cm;
-    chk("tmx_bcsub",   rs == 210);
-
-    // Mixed byte/char comparisons and division use their signed int result type
-    chk("tmx_bccmp",   !(bm < cm));
-    int   rd = bm / cm;
-    chk("tmx_bcdiv",   rd == -20);
-    chk("tmx_bctern",  (0 ? bm : cm) < 0);
-
-    // pointer from int literal (address cast)
-    int addr2 = 0x4000;
-    byte *rptr = addr2;
-    chk("tmx_intptr", rptr == 0x4000);
-}
-#endif
-
-#if TEST_NCALL
-int double_val(int n)       { return n * 2; }
-int add_one(int n)          { return n + 1; }
-int apply_twice(int n)      { return double_val(double_val(n)); }
-int longer_name(int n)      { return n + 10; }
-int chain_fn(int n)         { return add_one(double_val(n)); }
-int max2(int a, int b)      { return a > b ? a : b; }
-int min2(int a, int b)      { return a < b ? a : b; }
-int clamp(int v, int lo, int hi) { return max2(lo, min2(v, hi)); }
-
-void test_ncall() {
-    // Nested call as argument
-    chk("nc_nest",   double_val(add_one(3)) == 8);
-    // Result of call used in expression
-    chk("nc_expr",   double_val(5) + add_one(5) == 16);
-    // Chained via wrapper
-    chk("nc_chain",  chain_fn(4) == 9);
-    // Doubly-applied
-    chk("nc_twice",  apply_twice(3) == 12);
-    // Call result as operand of comparison
-    chk("nc_cmp",    double_val(4) == 8);
-    // Nested calls in ternary
-    chk("nc_tern",   (max2(1, 2) > 1 ? add_one(10) : 0) == 11);
-    // Deeply nested (clamp uses max2+min2)
-    chk("nc_clamp",  clamp(15, 0, 10) == 10);
-    chk("nc_clamp2", clamp(-5, 0, 10) == 0);
-}
-#endif
-
-#if TEST_PTRST
-void test_ptrst() {
-    // Pointer to struct: read and write individual fields via pointer
-    Point q;
-    q.x = 10;  q.y = 20;
-    Point *pp = &q;
-    chk("ps_rd_x",   pp.x == 10);
-    chk("ps_rd_y",   pp.y == 20);
-    pp.x = 55;
-    chk("ps_wr_x",   q.x  == 55);
-
-    // Pointer to nested struct member
-    Rect rc;
-    rc.tl.x = 1; rc.tl.y = 2;
-    rc.br.x = 3; rc.br.y = 4;
-    Rect *rp = &rc;
-    chk("ps_nest_r",  rp.br.x == 3);
-    rp.br.y = 99;
-    chk("ps_nest_w",  rc.br.y == 99);
-
-    // Pointer arithmetic on struct array
-    Point[3] pts;
-    pts[0].x = 1; pts[0].y = 2;
-    pts[1].x = 3; pts[1].y = 4;
-    pts[2].x = 5; pts[2].y = 6;
-    Point *pa = pts;
-    chk("ps_arr0x",  pa[0].x == 1);
-    chk("ps_arr1y",  pa[1].y == 4);
-    pa = pa + 2;
-    chk("ps_adv_x",  pa.x == 5);
-
-    // Pointer to int array element
-    int[3] ia;
-    ia[0] = 10; ia[1] = 20; ia[2] = 30;
-    int *ip = ia;
-    ip = ip + 1;
-    *ip = 99;
-    chk("ps_iap_wr",  ia[1] == 99);
-    chk("ps_iap_nxt", ip[1] == 30);
-}
-#endif
-
-#if TEST_ENUM
-void test_enum() {
-    // Member values auto-increment from 0
-    chk("en_red",   Color.RED   == 0);
-    chk("en_grn",   Color.GREEN == 1);
-    chk("en_blu",   Color.BLUE  == 2);
-    chk("en_north", Dir.NORTH   == 0);
-    chk("en_west",  Dir.WEST    == 3);
-
-    // Enum variable declaration and assignment
-    Color c = Color.GREEN;
-    chk("en_var",   c == 1);
-    chk("en_eq",    c == Color.GREEN);
-    chk("en_ne",    c != Color.RED);
-
-    // Enum-to-int implicit conversion
-    int n = Color.BLUE;
-    chk("en_e2i",   n == 2);
-
-    // Int-to-enum implicit conversion
-    Color c2 = 0;
-    chk("en_i2e",   c2 == Color.RED);
-
-    // Enum to byte and char
-    byte bv = Color.BLUE;
-    chk("en_e2b",   bv == 2);
-    char cv = Color.GREEN;
-    chk("en_e2c",   cv == 1);
-
-    // Arithmetic using enum member literals
-    int sum = Color.RED + Color.GREEN + Color.BLUE;
-    chk("en_arith", sum == 3);
-
-    // Enum variable in arithmetic expression
-    Color e = Color.BLUE;
-    int diff = e - 1;
-    chk("en_sub",   diff == 1);
-
-    // Comparison operators
-    chk("en_lt",    Color.RED  < Color.BLUE);
-    chk("en_gt",    Color.BLUE > Color.GREEN);
-
-    // Ternary with enum variable
-    Color sel = Color.GREEN;
-    int t = (sel == Color.GREEN ? 10 : 0);
-    chk("en_tern",  t == 10);
-
-    // Switch on enum variable with int case labels
-    int r = 0;
-    switch (c) {
-        case 0: r = 10; break;
-        case 1: r = 20; break;
-        case 2: r = 30; break;
-        default: r = 0; break;
+        // --- FxPair[] (pointer to FxPair) assignment from array-of-structs ---
+        FxPair[] fpa = { {{2, 4}, 1}, {{6, 8}, 2} };
+        chk("bi_fpa0", fpa[0].pts[0] == 2.0 && fpa[0].tag == 1);
+        chk("bi_fpa1", fpa[1].pts[1] == 8.0 && fpa[1].tag == 2);
     }
-    chk("en_sw_i",  r == 20);
 
-    // Switch with enum member case labels
-    r = 0;
-    switch (Color.BLUE) {
-        case Color.RED:   r = 1; break;
-        case Color.GREEN: r = 2; break;
-        case Color.BLUE:  r = 3; break;
-        default:          r = 0; break;
+    void test_typemix() {
+        // byte is unsigned
+        byte bv = 127;
+        bv = bv + 1;
+        chk("tmx_bsgn",   bv == 128);
+
+        // char: overflow behaviour
+        char cv = 127;
+        cv = cv + 1;
+        chk("tmx_csgn",   cv == -128);
+
+        // 8-bit wrap: 255 + 1 == 0
+        byte bw = 255;
+        bw = bw + 1;
+        chk("tmx_bwrap",  bw == 0);
+
+        // int = byte + char widens to int (signed values)
+        byte  bb = 10;
+        char  cc = -3;
+        int   iv = bb + cc;
+        chk("tmx_bci",    iv == 7);
+
+        // assign int to byte: truncation to low 8 bits (signed)
+        int   big = 0x1234;
+        byte  lo  = big;
+        chk("tmx_i2b",    lo == 0x34);
+
+        // 0xFF stored as char is -1 (signed)
+        int   ni  = 0xFF;
+        char  sc  = ni;
+        chk("tmx_i2c",    sc == -1);
+
+        // 0xFF stored as byte is 255 (unsigned)
+        byte  sb  = ni;
+        chk("tmx_i2by",   sb == 255);
+
+        // comparison: byte vs int
+        byte  bx = 100;
+        int   ix = 100;
+        chk("tmx_beqi",   bx == ix);
+
+        // byte holds values > 127 (unsigned range)
+        byte bhi = 200;
+        chk("tmx_byte_hi", bhi == 200);
+
+        // byte > 127 is true (unsigned); same bits in char would be negative
+        chk("tmx_bgt127",  bhi > 127);
+        char csame = bhi;                         // 0xC8 reinterpreted as signed = -56
+        chk("tmx_b2c",     csame == -56);
+        chk("tmx_clt127",  csame < 0);
+
+        // char negative ? byte reinterprets as unsigned
+        char cneg = -10;                          // 0xF6
+        chk("tmx_char_neg", cneg < 0);
+        byte cunsigned = cneg;                    // 0xF6 as unsigned = 246
+        chk("tmx_c2b",     cunsigned == 246);
+
+        // byte + char with values that expose signed/unsigned: 200 + (-10) = 190
+        byte  bm = 200;
+        char  cm = -10;
+        int   rm = bm + cm;
+        chk("tmx_bcadd",   rm == 190);
+
+        // byte - char: 200 - (-10) = 210
+        int   rs = bm - cm;
+        chk("tmx_bcsub",   rs == 210);
+
+        // Mixed byte/char comparisons and division use their signed int result type
+        chk("tmx_bccmp",   !(bm < cm));
+        int   rd = bm / cm;
+        chk("tmx_bcdiv",   rd == -20);
+        chk("tmx_bctern",  (0 ? bm : cm) < 0);
+
+        // pointer from int literal (address cast)
+        int addr2 = 0x4000;
+        byte *rptr = addr2;
+        chk("tmx_intptr", rptr == 0x4000);
     }
-    chk("en_sw_e",  r == 3);
 
-    // Enum value as array index
-    int[3] lut;
-    lut[0] = 10; lut[1] = 20; lut[2] = 30;
-    chk("en_idx",   lut[Color.GREEN] == 20);
+    int double_val(int n)       { return n * 2; }
+    int add_one(int n)          { return n + 1; }
+    int apply_twice(int n)      { return double_val(double_val(n)); }
+    int longer_name(int n)      { return n + 10; }
+    int chain_fn(int n)         { return add_one(double_val(n)); }
+    int max2(int a, int b)      { return a > b ? a : b; }
+    int min2(int a, int b)      { return a < b ? a : b; }
+    int clamp(int v, int lo, int hi) { return max2(lo, min2(v, hi)); }
 
-    // Const int initialised from enum member
-    const int EN_K = Color.BLUE;
-    chk("en_const", EN_K == 2);
-}
-#endif
+    void test_ncall() {
+        // Nested call as argument
+        chk("nc_nest",   double_val(add_one(3)) == 8);
+        // Result of call used in expression
+        chk("nc_expr",   double_val(5) + add_one(5) == 16);
+        // Chained via wrapper
+        chk("nc_chain",  chain_fn(4) == 9);
+        // Doubly-applied
+        chk("nc_twice",  apply_twice(3) == 12);
+        // Call result as operand of comparison
+        chk("nc_cmp",    double_val(4) == 8);
+        // Nested calls in ternary
+        chk("nc_tern",   (max2(1, 2) > 1 ? add_one(10) : 0) == 11);
+        // Deeply nested (clamp uses max2+min2)
+        chk("nc_clamp",  clamp(15, 0, 10) == 10);
+        chk("nc_clamp2", clamp(-5, 0, 10) == 0);
+    }
+
+    void test_ptrst() {
+        // Pointer to struct: read and write individual fields via pointer
+        Point q;
+        q.x = 10;  q.y = 20;
+        Point *pp = &q;
+        chk("ps_rd_x",   pp.x == 10);
+        chk("ps_rd_y",   pp.y == 20);
+        pp.x = 55;
+        chk("ps_wr_x",   q.x  == 55);
+
+        // Pointer to nested struct member
+        Rect rc;
+        rc.tl.x = 1; rc.tl.y = 2;
+        rc.br.x = 3; rc.br.y = 4;
+        Rect *rp = &rc;
+        chk("ps_nest_r",  rp.br.x == 3);
+        rp.br.y = 99;
+        chk("ps_nest_w",  rc.br.y == 99);
+
+        // Pointer arithmetic on struct array
+        Point[3] pts;
+        pts[0].x = 1; pts[0].y = 2;
+        pts[1].x = 3; pts[1].y = 4;
+        pts[2].x = 5; pts[2].y = 6;
+        Point *pa = pts;
+        chk("ps_arr0x",  pa[0].x == 1);
+        chk("ps_arr1y",  pa[1].y == 4);
+        pa = pa + 2;
+        chk("ps_adv_x",  pa.x == 5);
+
+        // Pointer to int array element
+        int[3] ia;
+        ia[0] = 10; ia[1] = 20; ia[2] = 30;
+        int *ip = ia;
+        ip = ip + 1;
+        *ip = 99;
+        chk("ps_iap_wr",  ia[1] == 99);
+        chk("ps_iap_nxt", ip[1] == 30);
+    }
 
 
-#if TEST_CALLCON
-delegate int CC0_FN(int a, int b);
-delegate int CC1_FN(int a, int b) __znccall(1);
+    delegate int CC0_FN(int a, int b);
+    delegate int CC1_FN(int a, int b) __znccall(1);
 
-int cc0_add(int a, int b) {
-    return a+b;
-}
-int cc1_add(int a, int b) __znccall(1) {
-    return a+b;
-}
-int cc1_asm(int a, int b) __znccall(1) __asm__ {
-    pop bc
-    pop hl
-    pop de
-    push bc
+    int cc0_add(int a, int b) {
+        return a+b;
+    }
+    int cc1_add(int a, int b) __znccall(1) {
+        return a+b;
+    }
+    int cc1_asm(int a, int b) __znccall(1) __asm__ {
+        pop bc
+        pop hl
+        pop de
+        push bc
 
-    add hl,de
-    ret
-}
+        add hl,de
+        ret
+    }
 
-void test_callconv() {
-    // Function calls using calling convention 0 and 1
-    chk("cc0_add", cc0_add(3, 5) == 8);
-    chk("cc1_add", cc1_add(3, 5) == 8);
-    chk("cc1_asm", cc1_asm(3, 5) == 8);
+    void test_callconv() {
+        // Function calls using calling convention 0 and 1
+        chk("cc0_add", cc0_add(3, 5) == 8);
+        chk("cc1_add", cc1_add(3, 5) == 8);
+        chk("cc1_asm", cc1_asm(3, 5) == 8);
 
-    // Delegate calls using calling convention 0 and 1
-    CC0_FN fn0 = cc0_add;
-    CC1_FN fn1 = cc1_asm;
-    chk("cc0_dlg", fn0(3, 5) == 8);
-    chk("cc1_dlg", fn1(3, 5) == 8);
-}
-#endif
+        // Delegate calls using calling convention 0 and 1
+        CC0_FN fn0 = cc0_add;
+        CC1_FN fn1 = cc1_asm;
+        chk("cc0_dlg", fn0(3, 5) == 8);
+        chk("cc1_dlg", fn1(3, 5) == 8);
+    }
 
-#if TEST_ADDROF
-void test_addrof() {
-    int[4] ia;
-    ia[0] = 1; ia[1] = 2; ia[2] = 3; ia[3] = 4;
+    void test_addrof() {
+        int[4] ia;
+        ia[0] = 1; ia[1] = 2; ia[2] = 3; ia[3] = 4;
 
-    // &arr[const]: constant-index address of array element
-    int *p0 = &ia[2];
-    *p0 = 99;
-    chk("ao_ac", ia[2] == 99);
+        // &arr[const]: constant-index address of array element
+        int *p0 = &ia[2];
+        *p0 = 99;
+        chk("ao_ac", ia[2] == 99);
 
-    // &arr[runtime]: runtime-index address of array element
-    int i = 3;
-    int *p1 = &ia[i];
-    *p1 = 77;
-    chk("ao_ar", ia[3] == 77);
+        // &arr[runtime]: runtime-index address of array element
+        int i = 3;
+        int *p1 = &ia[i];
+        *p1 = 77;
+        chk("ao_ar", ia[3] == 77);
 
-    // &ptr[const]: constant-index address via pointer (fixed bug)
-    int *base = ia;
-    int *p2 = &base[1];
-    *p2 = 55;
-    chk("ao_pc", ia[1] == 55);
+        // &ptr[const]: constant-index address via pointer (fixed bug)
+        int *base = ia;
+        int *p2 = &base[1];
+        *p2 = 55;
+        chk("ao_pc", ia[1] == 55);
 
-    // &ptr[runtime]: runtime-index address via pointer
-    int ri = 0;
-    int *p3 = &base[ri];
-    *p3 = 33;
-    chk("ao_pr", ia[0] == 33);
+        // &ptr[runtime]: runtime-index address via pointer
+        int ri = 0;
+        int *p3 = &base[ri];
+        *p3 = 33;
+        chk("ao_pr", ia[0] == 33);
 
-    // &sptr.field: address of struct field via struct pointer
-    Point q;
-    q.x = 10; q.y = 20;
-    Point *sp = &q;
-    int *pf = &sp.y;
-    *pf = 88;
-    chk("ao_spf", q.y == 88);
+        // &sptr.field: address of struct field via struct pointer
+        Point q;
+        q.x = 10; q.y = 20;
+        Point *sp = &q;
+        int *pf = &sp.y;
+        *pf = 88;
+        chk("ao_spf", q.y == 88);
 
-    // &arr[i].field: address of field in indexed struct array element
-    Point[3] pts;
-    pts[0].x = 1; pts[0].y = 2;
-    pts[1].x = 3; pts[1].y = 4;
-    pts[2].x = 5; pts[2].y = 6;
-    int *paf = &pts[1].x;
-    *paf = 66;
-    chk("ao_aif", pts[1].x == 66);
+        // &arr[i].field: address of field in indexed struct array element
+        Point[3] pts;
+        pts[0].x = 1; pts[0].y = 2;
+        pts[1].x = 3; pts[1].y = 4;
+        pts[2].x = 5; pts[2].y = 6;
+        int *paf = &pts[1].x;
+        *paf = 66;
+        chk("ao_aif", pts[1].x == 66);
 
-    // &ptr[i].field: address of field via struct pointer + index
-    Point *pa = pts;
-    int *ppf = &pa[2].y;
-    *ppf = 44;
-    chk("ao_pif", pts[2].y == 44);
-}
-#endif
+        // &ptr[i].field: address of field via struct pointer + index
+        Point *pa = pts;
+        int *ppf = &pa[2].y;
+        *ppf = 44;
+        chk("ao_pif", pts[2].y == 44);
+    }
 
-#if TEST_G4
-int sum_b3(byte[] p) {
-    return p[0] + p[1] + p[2];
-}
+    void run_bank3() {
+        test_recurse();
+        test_typemix();
+        test_ncall();
+        test_ptrst();
+        test_mutrec();
+        test_mem_ptr();
+        test_par_dref();
+        test_par_unop();
+        test_arrdec();
+        test_brinit();
+        test_callconv();
+        test_addrof();
+    }
 
-void test_arr_g4() {
-    char[4][] rows = {{1, 2, 3, 0}, {4, 5, 6, 0}};
-    int ri = 1;
-    int ci = 2;
-    chk("g4_rows0", rows[0][0] == 1);
-    chk("g4_rows1", rows[ri][ci] == 6);
 
-    char*[][] names = {{"A", "B"}, {"C", "D"}};
-    chk("g4_ptr0", names[0][1][0] == 'B');
-    chk("g4_ptr1", names[1][0][0] == 'C');
-
-    byte[3] vals = {1, 2, 3};
-    chk("g4_arg", sum_b3(vals) == 6);
-}
-
-void test_cmp_i16() {
-    int neg = -1;
-    int zero = 0;
-    int pos = 1;
-
-    chk("sint_eq", neg == -1);
-    chk("sint_ne", neg != pos);
-    chk("sint_lt", neg < zero);
-    chk("sint_le", neg <= -1);
-    chk("sint_gt", pos > zero);
-    chk("sint_ge", pos >= 1);
-}
-
-void test_casts() {
-    fixed f = 2.0;
-    int address = 0x4000;
-    byte *bp = (byte *)address;
-
-    // Explicit numeric casts preserve the underlying bits in both directions.
-    chk("cast_f2i", (int)f == 32);
-    chk("cast_i2f", (fixed)2 != 2);
-    chk("cast_f2i_rt", (int)(f + 1.0) == 48);
-    chk("cast_i2f_const", (fixed)(2 + 1) != 3);
-
-    // A cast applies to the next unary expression, not the complete expression.
-    chk("cast_precedence", (int)((fixed)2 + 1) == 18);
-    chk("cast_grouped", (int)(fixed)(2 + 1) == 3);
-
-    // Integral and pointer representations are both 16-bit addresses/values.
-    chk("cast_int_ptr", bp == 0x4000);
-    chk("cast_ptr_int", (int)bp == 0x4000);
-}
-
-void test_cmp_u16() {
-    uint zero = 0;
-    uint high = 32768;
-    uint max = 65535;
-
-    chk("u16_cmp_eq", max == 65535);
-    chk("u16_cmp_ne", max != zero);
-    chk("u16_cmp_lt", zero < high);
-    chk("u16_cmp_le", high <= high);
-    chk("u16_cmp_gt", max > high);
-    chk("u16_cmp_ge", max >= 65535);
-    chk("u16_cmp_unsigned", high > zero);
-}
-
-uint add_u16(uint a, uint b) {
-    return a + b;
 }
 
-uint math_u16(uint a, uint b) {
-    uint p = a * b;
-    uint q = a / b;
-    uint r = a % b;
-    return p + q + r;
+
+bank(4) {
+    int sum_b3(byte[] p) {
+        return p[0] + p[1] + p[2];
+    }
+
+    void test_arr_g4() {
+        char[4][] rows = {{1, 2, 3, 0}, {4, 5, 6, 0}};
+        int ri = 1;
+        int ci = 2;
+        chk("g4_rows0", rows[0][0] == 1);
+        chk("g4_rows1", rows[ri][ci] == 6);
+
+        char*[][] names = {{"A", "B"}, {"C", "D"}};
+        chk("g4_ptr0", names[0][1][0] == 'B');
+        chk("g4_ptr1", names[1][0][0] == 'C');
+
+        byte[3] vals = {1, 2, 3};
+        chk("g4_arg", sum_b3(vals) == 6);
+    }
+
+    void test_cmp_i16() {
+        int neg = -1;
+        int zero = 0;
+        int pos = 1;
+
+        chk("sint_eq", neg == -1);
+        chk("sint_ne", neg != pos);
+        chk("sint_lt", neg < zero);
+        chk("sint_le", neg <= -1);
+        chk("sint_gt", pos > zero);
+        chk("sint_ge", pos >= 1);
+    }
+
+    void test_casts() {
+        fixed f = 2.0;
+        int address = 0x4000;
+        byte *bp = (byte *)address;
+
+        // Explicit numeric casts preserve the underlying bits in both directions.
+        chk("cast_f2i", (int)f == 32);
+        chk("cast_i2f", (fixed)2 != 2);
+        chk("cast_f2i_rt", (int)(f + 1.0) == 48);
+        chk("cast_i2f_const", (fixed)(2 + 1) != 3);
+
+        // A cast applies to the next unary expression, not the complete expression.
+        chk("cast_precedence", (int)((fixed)2 + 1) == 18);
+        chk("cast_grouped", (int)(fixed)(2 + 1) == 3);
+
+        // Integral and pointer representations are both 16-bit addresses/values.
+        chk("cast_int_ptr", bp == 0x4000);
+        chk("cast_ptr_int", (int)bp == 0x4000);
+    }
+
+    void test_cmp_u16() {
+        uint zero = 0;
+        uint high = 32768;
+        uint max = 65535;
+
+        chk("u16_cmp_eq", max == 65535);
+        chk("u16_cmp_ne", max != zero);
+        chk("u16_cmp_lt", zero < high);
+        chk("u16_cmp_le", high <= high);
+        chk("u16_cmp_gt", max > high);
+        chk("u16_cmp_ge", max >= 65535);
+        chk("u16_cmp_unsigned", high > zero);
+    }
+
+    uint add_u16(uint a, uint b) {
+        return a + b;
+    }
+
+    uint math_u16(uint a, uint b) {
+        uint p = a * b;
+        uint q = a / b;
+        uint r = a % b;
+        return p + q + r;
+    }
+
+    uint *add_u16_ptr(uint *p, uint n) {
+        return p + n;
+    }
+
+    void test_u16mix() {
+        uint u = 40000;
+        int si = 2;
+        byte ub = 3;
+        const fixed shcnt = 2.0;
+        uint sum = u + si;
+        uint prod = u * ub;
+        uint quot = u / si;
+        uint rem = u % si;
+        uint bits = u | 1;
+        uint shl = 1 << shcnt;
+        uint shr = 65535 >> shcnt;
+
+        chk("u16_mixadd", sum == 40002);
+        chk("u16_mixmul", prod == 54464);
+        chk("u16_mixdiv", quot == 20000);
+        chk("u16_mixmod", rem == 0);
+        chk("u16_mixbit", bits == 40001);
+        chk("u16_mixshl", shl == 4);
+        chk("u16_mixshr", shr == 16383);
+        chk("u16_mixcmp", u > si);
+    }
+
+    void test_uint16() {
+        // Global storage and compile-time folding
+        chk("u16_global", g_u16 == 50000);
+        chk("u16_arr0",   g_u16_vals[0] == 0);
+        chk("u16_arr1",   g_u16_vals[1] == 32768);
+        chk("u16_arr2",   g_u16_vals[2] == 65535);
+        chk("u16_folded", g_u16_folded == 32767);
+
+        // Local storage, wrapping arithmetic, and unsigned comparisons
+        uint x = 65535;
+        uint y = 1;
+        uint z = x + y;
+        chk("u16_wrap", z == 0);
+        chk("u16_gt",   x > y);
+        chk("u16_lt",   y < 32768);
+        chk("u16_ge",   x >= 50000);
+        chk("u16_call", add_u16(60000, 5535) == 65535);
+        chk("u16_math", math_u16(12, 3) == 40);
+
+        // Pointer indexing and pointer arithmetic
+        uint[3] vals = {10, 20, 30};
+        uint *p = add_u16_ptr(vals, 1);
+        chk("u16_ptr", *p == 20);
+
+        // Compound assignment operators
+        uint c = 12;
+        c *= 3;
+        chk("u16_mul", c == 36);
+        c /= 4;
+        chk("u16_div", c == 9);
+        c %= 4;
+        chk("u16_mod", c == 1);
+        c >>= 1;
+        chk("u16_shr", c == 0);
+
+        test_u16mix();
+    }
+
+    void run_bank4() {
+        test_arr_g4();
+        test_cmp_i16();
+        test_casts();
+        test_cmp_u16();
+        test_uint16();
+    }
 }
-
-uint *add_u16_ptr(uint *p, uint n) {
-    return p + n;
-}
-
-void test_u16mix() {
-    uint u = 40000;
-    int si = 2;
-    byte ub = 3;
-    const fixed shcnt = 2.0;
-    uint sum = u + si;
-    uint prod = u * ub;
-    uint quot = u / si;
-    uint rem = u % si;
-    uint bits = u | 1;
-    uint shl = 1 << shcnt;
-    uint shr = 65535 >> shcnt;
-
-    chk("u16_mixadd", sum == 40002);
-    chk("u16_mixmul", prod == 54464);
-    chk("u16_mixdiv", quot == 20000);
-    chk("u16_mixmod", rem == 0);
-    chk("u16_mixbit", bits == 40001);
-    chk("u16_mixshl", shl == 4);
-    chk("u16_mixshr", shr == 16383);
-    chk("u16_mixcmp", u > si);
-}
-
-void test_uint16() {
-    // Global storage and compile-time folding
-    chk("u16_global", g_u16 == 50000);
-    chk("u16_arr0",   g_u16_vals[0] == 0);
-    chk("u16_arr1",   g_u16_vals[1] == 32768);
-    chk("u16_arr2",   g_u16_vals[2] == 65535);
-    chk("u16_folded", g_u16_folded == 32767);
-
-    // Local storage, wrapping arithmetic, and unsigned comparisons
-    uint x = 65535;
-    uint y = 1;
-    uint z = x + y;
-    chk("u16_wrap", z == 0);
-    chk("u16_gt",   x > y);
-    chk("u16_lt",   y < 32768);
-    chk("u16_ge",   x >= 50000);
-    chk("u16_call", add_u16(60000, 5535) == 65535);
-    chk("u16_math", math_u16(12, 3) == 40);
-
-    // Pointer indexing and pointer arithmetic
-    uint[3] vals = {10, 20, 30};
-    uint *p = add_u16_ptr(vals, 1);
-    chk("u16_ptr", *p == 20);
-
-    // Compound assignment operators
-    uint c = 12;
-    c *= 3;
-    chk("u16_mul", c == 36);
-    c /= 4;
-    chk("u16_div", c == 9);
-    c %= 4;
-    chk("u16_mod", c == 1);
-    c >>= 1;
-    chk("u16_shr", c == 0);
-
-    test_u16mix();
-}
-#endif
-
-
-pass_count = 0;
-fail_count = 0;
-
-puts("ZNC Feature Test\r");
-puts("================\r");
-
-#if TEST_BASIC
-test_escape();
-test_typ_glb();
-test_const();
-test_arith();
-test_bitwise();
-test_compare();
-test_ternary();
-test_incdec();
-#endif
-#if TEST_FLOW
-test_while();
-test_for();
-test_brkcont();
-test_switch();
-#endif
-#if TEST_ARRAYS
-test_arrays();
-test_ptrs();
-#endif
-#if TEST_STRUCTS
-test_structs();
-#endif
-#if TEST_VARGS
-test_vargs();
-#endif
-#if TEST_ASM
-test_asm();
-#endif
-#if TEST_CCOMP
-test_ccomp();
-#endif
-#if TEST_FIXED
-test_fixed();
-#endif
-#if TEST_PTRADV
-test_rawref();
-test_tconv();
-#endif
-#if TEST_FORINIT
-test_for_init();
-#endif
-#if TEST_G4
-test_dlgs();
-#endif
-#if TEST_ELIF
-test_elif();
-#endif
-#if TEST_COMPOUND
-test_compound();
-#endif
-#if TEST_INITEX
-test_initex();
-#endif
-#if TEST_ENUM
-test_enum();
-#endif
-
-#if TEST_G3
-test_recurse();
-test_typemix();
-test_ncall();
-test_ptrst();
-test_mutrec();
-test_mem_ptr();
-test_par_dref();
-test_par_unop();
-test_arrdec();
-test_brinit();
-test_callconv();
-test_addrof();
-#endif
-
-#if TEST_G4
-test_arr_g4();
-test_cmp_i16();
-test_casts();
-test_cmp_u16();
-test_uint16();
-test_u16mix();
-#endif
-
-puts("================\r");
-puts("PASS: "); printnum(pass_count); puts("\r");
-puts("FAIL: "); printnum(fail_count); puts("\r");

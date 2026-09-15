@@ -23,6 +23,7 @@ _
   pop hl          ; Pop character 'c' into HL (L contains the char)
   push de         ; Restore return address to stack
 
+  ld a,l          ; Move char to accumulator
   sub 'A'         ; Shift 'A'-'Z' down to 0-25
   cp 26           ; Check if it's uppercase (0-25 sets Carry)
   jr c,.yes
@@ -173,28 +174,29 @@ _
   push de
 
   ld a,l
-  sub 32
-  cp 95           ; Is it printable?
-  jr nc,.no       ; If not printable, it's not punctuation
-
-  add a,32        ; Restore character value to accumulator
-  sub '0'
-  cp 10           ; Is it a digit?
+  cp '!'
   jr c,.no
-
-  sub 'A'-'0'
-  cp 26           ; Is it uppercase?
+  cp '0'
+  jr c,.yes
+  cp ':'
   jr c,.no
-
-  sub 'a'-'A'
-  cp 26           ; Is it lowercase?
+  cp 'A'
+  jr c,.yes
+  cp '['
   jr c,.no
-
-  ld hl,1         ; It's printable, but not a digit or letter -> Punctuation!
-  ret
+  cp 'a'
+  jr c,.yes
+  cp '{'
+  jr c,.no
+  cp 127
+  jr c,.yes
 
 .no
   ld hl,0
+  ret
+
+.yes
+  ld hl,1
   ret
 }
 

@@ -1,3 +1,10 @@
+2026/09/15 - Version 0.6g
+- Fix - strcmp bug checking for end of string (reported by Henk de Groot)
+- Fix - strtoint now correctly handles leading whitespace and signs
+- Fix - signed multiplication was not correctly restoring the sign
+- Enhancement - string function optimizations
+- Updated libraries from Iáń Júkéś (https://github.com/Nuntis-Spayz/sev-znc-libs)
+ 
 2026/09/06 - Version 0.6f
 - Enhancement - Support inline binary data inclusion using the incbin directive
 - Enhancement - Sized array arguments are checked against the declared size of the array. (e.g., void foo(int[5] a) { ... } will generate an error if called with foo(a) where a is int[4])

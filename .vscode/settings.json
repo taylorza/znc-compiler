@@ -2,7 +2,8 @@
     "files.associations": {
         "*.h": "c",
         "*.c": "c",
-        "*.asm": "asm-z80-sjasmplus"
+        "*.asm": "asm-z80-sjasmplus",
+        "*.znc": "asm-z80-sjasmplus"
     },
     "cSpell.enabledFileTypes": {
         "asm-x86-nasm": false
