@@ -2,8 +2,14 @@
 - Fix - strcmp bug checking for end of string (reported by Henk de Groot)
 - Fix - strtoint now correctly handles leading whitespace and signs
 - Fix - signed multiplication was not correctly restoring the sign
+- Fix - minor bug fixes and improvements to the compiler and libraries
+- Fix - shift constant folding
 - Enhancement - string function optimizations
+- Enhancement - compiler warning about unreachable code
 - Updated libraries from Iáń Júkéś (https://github.com/Nuntis-Spayz/sev-znc-libs)
+- Updated feature test suite to run as a single executable
+- Added initial library tests
+
  
 2026/09/06 - Version 0.6f
 - Enhancement - Support inline binary data inclusion using the incbin directive

@@ -3,7 +3,7 @@
         "*.h": "c",
         "*.c": "c",
         "*.asm": "asm-z80-sjasmplus",
-        "*.znc": "asm-z80-sjasmplus"
+        "*.znc": "c"
     },
     "cSpell.enabledFileTypes": {
         "asm-x86-nasm": false
