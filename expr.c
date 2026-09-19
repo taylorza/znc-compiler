@@ -599,9 +599,10 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
     else if (is_bitwise_op) {
         left->type_id = type_common_scalar_type(left->type_id, r_result.type_id, 0);
     }
-    /* Shift result follows the left operand type only (right operand is the count) */
-    if (left_is_fixed && is_shift_op) {
-        left->type_id = TYPE_ID_FIXED;
+    /* Shift result follows the left operand type only (right operand is the count).
+     * Runtime shifts cannot retain the left operand's const qualifier. */
+    if (is_shift_op) {
+        left->type_id = expr_shift_result_type(left, 0);
     }
     left->has_sym = 0;  /* Result is computed, not a direct symbol reference */
     return;
