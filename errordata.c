@@ -36,6 +36,7 @@ static const char* errmsg[] = {
     "Invalid bank",
     "Bank mismatch",
     "Bank already used",
+    "Unreachable code",
 };
 
 /* Banked function to copy error message to buffer */

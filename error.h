@@ -35,8 +35,10 @@ typedef enum ERROR {
     errInvalidBank,
     errBankMismatch,
     errBankAlreadyUsed,
+    errUnreachableCode,
 } ERROR;
 
 void error(ERROR err, ...);
+void warn(ERROR err, ...);
 
 #endif //ERROR_H_

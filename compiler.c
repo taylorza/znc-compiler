@@ -293,6 +293,8 @@ void parse_statement_block(uint16_t brklbl, uint16_t contlbl, uint8_t check_lbra
         uint8_t was_exit = (tok == tokReturn || tok == tokBreak || tok == tokContinue);
         parse_statement(brklbl, contlbl);
         if (was_exit) {
+            while (tok == tokSemi) get_token(); // skip any extra semicolons
+            if (tok != tokEOS && tok != tokRBrace) warn(errUnreachableCode);
             while (tok != tokEOS && tok != tokRBrace)
                 skip_statement();
         }
