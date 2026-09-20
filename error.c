@@ -26,8 +26,8 @@ void error(ERROR err, ...) {
 
 #ifdef __ZXNEXT0
     __asm
-    db 0xfd, 0x00
-        __endasm;
+        db 0xfd, 0x00
+    __endasm;
 #endif 
     va_start(v, err);
     notify(err, 1, v);

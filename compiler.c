@@ -555,11 +555,14 @@ void do_exit(EXPR_RESULT exit_expr) {
             } else {
                 if ((type_is_pointer(exit_expr.type_id) && type_is_char(type_get_element_type_id(exit_expr.type_id)))) {
                     emit_rtl("ccpstr"); // convert C string to BASIC string
-                    emit_instrln("xor a");                      
+                    emit_instrln("xor a");
+                    emit_instrln("scf");
                 } else {
-                    emit_instrln("ld a,l");                    
-                }
-                emit_instrln("scf");
+                    emit_instrln("ld a,l");
+                    emit_instrln("or a");
+                    emit_instr("jp z,"); emit_lblref(exit_lbl); emit_nl();
+                    emit_instrln("scf");                    
+                }                
             }
             break;
         case tokRaw:
