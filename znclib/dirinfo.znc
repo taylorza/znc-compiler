@@ -86,5 +86,31 @@ byte freaddir(byte handle, char *filter, void* dirent) __znccall(1)__asm__ {
   jp esx_err      
 }
 
+int frmdir(char *dir) __znccall(1) __asm__ {
+  pop af      ; Return address
+  pop hl      ; pop dir in HL
+  push af     ; restore return address
+
+  xor a
+  ld (_errno),a
+
+  ld a,'*'
+
+  if !__DOT
+    push hl
+    pop ix
+  endif
+
+  rst 0x08
+  db 0xab     ; F_RMDIR
+
+  ld hl,0
+  ret nc
+
+  ld l,a
+  ld (_errno), a
+  ret
+}
+
 #endif // DIRINFO__
 

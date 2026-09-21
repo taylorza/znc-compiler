@@ -132,5 +132,31 @@ int fseek(byte handle, int pos, byte mode) __znccall(1) __asm__ {
   
   jp esx_err
 }
+
+int funlink(char *filename) __znccall(1) __asm__ {
+  pop af      ; Return address
+  pop hl      ; pop filename in HL
+  push af     ; restore return address
+
+  xor a
+  ld (_errno),a  
+
+  ld a,'*'
+
+  if !__DOT
+    push hl
+    pop ix
+  endif
+
+  rst 0x08
+  db 0xad     ; F_UNLINK
+
+  ld hl,0
+  ret nc
+
+  ld l,a
+  ld (_errno), a
+  ret
+}
 #endif
 

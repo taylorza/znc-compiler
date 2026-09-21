@@ -1,6 +1,13 @@
 #ifndef ESXBASE__
 const byte ESXBASE__=1;
 
+const byte F_ATTR_RO = 0x01;
+const byte F_ATTR_HID = 0x02;
+const byte F_ATTR_SYS = 0x04;
+const byte F_ATTR_VOL = 0x08;
+const byte F_ATTR_DIR = 0x10;
+const byte F_ATTR_ARC = 0x20;
+
 byte errno=0;
 
 __asm__ {
