@@ -670,7 +670,7 @@ get_token_start:
         return token_type;
     }
 
-    uint8_t l = MAX_IDENT_LEN; 
+    uint8_t l = MAX_IDENT_LEN + 1; 
     if (c == '\'') {
         gnc(); /* skip '\'' */
         if (ch() == '\\') {
