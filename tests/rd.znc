@@ -1,0 +1,179 @@
+make dot "rd.dot";
+
+include "zxn.znc"
+include "dot.znc"
+include "string.znc"
+include "fileio.znc"
+include "dirinfo.znc"
+include "cmdline.znc"
+include "io.znc"
+
+DIRENT ent;
+char[1024] pathbuf;
+
+char* spinner = "|/-\\";
+byte spinner_idx = 0;
+
+void update_spinner() {
+    putc(spinner[++spinner_idx & 3]);
+    putc('\x08');
+}
+
+void clear_spinner() {
+    putc(' ');
+    putc('\x08');
+}
+
+int rmdir_r(char *path) {
+    byte h;
+    int res;
+    int orig_len = strlen(path);
+    
+    // Pass 1 : Delete files in this directory
+    byte modified = 1;
+    while(modified) {
+        modified = 0;
+
+        h = fopendir(path, 0, 0, 0);
+        if (h == 0) return errno;
+
+        while (freaddir(h, 0, &ent)) {
+            // skip "." and ".."
+            if (ent.name[0] == '.' && 
+            (ent.name[1] == '\0' || (ent.name[1] == '.' && ent.name[2] == '\0')))
+                continue;
+
+            if (!(ent.attr & F_ATTR_DIR)) {
+                // build target path
+                char *p = path + orig_len;
+                *p++ = '/';
+                strcpy(p, ent.name);
+                
+                update_spinner();
+                fclose(h); // close the handle before unlinking the file
+
+                res = funlink(path);
+                if (res) return res;
+                
+                path[orig_len] = '\0';
+                modified = 1;
+                break; // restart scan
+            }       
+        }
+        if (!modified) fclose(h);
+    }
+
+    // Pass 2 : Recurse into subdirectories
+    byte found_dir = 1;
+    while (found_dir) {
+        found_dir = 0;
+
+        h = fopendir(path, 0, 0, 0);
+        if (h == 0) return errno;
+
+        while (freaddir(h, 0, &ent)) {
+            if (ent.name[0] == '.' && 
+               (ent.name[1] == '\0' || (ent.name[1] == '.' && ent.name[2] == '\0')))
+                continue;
+
+            if (ent.attr & F_ATTR_DIR) {
+                // build target path for subdirectory
+                char *p = path + orig_len;
+                *p++ = '/';
+                strcpy(p, ent.name);
+
+                // close parent handle before recursing into subdirectory
+                fclose(h);
+
+                res = rmdir_r(path);
+                if (res) return res;
+
+                // delete the empty folder now
+                update_spinner();
+                res = frmdir(path);
+                if (res) return res;
+                
+                path[orig_len] = '\0';
+                found_dir = 1;
+                break;
+            }
+        }
+        if (!found_dir) fclose(h);
+    }
+
+    // Trim back to parent directory
+    path[orig_len] = '\0';
+    return 0;
+}
+
+void show_usage() {
+    puts("RD - Recursive Remove Directory\r");
+    puts("Usage: .rd [options] <directory>\r");
+    puts("Options:\r");
+    puts("  -q    quiet mode\r");
+    puts("  -h    display help message\r");
+}
+
+byte old_reg07;
+void restore() {
+    nextreg(0x07, old_reg07);
+}
+
+old_reg07 = updatereg(0x07, 3);
+atexit(restore);
+
+char*[3] argv;
+byte argc = parse_cmdline(args, argv, 3);
+
+byte quiet = 0;
+byte dir_seen = 0;
+
+for (byte i = 0; i < argc; i++) {
+    if (argv[i][0] == '-') {
+        if (strcmp(argv[i], "-q") == 0) {
+            quiet = 1;
+        } else if (strcmp(argv[i], "-h") == 0) {
+            show_usage();
+            return;
+        } else {
+            puts("Invalid option\r");
+            show_usage();
+            return;
+        }
+    } else {
+        strcpy(pathbuf, argv[i]);
+        ++dir_seen;
+    }
+}
+
+if (dir_seen != 1) {
+    show_usage();
+    return 0;
+}
+
+if (!quiet) {
+    puts("\rDeleting: ");
+    puts(pathbuf);
+    putc('\r');
+    puts("Are you sure (y/n)? ");
+
+    char c;
+    flash(1);
+    putc(' ');
+    while ((c = waitkey()) != 'y' && c != 'Y' && c != 'n' && c != 'N');
+    flash(0);
+    putc('\x08');
+
+    putc(c); putc('\r');
+    if (c != 'y' && c != 'Y') {
+        return 0;
+    }
+}
+
+int result = rmdir_r(pathbuf);
+if (result == 0) result = frmdir(pathbuf);
+    
+clear_spinner();
+return result;
+
+

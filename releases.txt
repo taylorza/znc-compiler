@@ -1,4 +1,4 @@
-2026/09/15 - Version 0.6g
+2026/09/20 - Version 0.6g
 - Fix - strcmp bug checking for end of string (reported by Henk de Groot)
 - Fix - strtoint now correctly handles leading whitespace and signs
 - Fix - signed multiplication was not correctly restoring the sign
@@ -6,9 +6,16 @@
 - Fix - shift constant folding
 - Enhancement - string function optimizations
 - Enhancement - compiler warning about unreachable code
-- Updated libraries from Iáń Júkéś (https://github.com/Nuntis-Spayz/sev-znc-libs)
+- Standard Libraries
+      - io.znc - added flash()
+      - fileio.znc - added funlink() to delete files
+      - dirinfo.znc - added frmdir() to remove directories recursively
+      - Updated libraries from Iáń Júkéś (https://github.com/Nuntis-Spayz/sev-znc-libs)
+      - Added initial library tests
 - Updated feature test suite to run as a single executable
-- Added initial library tests
+- ZOPT
+      - Added rules for optimizing 8 bit operations
+      - Improved performance of pattern matching
 
  
 2026/09/06 - Version 0.6f

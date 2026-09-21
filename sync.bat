@@ -32,6 +32,7 @@
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/samegame.znc /zdev/examples/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/samegame.pal /zdev/examples/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/samegame.til /zdev/examples/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/rd.znc /zdev/examples/
 
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/ay.znc /zdev/
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/crt.znc /zdev/
