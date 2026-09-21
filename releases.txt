@@ -1,3 +1,6 @@
+2026/09/21 - Version 0.6h
+- Fix - Top-level return without expression not returning 0 (reported by Rat Mal)
+
 2026/09/20 - Version 0.6g
 - Fix - strcmp bug checking for end of string (reported by Henk de Groot)
 - Fix - strtoint now correctly handles leading whitespace and signs
@@ -7,7 +10,6 @@
 - Enhancement - string function optimizations
 - Enhancement - compiler warning about unreachable code
 - Standard Libraries
-      - io.znc - added flash()
       - fileio.znc - added funlink() to delete files
       - dirinfo.znc - added frmdir() to remove directories recursively
       - Updated libraries from Iáń Júkéś (https://github.com/Nuntis-Spayz/sev-znc-libs)

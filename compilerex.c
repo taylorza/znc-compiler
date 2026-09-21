@@ -652,8 +652,8 @@ void far_parse_return(void) MYCC {
         if (tok != tokSemi) {
             expr_result = parse_expr(0, 0);
         } else {
-            expr_result.type_id = TYPE_ID_INT;
-            expr_result.value = 0;
+            expr_result.type_id = type_make_int(1);;
+            expr_result.value = 0;            
         }
         do_exit(expr_result);
     }

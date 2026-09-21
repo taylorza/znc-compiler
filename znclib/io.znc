@@ -29,20 +29,6 @@ void paper(byte c) __znccall(1) __asm__  {
   ret
 }
 
-void flash(byte c) __znccall(1) __asm__ {
-  pop hl    ; Pop return address
-  pop bc    ; Pop c into C
-  push hl   ; Push return address back
-
-  ld a,18   ; FLASH
-  rst 16
-
-  ld a,c    ; c
-  rst 16
-  
-  ret
-}
-
 void gotoxy(byte x, byte y) __znccall(1) __asm__ {
   pop hl    ; Pop return address
   pop bc    ; Pop y into C
