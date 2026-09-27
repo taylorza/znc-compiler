@@ -57,6 +57,35 @@ struct StrBox {
     int   n;
 };
 
+union Slot {
+    byte low;
+    uint word;
+};
+
+union MixBox {
+    Point named;
+    struct {
+        byte left;
+        byte right;
+    };
+};
+
+Slot init_slot = {12};
+Slot[2] init_slots = {{13}, {14}};
+Rect init_rect = {{1, 2}, {3, 4}};
+MixBox init_mix = {{5, 6}};
+MixBox[2] init_mixes = {{{7, 8}}, {{9, 10}}};
+
+struct Hold {
+    Slot named;
+    union {
+        byte low;
+        uint wide;
+    };
+};
+
+Hold init_hold = {{11}, {12}};
+
 enum Color { RED, GREEN, BLUE };
 enum Dir   { NORTH, SOUTH, EAST, WEST };
 
@@ -454,6 +483,56 @@ _
         chk("nested_ptr", r.br.x == 20);
     }
 
+    void test_unions() {
+        // Global aggregate initializers, including nested aggregates.
+        chk("init_slot", init_slot.low == 12);
+        chk("init_slots", init_slots[1].low == 14);
+        chk("init_rect", init_rect.br.y == 4);
+        chk("init_mix", init_mix.named.y == 6);
+        chk("init_mixes", init_mixes[1].named.x == 9);
+        chk("init_hold", init_hold.low == 12);
+
+        // Direct access to each member of a named union.
+        Slot s;
+        s.low = 7;
+        chk("un_low", s.low == 7);
+        s.word = 0x1234;
+        chk("un_word", s.word == 0x1234);
+
+        // Array indexing followed by union member access.
+        Slot[3] slots;
+        slots[0].low = 1;
+        slots[1].word = 0x2345;
+        slots[2].low = 3;
+        chk("un_arr0", slots[0].low == 1);
+        chk("un_arr1", slots[1].word == 0x2345);
+        chk("un_arr2", slots[2].low == 3);
+
+        // A union containing a named struct and an anonymous struct.
+        MixBox m;
+        m.named.x = 4;
+        m.named.y = 5;
+        chk("un_named", m.named.y == 5);
+        m.left = 6;
+        m.right = 7;
+        chk("un_anon", m.right == 7);
+
+        // Arrays of unions containing named and anonymous structs.
+        MixBox[2] mixes;
+        mixes[0].named.x = 8;
+        mixes[1].left = 9;
+        chk("un_mix0", mixes[0].named.x == 8);
+        chk("un_mix1", mixes[1].left == 9);
+
+        // A struct containing both a named union and an anonymous union.
+        Hold h;
+        h.named.low = 10;
+        h.low = 11;
+        h.wide = 0x3456;
+        chk("un_holdn", h.named.low == 10);
+        chk("un_holda", h.wide == 0x3456);
+    }
+
     void test_dlgs() {
         BinOp op;
         op = do_add;
@@ -603,6 +682,7 @@ _
         test_arrays();
         test_ptrs();
         test_structs();
+        test_unions();
         test_dlgs();
         test_vargs();
         test_asm();
