@@ -96,8 +96,8 @@ $(OUTPUT_DIR)/struct.o: struct.c | $(OUTPUT_DIR)
 	@echo "-> Generated $@"
 
 $(OUTPUT_DIR)/typedata2.o: typedata2.c | $(OUTPUT_DIR)
-	@echo "Compiling BANK 44 (named-type registry)"
-	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_44 --codesegBANK_44 --constsegBANK_44 --bsssegBANK_44
+	@echo "Compiling BANK 49 (named-type registry)"
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_49 --codesegBANK_49 --constsegBANK_49 --bsssegBANK_49
 	@echo "-> Generated $@"
 
 $(OUTPUT_DIR)/identtbl.o: identtbl.c | $(OUTPUT_DIR)

@@ -11,11 +11,14 @@ typedef struct FIELDDEF {
     char name[MAX_IDENT_LEN+1];
     uint8_t type_id;
     uint16_t offset;
+    uint16_t next;
+    uint8_t anonymous_id;
 } FIELDDEF;
 
 typedef struct STRUCTDEF {
     char name[MAX_IDENT_LEN+1];
     uint16_t first_field; /* index into global FIELDDEF pool, 0xFFFF = none */
+    uint16_t last_field;  /* index into global FIELDDEF pool, 0xFFFF = none */
     uint8_t fieldcount;
     uint8_t is_union;
     uint16_t size;
@@ -27,8 +30,13 @@ typedef struct FIELDINFO { uint8_t type_id; uint16_t offset; } FIELDINFO;
 int find_struct(const char* name) MYCC; // returns index or -1
 int add_struct(const char* name, uint8_t is_union) MYCC; // returns index (>=0) or -1
 void add_struct_field(int id, const char* name, uint8_t type_id) MYCC;
+void add_struct_anonymous_field(int parent_id, int child_id, uint8_t field_id,
+                                uint16_t base) MYCC;
+void set_struct_size(int id, uint16_t size) MYCC;
 int find_struct_field(int id, const char* name) MYCC; // returns field index or -1
 uint16_t get_struct_size(int id) MYCC;
+uint8_t is_struct_union(int id) MYCC;
+int get_anonymous_field_struct_id(int id, int fid) MYCC;
 int get_field_count(int id) MYCC;
 FIELDINFO get_struct_field(int id, int fid) MYCC; // returns type+offset by value
 
@@ -37,8 +45,12 @@ int far_find_struct(const char* name) MYCC;
 int far_add_struct(const char* name, uint8_t is_union) MYCC;
 /* Far API implemented in BANK 44. Keep these functions minimal and avoid heavy runtime calls. */
 void far_add_struct_field(int id, const char* name, uint8_t type_id) MYCC;
+void far_add_struct_anonymous_field(int parent_id, int child_id, uint8_t field_id,
+                                    uint16_t base) MYCC;
 int far_find_struct_field(int id, const char* name) MYCC;
 uint16_t far_get_struct_size(int id) MYCC;
+uint8_t far_is_struct_union(int id) MYCC;
+int far_get_anonymous_field_struct_id(int id, int fid) MYCC;
 void far_set_struct_size(int id, uint16_t size) MYCC;
 int far_get_field_count(int id) MYCC;
 FIELDINFO far_get_struct_field(int id, int fid) MYCC;

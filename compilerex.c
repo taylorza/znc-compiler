@@ -448,6 +448,106 @@ void far_parse_for(void) MYCC {
     pop_frame(blockframe);
 }
 
+static uint16_t anonymous_struct_count;
+
+static void make_anonymous_struct_name(char* name) MYCC {
+    snprintf(name, MAX_IDENT_LEN + 1, "__anon%u", anonymous_struct_count++);
+}
+
+static void parse_type_suffix(uint8_t *type_id) MYCC {
+    while (tok == tokStar || tok == tokLBrack) {
+        if (tok == tokStar) {
+            get_token();
+            *type_id = type_make_pointer(*type_id, 1);
+        } else {
+            get_token();
+            if (tok == tokRBrack) {
+                *type_id = type_make_array(*type_id, 0);
+            } else {
+                expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
+                if (!type_is_const(expr_result.type_id)) error(errConstExpected);
+                if (type_is_fixed(expr_result.type_id))
+                    expr_result.value = (uint16_t)((int16_t)expr_result.value >> 4);
+                if (expr_result.value > 0) {
+                    if (*type_id == TYPE_ID_VOID) error(errTypeError);
+                    *type_id = type_make_array(*type_id, expr_result.value);
+                } else {
+                    *type_id = type_make_pointer(*type_id, 1);
+                }
+            }
+            expect(tokRBrack, ']');
+        }
+    }
+}
+
+static void parse_struct_fields(int sid, uint8_t is_union) MYCC {
+    static char name[MAX_IDENT_LEN + 1];
+
+    expect_LBrace();
+    while (tok != tokRBrace && tok != tokEOS) {
+        uint8_t ftype_id;
+        uint8_t aggregate = tok == tokStruct || tok == tokUnion;
+        far_parse_type(&ftype_id);
+
+        if (aggregate && tok != tokIdent) {
+            int child_sid = type_get_struct_id(ftype_id) - 1;
+            uint16_t child_size = get_struct_size(child_sid);
+            uint16_t base = is_union ? 0 : get_struct_size(sid);
+            int field_count = get_field_count(child_sid);
+            for (int field_id = 0; field_id < field_count; ++field_id)
+                add_struct_anonymous_field(sid, child_sid, (uint8_t)field_id, base);
+            if (is_union) {
+                if (child_size > get_struct_size(sid))
+                    set_struct_size(sid, child_size);
+            } else {
+                set_struct_size(sid, base + child_size);
+            }
+            expect_semi();
+            continue;
+        }
+
+        for (;;) {
+            if (tok != tokIdent) error(errExpected_s, "field name");
+            strncpy(name, token, MAX_IDENT_LEN);
+            name[MAX_IDENT_LEN] = '\0';
+            get_token();
+            add_struct_field(sid, name, ftype_id);
+            if (tok != tokComma) break;
+            get_token();
+        }
+        expect_semi();
+    }
+    expect_RBrace();
+}
+
+static void parse_inline_struct_type(uint8_t *type_id_out) MYCC {
+    uint8_t is_union = tok == tokUnion;
+    char name[MAX_IDENT_LEN + 1];
+
+    get_token();
+    if (tok == tokIdent) {
+        strncpy(name, token, MAX_IDENT_LEN);
+        name[MAX_IDENT_LEN] = '\0';
+        get_token();
+    } else {
+        make_anonymous_struct_name(name);
+    }
+
+    if (tok != tokLBrace) {
+        int sid = find_struct(name);
+        if (sid < 0) error(errNotDefined_s, name);
+        *type_id_out = sid < 0 ? TYPE_ID_VOID : type_make_struct((uint8_t)(sid + 1), 0);
+        parse_type_suffix(type_id_out);
+        return;
+    }
+
+    if (find_struct(name) != -1) error(errAlreadyDefined_s, name);
+    int sid = add_struct(name, is_union);
+    parse_struct_fields(sid, is_union);
+    *type_id_out = type_make_struct((uint8_t)(sid + 1), 0);
+    parse_type_suffix(type_id_out);
+}
+
 void far_parse_type(uint8_t *type_id_out) MYCC {
     uint8_t base_type_id = TYPE_ID_VOID;
 
@@ -458,15 +558,18 @@ void far_parse_type(uint8_t *type_id_out) MYCC {
         case tokUint:  base_type_id = TYPE_ID_UINT16; break;
         case tokInt:   base_type_id = TYPE_ID_INT;    break;
         case tokFixed: base_type_id = TYPE_ID_FIXED;  break;
+        case tokStruct:
+        case tokUnion:
+            parse_inline_struct_type(type_id_out);
+            return;
         case tokIdent: {
             int sid = find_struct(token);
             if (sid >= 0) {
                 base_type_id = type_make_struct((uint8_t)(sid + 1), 0);
             } else {
                 int type_id = type_find_by_name(token);
-                if (type_id != -1) {
-                    base_type_id = (uint8_t)type_id;
-                } else {
+                if (type_id != -1) base_type_id = (uint8_t)type_id;
+                else {
                     error(errNotDefined_s, token);
                     tok = tokInt;
                     base_type_id = TYPE_ID_INT;
@@ -480,76 +583,13 @@ void far_parse_type(uint8_t *type_id_out) MYCC {
     }
 
     get_token();
-    while (tok == tokStar || tok == tokLBrack) {
-        if (tok == tokStar) {
-            get_token();
-            base_type_id = type_make_pointer(base_type_id, 1);
-        } else {
-            get_token();
-            if (tok == tokRBrack) {
-                base_type_id = type_make_array(base_type_id, 0);
-            } else {
-                expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
-                if (!type_is_const(expr_result.type_id)) error(errConstExpected);
-                if (type_is_fixed(expr_result.type_id))
-                    expr_result.value = (uint16_t)((int16_t)expr_result.value >> 4);
-                if (expr_result.value > 0) {
-                    if (base_type_id == TYPE_ID_VOID) error(errTypeError);
-                    base_type_id = type_make_array(base_type_id, expr_result.value);
-                } else {
-                    base_type_id = type_make_pointer(base_type_id, 1);
-                }
-            }
-            expect(tokRBrack, ']');
-        }
-    }
-
+    parse_type_suffix(&base_type_id);
     *type_id_out = base_type_id;
 }
 
 void far_parse_struct_def(void) MYCC {
-    static char name[MAX_IDENT_LEN + 1];
-
-    /* parse: struct/union Name { <field-decls> } ; */
-    uint8_t is_union = tok == tokUnion;
-    get_token(); // skip 'struct' or 'union'
-    if (tok != tokIdent) {
-        error(errExpected_s, "identifier");
-        return;
-    }
-
-    if (find_struct(token) != -1) {
-        error(errAlreadyDefined_s, token);
-        return;
-    }
-
-    int sid = add_struct(token, is_union);
-
-    get_token(); // skip name
-    expect_LBrace();
-
-    while (tok != tokRBrace && tok != tokEOS) {
-        uint8_t ftype_id;
-        far_parse_type(&ftype_id);
-
-        for (;;) {
-            if (tok != tokIdent) error(errExpected_s, "field name");
-
-            strncpy(name, token, MAX_IDENT_LEN);
-            get_token(); // skip field name
-
-            add_struct_field(sid, name, ftype_id);
-
-            if (tok == tokComma) {
-                get_token(); // skip ',' and continue
-                continue;
-            }
-            break;
-        }
-        expect_semi();
-    }
-
-    expect_RBrace();
+    uint8_t type_id;
+    far_parse_type(&type_id);
     if (tok == tokSemi) get_token(); // optional semicolon
 }
 

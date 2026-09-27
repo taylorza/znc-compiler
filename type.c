@@ -478,13 +478,13 @@ extern int type_find_by_name_bank(const char* name) MYCC;
 extern void type_register_name_bank(const char* name, uint8_t type_id) MYCC;
 
 int type_find_by_name(const char* name) MYCC {
-    PROLOG(44)
+    PROLOG(49)
     int res = type_find_by_name_bank(name);
     EPILOG_RETURN(res);
 }
 
 void type_register_name(const char* name, uint8_t type_id) MYCC {
-    PROLOG(44)
+    PROLOG(49)
     type_register_name_bank(name, type_id);
     EPILOG
 }

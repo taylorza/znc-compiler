@@ -63,6 +63,14 @@ static void emit_initializer_value(uint16_t *counter, uint8_t *last_is_char, uin
     if (*counter == 16) { emit_nl(); *counter = 0; }
 }
 
+static void emit_zero_bytes(uint16_t size, uint16_t *counter, uint8_t *last_is_char) MYCC {
+    while (size >= 2) {
+        emit_initializer_value(counter, last_is_char, 0, 0);
+        size -= 2;
+    }
+    if (size) emit_initializer_value(counter, last_is_char, 1, 0);
+}
+
 /* Helper that ensures a pointer/string emission starts on its own line when requested */
 static void emit_strref_line(uint16_t sid, uint16_t *counter, uint8_t *last_is_char) MYCC {
     if (*counter) emit_nl();
@@ -76,8 +84,23 @@ static void emit_strref_line(uint16_t sid, uint16_t *counter, uint8_t *last_is_c
 static void emit_zero_for_type(uint8_t type_id, uint16_t *counter, uint8_t *last_is_char) MYCC {
     if (type_is_struct(type_id)) {
         int struct_id = (int)type_get_struct_id(type_id) - 1;
+        if (is_struct_union(struct_id)) {
+            emit_zero_bytes(get_struct_size(struct_id), counter, last_is_char);
+            return;
+        }
         int field_count = get_field_count(struct_id);
         for (int i = 0; i < field_count; ++i) {
+            int anonymous_id = get_anonymous_field_struct_id(struct_id, i);
+            if (anonymous_id >= 0) {
+                emit_zero_for_type(type_make_struct((uint8_t)(anonymous_id + 1), 0),
+                                   counter, last_is_char);
+                do {
+                    ++i;
+                } while (i < field_count &&
+                         get_anonymous_field_struct_id(struct_id, i) == anonymous_id);
+                --i;
+                continue;
+            }
             FIELDINFO fi = get_struct_field(struct_id, i);
             emit_zero_for_type(fi.type_id, counter, last_is_char);
         }
@@ -220,9 +243,53 @@ uint16_t far_parse_struct_initializer_fields(uint8_t struct_type_id) MYCC {
     int field_idx = 0;
     uint8_t last_is_char = 0;
 
+    if (is_struct_union(struct_id)) {
+        if (field_count == 0) {
+            emit_zero_bytes(get_struct_size(struct_id), &counter, &last_is_char);
+            if (counter) emit_nl();
+            return 0;
+        }
+
+        FIELDINFO fi = get_struct_field(struct_id, 0);
+        if (tok == tokRBrace) {
+            emit_zero_bytes(get_struct_size(struct_id), &counter, &last_is_char);
+        } else {
+            parse_initializer_item(fi.type_id, &counter, &last_is_char, 1);
+            emit_zero_bytes(get_struct_size(struct_id) - type_size(fi.type_id),
+                            &counter, &last_is_char);
+            if (tok != tokRBrace) error(errTypeError);
+        }
+        if (counter) emit_nl();
+        return 1;
+    }
+
     while (field_idx < field_count && tok != tokRBrace && tok != tokEOS) {
         FIELDINFO fi = get_struct_field(struct_id, field_idx++);
         uint8_t field_type_id = fi.type_id;
+        int anonymous_id = get_anonymous_field_struct_id(struct_id, field_idx - 1);
+
+        if (anonymous_id >= 0) {
+            uint8_t anonymous_type_id = type_make_struct((uint8_t)(anonymous_id + 1), 0);
+            if (tok == tokLBrace) {
+                get_token();
+                if (counter) emit_nl();
+                counter = 0;
+                far_parse_struct_initializer_fields(anonymous_type_id);
+                expect_RBrace();
+            } else if (is_struct_union(anonymous_id)) {
+                parse_initializer_item(anonymous_type_id, &counter, &last_is_char, 1);
+            } else {
+                error(errExpected_c, '{');
+            }
+            while (field_idx < field_count &&
+                   get_anonymous_field_struct_id(struct_id, field_idx) == anonymous_id)
+                ++field_idx;
+            ++elementcount;
+            if (tok == tokRBrace) break;
+            if (tok != tokComma) { error(errExpected_c, ','); break; }
+            get_token();
+            continue;
+        }
 
         /* struct field parsing: struct=%d field=%d type=%d token='%s' */
 
@@ -243,6 +310,19 @@ uint16_t far_parse_struct_initializer_fields(uint8_t struct_type_id) MYCC {
     }
 
     while (field_idx < field_count) {
+        int anonymous_id = get_anonymous_field_struct_id(struct_id, field_idx);
+        if (anonymous_id >= 0) {
+            if (counter) emit_nl();
+            counter = 0;
+            emit_zero_for_type(type_make_struct((uint8_t)(anonymous_id + 1), 0),
+                               &counter, &last_is_char);
+            do {
+                ++field_idx;
+            } while (field_idx < field_count &&
+                     get_anonymous_field_struct_id(struct_id, field_idx) == anonymous_id);
+            ++elementcount;
+            continue;
+        }
         FIELDINFO fi = get_struct_field(struct_id, field_idx++);
         if (counter) emit_nl();
         counter = 0;

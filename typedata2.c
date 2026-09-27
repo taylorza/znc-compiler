@@ -1,7 +1,7 @@
 #include "znc.h"
 #include "error.h"
 
-/* BANK_44: Named-type registry for delegate/type names.
+/* BANK_49: Named-type registry for delegate/type names.
  * Moved here from typedata.c (BANK_43) to relieve bank pressure.
  * These functions do not access type_table or signature_table directly.
  */

@@ -40,6 +40,19 @@ void add_struct_field(int id, const char* name, uint8_t type_id) MYCC {
     arena_free_to_marker(m);
 }
 
+void add_struct_anonymous_field(int parent_id, int child_id, uint8_t field_id,
+                                uint16_t base) MYCC {
+    PROLOG(44)
+    far_add_struct_anonymous_field(parent_id, child_id, field_id, base);
+    EPILOG
+}
+
+void set_struct_size(int id, uint16_t size) MYCC {
+    PROLOG(44)
+    far_set_struct_size(id, size);
+    EPILOG
+}
+
 int find_struct_field(int id, const char* name) MYCC {
     ARENA_MARKER m = arena_get_marker();
     char* ncopy = arena_strdup(name, strnlen(name, MAX_IDENT_LEN));
@@ -56,6 +69,18 @@ int find_struct_field(int id, const char* name) MYCC {
 uint16_t get_struct_size(int id) MYCC {
     PROLOG(44)
     uint16_t r = far_get_struct_size(id);
+    EPILOG_RETURN(r)
+}
+
+uint8_t is_struct_union(int id) MYCC {
+    PROLOG(44)
+    uint8_t r = far_is_struct_union(id);
+    EPILOG_RETURN(r)
+}
+
+int get_anonymous_field_struct_id(int id, int fid) MYCC {
+    PROLOG(44)
+    int r = far_get_anonymous_field_struct_id(id, fid);
     EPILOG_RETURN(r)
 }
 
