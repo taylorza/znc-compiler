@@ -510,8 +510,9 @@ void far_parse_type(uint8_t *type_id_out) MYCC {
 void far_parse_struct_def(void) MYCC {
     static char name[MAX_IDENT_LEN + 1];
 
-    /* parse: struct Name { <field-decls> } ; */
-    get_token(); // skip 'struct'
+    /* parse: struct/union Name { <field-decls> } ; */
+    uint8_t is_union = tok == tokUnion;
+    get_token(); // skip 'struct' or 'union'
     if (tok != tokIdent) {
         error(errExpected_s, "identifier");
         return;
@@ -522,7 +523,7 @@ void far_parse_struct_def(void) MYCC {
         return;
     }
 
-    int sid = add_struct(token);
+    int sid = add_struct(token, is_union);
 
     get_token(); // skip name
     expect_LBrace();

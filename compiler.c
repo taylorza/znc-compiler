@@ -350,6 +350,11 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
             if (infunc) error(errTopLevelOnly);
             parse_struct_def();
             break;
+        case tokUnion:
+            /* union definitions are top-level only (<top_decl> in the grammar) */
+            if (infunc) error(errTopLevelOnly);
+            parse_struct_def();
+            break;
         case tokEnum:
             if (infunc) error(errTopLevelOnly);
             parse_enum_def();

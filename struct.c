@@ -13,7 +13,7 @@ int far_find_struct(const char* name) MYCC {
     return -1;
 }
 
-int far_add_struct(const char* name) MYCC {
+int far_add_struct(const char* name, uint8_t is_union) MYCC {
     if (struct_count >= MAX_STRUCTS) {
         error(errTooManySymbols);
         return -1;
@@ -23,6 +23,7 @@ int far_add_struct(const char* name) MYCC {
     strncpy(s->name, name, MAX_IDENT_LEN);
     s->first_field = 0xFFFF;
     s->fieldcount = 0;
+    s->is_union = is_union;
     s->size = 0;
     return struct_count++;
 }
@@ -48,10 +49,15 @@ void add_struct_field_with_offset(int id, const char* name, uint8_t type_id, uin
 }
 
 void far_add_struct_field(int id, const char* name, uint8_t type_id) MYCC {
-    /* Compute offset and new struct size */
+    /* Union members share offset zero; a union's size is its largest member. */
     uint16_t cur = far_get_struct_size(id);
     uint16_t inc = type_size(type_id);
     uint16_t newsize = cur + inc;
+
+    if (id >= 0 && id < struct_count && struct_tab[id].is_union) {
+        cur = 0;
+        newsize = inc > far_get_struct_size(id) ? inc : far_get_struct_size(id);
+    }
 
     add_struct_field_with_offset(id, name, type_id, cur);
     far_set_struct_size(id, newsize);    

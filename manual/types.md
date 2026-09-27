@@ -27,6 +27,8 @@ Composite types
 - Pointers: `T*` (size: 2 bytes). Pointer arithmetic scales by `sizeof(T)`.
 - Arrays: `T[n]` (size: `n * sizeof(T)`). If `[]` is used without a length in a variable declaration, it is treated as a pointer type; in member declarations inside `struct`, `[]` means pointer as well.
 - Structs: `struct Name { /* field declarations */ }`.
+- Unions: `union Name { /* alternative field declarations */ }`; all members
+	start at offset zero and the union size is the size of its largest member.
 - Function types: created implicitly for functions and explicitly via `delegate` (see below).
 
 Named function-pointer types (delegates)
@@ -44,7 +46,9 @@ Sizes
 - `sizeof(char)` = 1, `sizeof(byte)` = 1, `sizeof(int)` = 2, `sizeof(uint)` = 2, `sizeof(fixed)` = 2.
 - `sizeof(enum)` = 2.
 - Pointers are 2 bytes regardless of base type.
-- `sizeof(struct)` is the sum of its field sizes; array sizes are computed statically where a fixed length is provided.
+- `sizeof(struct)` is the sum of its field sizes; `sizeof(union)` is the size
+	of its largest field. Array sizes are computed statically where a fixed
+	length is provided.
 
 Type compatibility rules
 - Same type: identical type IDs are compatible.

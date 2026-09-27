@@ -17,6 +17,7 @@ typedef struct STRUCTDEF {
     char name[MAX_IDENT_LEN+1];
     uint16_t first_field; /* index into global FIELDDEF pool, 0xFFFF = none */
     uint8_t fieldcount;
+    uint8_t is_union;
     uint16_t size;
 } STRUCTDEF;
 
@@ -24,7 +25,7 @@ typedef struct FIELDINFO { uint8_t type_id; uint16_t offset; } FIELDINFO;
 
 /* Main-bank stubs (wrappers) - implemented in main bank and call into BANK_44 */
 int find_struct(const char* name) MYCC; // returns index or -1
-int add_struct(const char* name) MYCC; // returns index (>=0) or -1
+int add_struct(const char* name, uint8_t is_union) MYCC; // returns index (>=0) or -1
 void add_struct_field(int id, const char* name, uint8_t type_id) MYCC;
 int find_struct_field(int id, const char* name) MYCC; // returns field index or -1
 uint16_t get_struct_size(int id) MYCC;
@@ -33,7 +34,7 @@ FIELDINFO get_struct_field(int id, int fid) MYCC; // returns type+offset by valu
 
 /* Far (bank 44) implementations - defined in BANK 44 */
 int far_find_struct(const char* name) MYCC;
-int far_add_struct(const char* name) MYCC;
+int far_add_struct(const char* name, uint8_t is_union) MYCC;
 /* Far API implemented in BANK 44. Keep these functions minimal and avoid heavy runtime calls. */
 void far_add_struct_field(int id, const char* name, uint8_t type_id) MYCC;
 int far_find_struct_field(int id, const char* name) MYCC;

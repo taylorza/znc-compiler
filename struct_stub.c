@@ -16,13 +16,13 @@ int find_struct(const char* name) MYCC {
     return r;
 }
 
-int add_struct(const char* name) MYCC {
+int add_struct(const char* name, uint8_t is_union) MYCC {
     ARENA_MARKER m = arena_get_marker();
     char* ncopy = arena_strdup(name, strnlen(name, MAX_IDENT_LEN));
 
     int r;
     PROLOG(44)
-    r = far_add_struct(ncopy);
+    r = far_add_struct(ncopy, is_union);
     EPILOG
 
     arena_free_to_marker(m);
