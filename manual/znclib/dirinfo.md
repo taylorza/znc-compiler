@@ -53,6 +53,7 @@ Functions
 
 - `byte fopendir(char *dir, char *filter, byte mode, byte sf_flags)` — Open a directory search on `dir` (e.g. `"."`). `filter` is a filename or wildcard pattern. `mode` selects filename mode and behaviour (see Constants). Returns a handle (non-zero) or `0` on error; check `errno` for details.
 - `byte freaddir(byte handle, char *filter, void* dirent)` — Read the next matching entry into the buffer pointed to by `dirent` (use either `DIRENT` or `DIRENTLFN`). Returns non-zero while entries are returned, and `0` when there are no more matches.
+- `int frmdir(char *dir)` — Remove the directory named by `dir`; return `0` on success or an error code on failure.
 
 Examples
 

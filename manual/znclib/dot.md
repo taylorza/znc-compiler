@@ -8,6 +8,14 @@ Types
 
 - `delegate void PFN_EXIT()` —  Function pointer type for error/exit handler functions.
 
+Constants
+
+- None
+
+Globals
+
+- None
+
 Functions
 
 - `void seterrh(PFN_EXIT fn)` — Register an error handler function. 

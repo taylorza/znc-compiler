@@ -19,8 +19,9 @@ Globals
 Functions
 
 - `void memcpy(void *dst, void *src, int len)` — Copy `len` bytes from `src` to `dst`.
+- `void memmove(void *dst, void *src, int len)` — Copy `len` bytes, preserving data when the source and destination overlap.
 - `void memset(void *dst, char val, int len)` — Fill `len` bytes at `dst` with `val`.
- - `void memset16(void *dst, int v, int len)` — Fill `len` 16-bit words at `dst` with the 16-bit value `v`.
+- `void memset16(void *dst, int v, int len)` — Fill `len` 16-bit words at `dst` with the 16-bit value `v`.
 
 Examples
 

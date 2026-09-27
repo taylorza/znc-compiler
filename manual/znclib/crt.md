@@ -43,7 +43,9 @@ Functions
 - `byte crt_wherex()` — Return current cursor X.
 - `byte crt_wherey()` — Return current cursor Y.
 - `void crt_scroll(char lines)` — Scroll the screen by `lines` (positive scrolls up, negative scrolls down).
+- `byte crt_getbg()` — Return the current background color.
 - `void crt_setbg(byte color)` — Set background color for subsequent writes.
+- `byte crt_getfg()` — Return the current foreground color.
 - `void crt_setfg(byte color)` — Set foreground color for subsequent writes.
 - `void crt_putc(byte ch)` — Output character `ch` at cursor (handles CR and wrapping).
 - `int crt_puts(char *s)` — Output NUL-terminated string `s`, returns number of characters written.
@@ -64,3 +66,7 @@ crt_puts("Hello CRT world!");
 crt_getch();
 crt_restore();
 ```
+
+Notes
+
+- Call `crt_init()` before using the CRT functions and `crt_restore()` when finished.

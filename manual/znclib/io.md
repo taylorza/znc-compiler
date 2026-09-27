@@ -21,7 +21,10 @@ Functions
 - `void ink(byte c)` — Set foreground color.
 - `void paper(byte c)` — Set background color.
 - `void gotoxy(byte x, byte y)` — Move cursor to `(x,y)`.
+- `byte wherex()` — Return the current cursor X position.
+- `byte wherey()` — Return the current cursor Y position.
 - `void printnum(int n)` — Print a signed integer.
+- `void printnum_u(uint n)` — Print an unsigned integer.
 - `char inkey()` — Non-blocking key read (returns `0` if none).
 - `char waitkey()` — Blocking key read.
 

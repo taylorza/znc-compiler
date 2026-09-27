@@ -11,6 +11,7 @@ Libraries
 - [ctype](znclib/ctype.md) — Character classification and case conversion
 - [datetime](znclib/datetime.md) — Real-time clock and date/time parsing
 - [dot](znclib/dot.md) — DOT overlay error handler
+- [dotn](znclib/dotn.md) — Multi-bank DOT support
 - [dirinfo](znclib/dirinfo.md) — Directory access
 - [fileio](znclib/fileio.md) — File open/read/write/seek operations
 - [intToMonth](znclib/intToMonth.md) — Month number to text conversion
@@ -21,15 +22,19 @@ Libraries
 - [mmu](znclib/mmu.md) — Banked memory allocation
 - [mouse](znclib/mouse.md) — Mouse position and buttons
 - [printf](znclib/printf.md) — Formatted printing
+- [printf_tiny](znclib/printf_tiny.md) — Small formatted printing variant
 - [rnd](znclib/rnd.md) — Pseudorandom number generator
 - [regex](znclib/regex.md) — Regular expression matching
 - [sprite](znclib/sprite.md) — Sprite loading and updates
 - [sprintf](znclib/sprintf.md) — String formatting to buffer
+- [sprintf_tiny](znclib/sprintf_tiny.md) — Small string-formatting variant
 - [string](znclib/string.md) — Core string functions
 - [tilemap](znclib/tilemap.md) — Tilemap and palette support
 - [strcontains](znclib/strcontains.md) — Substring test
 - [strtoint](znclib/strtoint.md) — String to integer parsing
 - [version](znclib/version.md) — System/core version queries
+- [vsprintf](znclib/vsprintf.md) — Callback-based formatted output
 - [zxbgfx](znclib/zxbgfx.md) — ZX BASIC graphics wrappers
+- [zxn](znclib/zxn.md) — ZX Spectrum Next register helpers
 
 If you find a library missing from this list, please open an issue or submit a patch adding it.

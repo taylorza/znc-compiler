@@ -31,6 +31,10 @@ Functions
 - `void ay_pgm(byte[] values)` — Program all AY registers from an array.
 - `void ay_stop(byte chan)` — Stop a single channel.
 - `void ay_stopall()` — Stop all channels.
+- `void ay_ping()` — Play the built-in ping effect.
+- `void ay_shoot()` — Play the built-in shooting effect.
+- `void ay_explode()` — Play the built-in explosion effect.
+- `void ay_effect(int toneA, int toneB, byte noise, int period)` — Program a two-tone/noise effect with an envelope period.
 
 Examples
 
@@ -41,3 +45,8 @@ Short tone example:
 ay_select(AY1);
 ay_tone(0, 440, 10);
 ```
+
+Notes
+
+- `chan` is an AY channel number from 0 to 2.
+- `ay_pgm` writes all 14 AY registers; `values` must contain at least 14 bytes.
