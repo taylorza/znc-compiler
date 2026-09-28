@@ -29,6 +29,9 @@ Composite types
 - Structs: `struct Name { /* field declarations */ }`.
 - Unions: `union Name { /* alternative field declarations */ }`; all members
 	start at offset zero and the union size is the size of its largest member.
+- Anonymous aggregates: `struct { /* fields */ };` and
+	`union { /* fields */ };` may appear as members of another struct or union;
+	their fields are promoted into the containing aggregate.
 - Function types: created implicitly for functions and explicitly via `delegate` (see below).
 
 Named function-pointer types (delegates)
@@ -61,6 +64,8 @@ Type compatibility rules
 	- Base element types must match for non-`void*` pointers.
 - Scalars ↔ pointers: assigning an integer (char/byte/int/uint) to a pointer is allowed (commonly used for absolute addresses). Assigning a pointer to a scalar is not allowed without an explicit cast.
 - Structs: only exact struct types (same struct ID) are compatible; no implicit conversions between different structs.
+- Unions: only the exact same union type is compatible; different union types
+	are not implicitly convertible.
 - Enums:
 	- Same enum type is compatible with itself.
 	- Different enum types are not compatible with each other.
@@ -70,3 +75,5 @@ Type compatibility rules
 Notes
 - Arrays may be initialized with nested lists, including arrays of structs and arrays of arrays. An omitted length is inferred from the initializer (e.g., `byte[] s = "Hi";`).
 - Pointer arithmetic is typed; arithmetic scales by element size. `void*` is supported as a generic pointer type compatible with any other pointer.
+- See [Structs & Unions](structs_unions.md) for declarations, anonymous members,
+	layout, and aggregate initialization.

@@ -36,7 +36,18 @@ byte[5] b = {1, 2, 3, 4, 5};
 int[2][2] matrix = {{1, 2}, {3, 4}};
 ```
 
+Arrays of structs and unions use the same indexing and member access rules:
+
+```c
+Point[2] points = {{1, 2}, {3, 4}};
+points[1].x = 9;
+
+Value[2] values = {{13}, {14}};
+values[0].low = 5;
+```
+
 Notes and limits
 - `void*` is supported as a generic pointer type; it is compatible with any other pointer base type in assignments and calls. Pointer arithmetic on `void*` is not meaningful since element size is unknown.
 - Out-of-bounds access is undefined (as with C).
 - The compiler supports `char`, `byte`, `int`, `uint`, `fixed`, struct, and nested arrays.
+- Struct and union declarations, including anonymous aggregate members, are documented in [Structs & Unions](structs_unions.md).

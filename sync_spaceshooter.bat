@@ -14,4 +14,5 @@ rem %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/string.
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd znclib/io.znc /zdev/
 
 %1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/rd.znc /zdev/examples/
+%1/../../emulator/hdfmonkey put %1/../../sdcard/tbblue-dev.sd tests/feature_test.znc /zdev/examples/
 

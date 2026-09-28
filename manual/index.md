@@ -8,6 +8,7 @@ Chapters
 - [Quickstart](quickstart.md)
 - [Basic Syntax](syntax.md)
 - [Data Types](types.md)
+- [Structs & Unions](structs_unions.md)
 - [Enums](enums.md)
 - [Variables & Constants](variables_const.md)
 - [Pointers & Arrays](pointers_arrays.md)
