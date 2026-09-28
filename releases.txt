@@ -1,3 +1,8 @@
+2026/09/27 - Version 0.7
+- Enhancement - Added support of unions
+- Enhancement - Added support for named and anonymous embedded structs/unions 
+- Enhancement - Handling of explicit zero-length arrays in structs/unions
+
 2026/09/21 - Version 0.6h
 - Fix - Top-level return without expression not returning 0 (reported by Rat Mal)
 
