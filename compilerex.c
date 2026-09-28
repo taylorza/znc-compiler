@@ -13,7 +13,7 @@
  * Cross-bank rules observed:
  *  - All recursive parse calls go through main-bank stubs (parse_expr,
  *    parse_expr_delayconst, parse_statement, etc.) — never direct.
- *  - do_exit(), skip_statement_far(), parse_onearg()
+ *  - do_exit(), skip_statement(), parse_onearg()
  *    all live in the main bank — always safe to call directly.
  *  - Scanner globals (tok, token, intval, curr_line, curr_col) live in the
  *    main bank — always accessible.
@@ -30,17 +30,28 @@ extern TOKEN    tokMakeType;
 extern uint8_t  localcount;
 extern uint8_t  maxlocalcount;
 extern uint16_t bp_lastlocal;
+extern uint8_t  func_arg_count;
+extern uint8_t  func_arg_types[MAX_FUNC_ARGS];
+extern uint8_t  func_is_variadic;
+extern uint8_t  currbank;
+extern uint8_t  dfe_enabled;
+extern uint16_t locals_lbl;
+extern uint16_t localbytes;
+extern char decl_name[MAX_IDENT_LEN + 1];
 
 #define DOT_SCRATCH_ADDR 0x8000
 
 /* Main-bank helpers declared in compiler.c */
 void do_exit(EXPR_RESULT exit_expr);
-void skip_statement_far(void) MYCC;
 
 /* Main-bank parse entry points (always safe to call) */
 void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC;
 void skip_statement(void) MYCC;
 void parse_decl(void) MYCC;
+void parse_asm(void) MYCC;
+void parse_statement_block(uint16_t brklbl, uint16_t contlbl, uint8_t check_lbrace) MYCC;
+SYMBOL declglb(uint8_t type_id, SYM_CLASS_SCOPE klass, const char* name, int16_t value);
+SYMBOL declloc(uint8_t type_id, SYM_CLASS_SCOPE klass, const char* name, int16_t offset);
 void far_parse_type(uint8_t* type_id_out) MYCC;
 void far_parse_break(uint16_t brklbl) MYCC;
 SYMBOL decl_in_scope(uint8_t type_id, SYM_CLASS_SCOPE klass, const char* name);
@@ -197,6 +208,221 @@ void far_parse_funccall(SYMBOL* sym, PTR_LOCATION ptr_loc, uint8_t callee_type_i
     int cleanup_count = (expected_count != 0xFF) ? expected_count : argcount;
     if (is_variadic) cleanup_count = argcount + 1;
     emit_clean_stack(cleanup_count * 2);
+}
+
+static void parse_signature(uint8_t declare_locals) MYCC {
+    uint8_t arg_type;
+
+    func_arg_count = 0;
+    func_is_variadic = 0;
+
+    expect_LParen();
+    while (tok != tokRParen && tok != tokEllipsis) {
+        far_parse_type(&arg_type);
+
+        uint8_t decl_type = arg_type;
+        if (type_is_array(arg_type)) {
+            uint8_t elem = type_get_element_type(arg_type);
+            decl_type = type_make_pointer(elem, 1);
+        }
+        if (type_is_struct(decl_type) && !type_is_pointer(decl_type)) {
+            error(errTypeError);
+        }
+
+        if (func_arg_count < MAX_FUNC_ARGS) {
+            func_arg_types[func_arg_count] = decl_type;
+        } else if (!declare_locals) {
+            error(errTooManyTypes);
+        }
+
+        if (declare_locals) {
+            declloc(decl_type, ARGUMENT, token, func_arg_count);
+            get_token();
+        } else if (tok == tokIdent) {
+            get_token();
+        }
+        ++func_arg_count;
+        if (tok == tokComma) get_token();
+    }
+
+    if (tok == tokEllipsis) {
+        func_is_variadic = 1;
+        get_token();
+    }
+    expect_RParen();
+}
+
+static uint8_t parse_znccall(uint8_t is_variadic) MYCC {
+    uint8_t calling_convention = 0;
+    if (tok == tokZncCall) {
+        get_token();
+        expect_LParen();
+        expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
+        if (!type_is_const(expr_result.type_id)) error(errConstExpected);
+        expect_RParen();
+        calling_convention = (uint8_t)expr_result.value;
+        switch (calling_convention) {
+            case 0: break;
+            case 1:
+                if (is_variadic) error(errInvalidCallingConvention);
+                break;
+            default:
+                error(errInvalidCallingConvention);
+                break;
+        }
+    }
+    return calling_convention;
+}
+
+void far_parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
+    if (type_is_struct(rettype_id) && !type_is_pointer(rettype_id)) {
+        error(errTypeError);
+    }
+
+    SYMBOL symfunc = lookupIdent(name);
+    uint8_t defined = 0;
+    uint8_t calling_convention = 0;
+
+    if (not_defined(&symfunc)) {
+        symfunc = declglb(rettype_id, FUNCTION, name, 0);
+    } else if (!IS_FUNCTION_PROTO(symfunc)) {
+        defined = 1;
+    }
+
+    uint16_t oldretlbl = retlbl;
+    retlbl = newlbl();
+    uint16_t funcframe = push_frame();
+    parse_signature(1);
+
+    while (tok == tokIdent || tok == tokZncCall) {
+        if (tok == tokIdent && lookup_ident_token(token) == tokBank) {
+            get_token();
+            expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
+            if (!type_is_const(expr_result.type_id)) error(errConstExpected);
+            if (expr_result.value >= 255) error(errInvalidBank);
+            symfunc.bank = (uint8_t)expr_result.value;
+        } else if (tok == tokZncCall) {
+            calling_convention = parse_znccall(func_is_variadic);
+        }
+    }
+
+    if (defined || IS_FUNCTION_PROTO(symfunc)) {
+        if (func_arg_count != symfunc.fn.arg_count) {
+            error(errDeclMismatch);
+        } else if (symfunc.fn.signature_id != 0xFF) {
+            uint8_t match = 1;
+            if (signature_get_calling_convention(symfunc.fn.signature_id) != calling_convention) {
+                match = 0;
+            } else if (signature_get_arg_count(symfunc.fn.signature_id) == func_arg_count &&
+                       signature_is_variadic(symfunc.fn.signature_id) == func_is_variadic) {
+                for (uint8_t i = 0; i < func_arg_count; i++) {
+                    if (signature_get_arg_type(symfunc.fn.signature_id, i) != func_arg_types[i]) {
+                        match = 0;
+                        break;
+                    }
+                }
+            } else {
+                match = 0;
+            }
+            if (!match) error(errDeclMismatch);
+        }
+    }
+
+    if (symfunc.fn.signature_id == SIGNATURE_INVALID) {
+        symfunc.fn.signature_id = signature_create(calling_convention, rettype_id, func_arg_count,
+                                                  func_arg_types, func_is_variadic);
+        if (symfunc.fn.signature_id == SIGNATURE_INVALID) {
+            error(errTooManyTypes);
+        }
+        symfunc.type_id = type_make_function(symfunc.fn.signature_id);
+    }
+
+    currfunc_id = callgraph_add_func(symfunc.name_id);
+    symfunc.fn.arg_count = func_arg_count;
+    if (tok == tokSemi) {
+        if (!defined) symfunc.class_scope |= FUNCTION_PROTO;
+    } else {
+        if (defined) error(errAlreadyDefined_s, name);
+        symfunc.class_scope &= ~FUNCTION_PROTO;
+        symfunc.class_scope |= FUNCTION;
+        updatesym(&symfunc);
+        infunc = 1;
+        func_rettype = rettype_id;
+        uint16_t skiplbl = newlbl();
+
+        if (dfe_enabled) emit_instrln("if FN_%d", symfunc.name_id);
+        emit_jp(skiplbl);
+        emit_sname(name);
+        emit_nl();
+
+        if (tok == tokAsm || tok == tokLBrace) {
+            if (symfunc.bank != 0 && symfunc.bank != currbank) error(errBankMismatch);
+            if (currbank) {
+                symfunc.bank = currbank;
+                updatesym(&symfunc);
+            }
+        }
+        if (tok == tokAsm) {
+            parse_asm();
+        } else {
+            if (tok != tokLBrace) error(errExpected_c, '{');
+            uint16_t oldlocalbytes = localbytes;
+            maxlocalcount = 0;
+            bp_lastlocal = 0;
+            localbytes = 0;
+            emit_frame_prologue(0);
+            locals_lbl = emit_alloclocals();
+            parse_statement_block(NO_LABEL, NO_LABEL, 1);
+            emit_frame_epilogue(0, retlbl, calling_convention, func_arg_count, tokMakeType);
+            emit_lblequ16(locals_lbl, localbytes);
+            localbytes = oldlocalbytes;
+        }
+        emit_lbl(skiplbl);
+        if (dfe_enabled) emit_instrln("endif ;FN_%d", symfunc.name_id);
+        infunc = 0;
+        func_rettype = TYPE_ID_VOID;
+        func_is_variadic = 0;
+        func_arg_count = 0;
+        retlbl = oldretlbl;
+    }
+    currfunc_id = 0;
+    pop_frame(funcframe);
+    updatesym(&symfunc);
+}
+
+void far_parse_delegate_decl(void) MYCC {
+    get_token();
+    uint8_t return_type;
+    uint8_t calling_convention = 0;
+    far_parse_type(&return_type);
+
+    if (type_is_struct(return_type) && !type_is_pointer(return_type)) {
+        error(errTypeError);
+    }
+    if (tok != tokIdent) {
+        error(errExpected_s, "identifier");
+        return;
+    }
+
+    strncpy(decl_name, token, MAX_IDENT_LEN);
+    get_token();
+    parse_signature(0);
+    calling_convention = parse_znccall(func_is_variadic);
+    expect_semi();
+
+    uint8_t sig = signature_create(calling_convention, return_type, func_arg_count,
+                                   func_arg_types, func_is_variadic);
+    if (sig == SIGNATURE_INVALID) {
+        error(errTooManyTypes);
+        return;
+    }
+    uint8_t ftype = type_make_function(sig);
+    uint8_t deleg_type = type_make_pointer(ftype, 1);
+    if (type_find_by_name(decl_name) != -1) {
+        error(errAlreadyDefined_s, decl_name);
+        return;
+    }
+    type_register_name(decl_name, deleg_type);
 }
 
 uint8_t page_map[256];  /* page map for banked code generation */
@@ -616,7 +842,7 @@ void far_parse_while(void) MYCC {
     expect_RParen();
 
     if (type_is_const(expr_result.type_id) && !expr_result.value) {
-        skip_statement_far(); // while(0) — skip body, emit nothing
+        skip_statement(); // while(0) — skip body, emit nothing
         return;
     }
 
