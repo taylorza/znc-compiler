@@ -472,7 +472,10 @@ static void parse_type_suffix(uint8_t *type_id) MYCC {
                     if (*type_id == TYPE_ID_VOID) error(errTypeError);
                     *type_id = type_make_array(*type_id, expr_result.value);
                 } else {
-                    *type_id = type_make_pointer(*type_id, 1);
+                    /* An explicit [0] is an inline zero-length array.  Keep it
+                     * as an array so member subscripting uses the containing
+                     * address instead of loading a pointer from the field. */
+                    *type_id = type_make_array(*type_id, 0);
                 }
             }
             expect(tokRBrack, ']');
