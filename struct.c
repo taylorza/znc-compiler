@@ -31,6 +31,10 @@ int far_add_struct(const char* name, uint8_t is_union) MYCC {
 
 void add_struct_field_with_offset(int id, const char* name, uint8_t type_id, uint16_t offset) MYCC {
     if (id < 0 || id >= struct_count) return;
+    if (struct_tab[id].fieldcount >= MAX_FIELDS_PER_STRUCT) {
+        error(errTooManySymbols);
+        return;
+    }
     if (field_next >= MAX_FIELDS) {
         error(errTooManySymbols);
         return;
