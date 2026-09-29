@@ -623,7 +623,7 @@ get_token_start:
     }
 
     /* Single char tokens */
-    if (find_char_in_str("*%~^;,(){}[]?:.", c)) {
+    if (find_char_in_str("*%~^;,(){}[]?:.@", c)) {
         *temp++ = gnc();
         *temp = '\0';
         token_type = ttDelimiter;
@@ -641,6 +641,7 @@ get_token_start:
                 }
                 tok = tokSemi; break;
             case ',': tok = tokComma; break;
+            case '@': tok = tokAt; break;
             case '(': tok = tokLParen; break;
             case ')': tok = tokRParen; break;
             case '{': token_type = ttBlock; tok = tokLBrace; break;

@@ -44,6 +44,7 @@ typedef struct SYMBOL {
 /* Symbol flags */
 #define SYM_FLAG_INITIALIZED 0x01
 #define SYM_FLAG_USED        0x02
+#define SYM_FLAG_ABSOLUTE    0x04
 
 extern SYMBOL undefined_sym;
 

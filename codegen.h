@@ -3,7 +3,8 @@
 
 typedef enum {
     PTR_IN_SYMBOL = 0,
-    PTR_IN_HL = 1
+    PTR_IN_HL = 1,
+    PTR_IN_CONSTANT = 2
 } PTR_LOCATION;
 
 

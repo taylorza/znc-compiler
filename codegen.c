@@ -369,7 +369,9 @@ void emit_call(const char *name) MYCC {
 }
 
 void emit_callsym(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
-    if (is_func_or_proto(sym)) {
+    if (ptr_loc == PTR_IN_CONSTANT) {
+        emit_instrln("call %u", (unsigned)(uint16_t)sym->stk.offset);
+    } else if (is_func_or_proto(sym)) {
         if (currbank == sym->bank || sym->bank == 0) {
             emit_instr("call ");
             emit_sname_id(sym->name_id);
@@ -489,7 +491,21 @@ static void emit_store_variadic_arg(SYMBOL *sym) MYCC {
 void emit_ld_symval(SYMBOL* sym) MYCC {
     uint8_t type_id = sym->type_id;
 
-    if (IS_GLOBAL(*sym)) {
+    if (sym->flags & SYM_FLAG_ABSOLUTE) {
+        uint16_t address = sym->stk.offset;
+        if (type_is_array(type_id) || type_is_struct(type_id)) {
+            emit_ld_immed_n(address);
+        }
+        else if (!type_is_pointer(type_id) && type_is_8bit(type_id)) {
+            emit_instr("ld a,("); emit_n(address); emit_strln(")");
+            if (type_is_char(type_id)) emit_rtl("ccsxt");
+            else { emit_instrln("ld l,a"); emit_instrln("ld h,0"); }
+        }
+        else {
+            emit_instr("ld hl,("); emit_n(address); emit_strln(")");
+        }
+    }
+    else if (IS_GLOBAL(*sym)) {
         if (type_is_array(type_id)) {
             emit_ld_immed();
             emit_sname_id(sym->name_id);
@@ -562,7 +578,10 @@ void emit_ld_symaddr(SYMBOL* sym) MYCC {
 void emit_ld_symaddr_offset(SYMBOL* sym, uint16_t offset) MYCC {
     uint8_t type_id = sym->type_id;
 
-    if (IS_GLOBAL(*sym)) {
+    if (sym->flags & SYM_FLAG_ABSOLUTE) {
+        emit_ld_immed_n((uint16_t)(sym->stk.offset + offset));
+    }
+    else if (IS_GLOBAL(*sym)) {
         emit_ld_immed();
         emit_sname_id(sym->name_id);
         if (offset) { emit_ch('+'); emit_n(offset); }
@@ -598,7 +617,16 @@ void emit_store_sym(SYMBOL* sym) MYCC {
     uint8_t type_id = sym->type_id;
     if (type_is_array(type_id)) error(errNotlvalue);
     
-    if (IS_GLOBAL(*sym)) {
+    if (sym->flags & SYM_FLAG_ABSOLUTE) {
+        if (!type_is_pointer(type_id) && type_is_8bit(type_id)) {
+            emit_instrln("ld a,l");
+            emit_instr("ld ("); emit_n(sym->stk.offset); emit_strln("),a");
+        }
+        else {
+            emit_instr("ld ("); emit_n(sym->stk.offset); emit_strln("),hl");
+        }
+    }
+    else if (IS_GLOBAL(*sym)) {
         if (!type_is_pointer(type_id) && type_is_8bit(type_id)) {
             emit_instrln("ld a,l");
             emit_instr("ld ("); emit_sname_id(sym->name_id); emit_strln("),a");

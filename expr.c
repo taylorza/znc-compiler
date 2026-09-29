@@ -941,7 +941,13 @@ static void postfix_call(EXPR_RESULT* result, uint8_t* dereference, uint8_t* add
         *dereference = 0;
     }
 
-    PTR_LOCATION ptr_loc = had_sym ? PTR_IN_SYMBOL : PTR_IN_HL;
+    PTR_LOCATION ptr_loc;
+    if (type_is_const(callee_type_id)) {
+        call_sym.stk.offset = (int16_t)result->value;
+        ptr_loc = PTR_IN_CONSTANT;
+    } else {
+        ptr_loc = had_sym ? PTR_IN_SYMBOL : PTR_IN_HL;
+    }
     parse_funccall(&call_sym, ptr_loc, callee_type_id);
 
     result->type_id = TYPE_ID_VOID;

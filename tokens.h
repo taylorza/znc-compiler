@@ -35,6 +35,7 @@ typedef enum TOKEN {
     tokLBrack,      // [
     tokRBrack,      // ]
     tokComma,       // ,
+    tokAt,          // @
     tokQuote,       // "
     tokSingleQuote, // '
 

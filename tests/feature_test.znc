@@ -695,6 +695,8 @@ _
 
 
 bank(2) {
+    int abs_global @ 0x5C76;
+
     int sum_b4(byte[] a) {
         return a[0] + a[1] + a[2] + a[3];
     }
@@ -705,6 +707,23 @@ bank(2) {
 
     fixed sum_f3(fixed[] a) {
         return a[0] + a[1] + a[2];
+    }
+
+    void test_absvars() {
+        int abs_local @ 0x5C7D;
+        int old_global = abs_global;
+        int old_local = abs_local;
+        abs_global = 0x1234;
+        abs_local = 0x5678;
+        chk("abs_global", abs_global == 0x1234);
+        chk("abs_local", abs_local == 0x5678);
+
+        int *abs_ptr = &abs_global;
+        *abs_ptr = 0x2468;
+        chk("abs_addr", abs_global == 0x2468);
+
+        abs_global = old_global;
+        abs_local = old_local;
     }
 
     int sprite_mix(SpriteInit[] s) {
@@ -1009,6 +1028,7 @@ bank(2) {
     }
 
     void run_bank2() {
+        test_absvars();
         test_fixed();
         test_rawref();
         test_tconv();

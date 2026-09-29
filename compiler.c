@@ -46,6 +46,7 @@ char decl_name[MAX_IDENT_LEN + 1];       // Current declaration name
 SYMBOL declglb(uint8_t type_id, SYM_CLASS_SCOPE klass, const char* name, int16_t value);
 SYMBOL declloc(uint8_t type_id, SYM_CLASS_SCOPE klass, const char* name, int16_t offset);
 SYMBOL decl_in_scope(uint8_t type_id, SYM_CLASS_SCOPE klass, const char* name);
+SYMBOL decl_absolute(uint8_t type_id, const char* name, uint16_t address);
 
 void parse_type(uint8_t* type_id_out) MYCC;
 void parse_funcdecl(uint8_t rettype_id, const char* name) MYCC;
@@ -433,7 +434,14 @@ void parse_decl(void) MYCC {
         if (type_is_void(type_id) && !type_is_pointer(type_id)) error(errTypeError);
 
         for (;;) {
-            sym = decl_in_scope(type_id, VARIABLE, decl_name);
+            if (tok == tokAt) {
+                get_token();
+                expr_result = parse_expr_delayconst(0, TYPE_ID_INT);
+                if (!type_is_const(expr_result.type_id)) error(errConstExpected);
+                sym = decl_absolute(type_id, decl_name, expr_result.value);
+            } else {
+                sym = decl_in_scope(type_id, VARIABLE, decl_name);
+            }
                
             if (tok == tokAssign) {
                 parse_assign(0, &sym, 0, type_id);
@@ -654,6 +662,28 @@ SYMBOL decl_in_scope(uint8_t type_id, SYM_CLASS_SCOPE  klass, const char* name) 
         if (is_defined(&sym)) error(errAlreadyDefined_s, name);
         sym = declglb(type_id, klass, name, 0);
     }
+    return sym;
+}
+
+SYMBOL decl_absolute(uint8_t type_id, const char* name, uint16_t address) {
+    SYMBOL sym;
+    if ((infunc || is_scoped()) && (!currbank || infunc)) {
+        sym = findloc(name);
+        if (is_defined(&sym)) {
+            error(errAlreadyDefined_s, name);
+            return sym;
+        }
+        sym = declloc(type_id, VARIABLE, name, (int16_t)address);
+    } else {
+        sym = findglb(name);
+        if (is_defined(&sym)) {
+            error(errAlreadyDefined_s, name);
+            return sym;
+        }
+        sym = declglb(type_id, VARIABLE, name, (int16_t)address);
+    }
+    sym.flags |= SYM_FLAG_ABSOLUTE;
+    updatesym(&sym);
     return sym;
 }
 

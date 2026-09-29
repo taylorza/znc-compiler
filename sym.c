@@ -126,7 +126,8 @@ void far_dump_globals_range(uint16_t from, uint16_t to) MYCC {
     }
     for (uint16_t i = from; i < to; ++i) {
         SYMBOL* sym = &symtab[i];        
-        if (IS_FUNCTION_PROTO(*sym) || IS_FUNCTION(*sym) || type_is_const(sym->type_id) || (sym->flags & SYM_FLAG_INITIALIZED)) continue;
+        if (IS_FUNCTION_PROTO(*sym) || IS_FUNCTION(*sym) || type_is_const(sym->type_id) ||
+            (sym->flags & (SYM_FLAG_INITIALIZED | SYM_FLAG_ABSOLUTE))) continue;
         emit_sname_id(sym->name_id);
         emit_ch(' ');
         uint16_t size = type_size(sym->type_id);
