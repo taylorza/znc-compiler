@@ -6,7 +6,7 @@
 uint8_t far_inc_rtl(const char* fn) MYCC;
 void far_dump_rtl(char *outfilename) MYCC;
 
-// Wrapper for RTL functions compiled in BANK 42
+// Wrapper for RTL functions compiled in BANK 50
 uint8_t inc_rtl(const char* fn) MYCC {
     ARENA_MARKER m = arena_get_marker();
     /* copy into shared arena so far implementation can safely read it */
@@ -14,7 +14,7 @@ uint8_t inc_rtl(const char* fn) MYCC {
     char* fcopy = arena_strdup(fn, len);
 
     uint8_t r;
-    PROLOG(42)
+    PROLOG(50)
     r = far_inc_rtl(fcopy);
     EPILOG
 
@@ -23,7 +23,7 @@ uint8_t inc_rtl(const char* fn) MYCC {
 }
 
 void dump_rtl(char* outfilename) MYCC {
-    PROLOG(42)
+    PROLOG(50)
     far_dump_rtl(outfilename);
     EPILOG
 }

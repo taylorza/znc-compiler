@@ -48,8 +48,8 @@ $(OUTPUT_DIR)/sym.o: sym.c | $(OUTPUT_DIR)
 	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_41 --codesegBANK_41 --constsegBANK_41 --bsssegBANK_41
 
 $(OUTPUT_DIR)/rtl.o: rtl.c $(RTL_INCS) | $(OUTPUT_DIR)
-	@echo "Compiling BANK 42"
-	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_42 --codesegBANK_42 --constsegBANK_42 --bsssegBANK_42
+	@echo "Compiling BANK 50 (RTL)"
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_50 --codesegBANK_50 --constsegBANK_50 --bsssegBANK_50
 	@echo "-> Generated $@"
 
 $(OUTPUT_DIR)/errordata.o: errordata.c | $(OUTPUT_DIR)
