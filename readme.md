@@ -320,7 +320,7 @@ pp.x = 3;  // pointer-to-struct also uses '.'
    Program structure
    ---------------------------------------------------------------- *)
 
-<program>         ::= [ <make> ] [ <org> ] { <top_level_item> }
+<program>         ::= [ <make> | <org> ] { <top_level_item> }
 
 <top_level_item>  ::= <top_decl>
                     | <statement>
@@ -330,15 +330,18 @@ pp.x = 3;  // pointer-to-struct also uses '.'
    Directives
    ---------------------------------------------------------------- *)
 
-<make>            ::= "make" ( "dot" | "nex" | "raw" ) [ <string> ] ";"
-<org>             ::= "org" <number> ";"
-<bank>            ::= "bank" "(" <number> [ "," <number> ] ")" <stmnt_block>
+<make>            ::= "make" ( "dot" | "raw" ) [ <string> ] ";"
+                              | "make" "nex" [ <string> ] [ "," <const_expr> ] ";"
+                                 (* the optional comma expression is the NEX stack base *)
+<org>             ::= "org" <const_expr> ";"
+<bank>            ::= "bank" "(" <const_expr> [ "," <const_expr> ] ")" <stmnt_block>
 
 (* ----------------------------------------------------------------
    Declarations — separated by context
    ---------------------------------------------------------------- *)
 
-(* Top-level: function definitions, prototypes, delegates, enums allowed *)
+(* Top-level: function definitions, prototypes, delegates, enums, and
+   aggregate definitions are allowed. *)
 <top_decl>        ::= <vardecl>
                     | <funcdecl>
                     | <funcproto>
@@ -346,20 +349,28 @@ pp.x = 3;  // pointer-to-struct also uses '.'
                     | <enumdef>
                     | <delegatedef>
 
-(* Block-level: only variable and struct declarations *)
+(* Block-level: variable declarations are allowed. Named aggregate
+   definitions, delegates, and enums are top-level only. *)
 <local_decl>      ::= <vardecl>
-                    | <structdef>
 
-<structdef>       ::= "struct" <ident> "{" { <vardecl> } "}" [ ";" ]
+<structdef>       ::= ( "struct" | "union" ) [ <ident> ]
+                       "{" { <vardecl> } "}" [ ";" ]
 
 <enumdef>         ::= "enum" <ident> "{" <enum_member_decl> { "," <enum_member_decl> } [ "," ] "}" [ ";" ]
 <enum_member_decl> ::= <ident> [ "=" <const_expr> ]
 
-<delegatedef>     ::= "delegate" <rettype> <ident> "(" [ <arglist> ] ")" ";"
+<delegatedef>     ::= "delegate" <rettype> <ident> "(" [ <arglist> ] ")"
+                       [ <znccall> ] ";"
 
-<funcproto>       ::= <rettype> <ident> "(" [ <arglist> ] [ "..." ] ")" ";"
+<funcproto>       ::= <rettype> <ident> "(" [ <arglist> ] [ "..." ] ")"
+                       { <func_modifier> } ";"
 
-<funcdecl>        ::= <rettype> <ident> "(" [ <arglist> ] [ "..." ] ")" ( <asm> | <stmnt_block> )
+<funcdecl>        ::= <rettype> <ident> "(" [ <arglist> ] [ "..." ] ")"
+                       { <func_modifier> } ( <asm> | <stmnt_block> )
+
+<func_modifier>   ::= <znccall>
+                    | "bank" <const_expr>
+<znccall>         ::= "__znccall" "(" <const_expr> ")"
 
 <vardecl>         ::= [ "const" ] <type> <var_declarator> { "," <var_declarator> } ";"
 
@@ -372,19 +383,24 @@ pp.x = 3;  // pointer-to-struct also uses '.'
    ---------------------------------------------------------------- *)
 
 (* { "*" } supports multi-level pointers (e.g. int**, char*).
-   The optional "[...]" adds one array dimension.
+   Each "[...]" adds one array dimension.
    The language type system encodes indirection in a 4-bit field;
    a semantic check may restrict maximum pointer depth if required. *)
-<type>            ::= <basetype> { "*" } [ "[" [ <const_expr> ] "]" ]
+<type>            ::= <basetype> { "*" } { "[" [ <const_expr> ] "]" ]
 
-(* "struct" <ident> is unambiguous. Bare <ident> resolves a named delegate,
-   struct, or enum type via the symbol table (context-sensitive; semantic restriction). *)
-<basetype>        ::= "char"
+(* Bare <ident> resolves a named delegate, struct, or enum type via the
+   symbol table (context-sensitive; semantic restriction). *)
+<basetype>        ::= "void"
+                    | "char"
                     | "byte"
+                    | "uint"
                     | "int"
                     | "fixed"
-                    | "struct" <ident>
+                    | <aggregate_type>
                     | <ident>
+
+<aggregate_type>  ::= ( "struct" | "union" ) <ident> [ "{" { <vardecl> } "}" ]
+                    | ( "struct" | "union" ) "{" { <vardecl> } "}"
 
 <arglist>         ::= <arg> { "," <arg> }
 <arg>             ::= <type> <ident>
@@ -404,7 +420,6 @@ pp.x = 3;  // pointer-to-struct also uses '.'
                     | <return>
                     | <exit>
                     | <putc>
-                    | <puts>
                     | <out>
                     | <nextreg>
                     | <asm>
@@ -414,6 +429,9 @@ pp.x = 3;  // pointer-to-struct also uses '.'
                     | <hashif_block>
                     | <expr> ";"
                     | ";"
+
+(* puts, abs, incbin, and va_arg are expression forms; putc, out,
+   nextreg, va_start, and va_end are statement forms. *)
 
 <stmnt_block>     ::= "{" { <statement> } "}"
 
@@ -459,21 +477,22 @@ pp.x = 3;  // pointer-to-struct also uses '.'
                     | <enum_member_ref>
                     | <ident>
                     | "(" <expr> ")"
+                    | "(" <type> ")" <unary>
                     | "in" "(" <expr> ")"
                     | "readreg" "(" <expr> ")"
+                    | "abs" "(" <expr> ")"
+                    | "incbin" "(" <expr> ")"
+                    | "puts" "(" <expr> ")"
+                    | "va_arg" "(" <ident> "," <type> ")"
                     | <brace_init>
 
 (* Enum member reference uses type-qualified syntax, e.g. Color.GREEN.
    The first identifier must resolve to an enum type name. *)
 <enum_member_ref> ::= <ident> "." <ident>
 
-(* lvalue_expr: syntactically valid assignment targets and operands for "&".
-   Left-recursive via indexing and field access (natural for a postfix grammar). *)
-<lvalue_expr>     ::= <ident>
-                    | "*" <unary>
-                    | <lvalue_expr> "[" <expr> "]"
-                    | <lvalue_expr> "." <ident>
-                    | "(" <lvalue_expr> ")"
+(* Address-of accepts an identifier followed by indexing and/or field access.
+   Dereference is handled separately by <unary>. *)
+<lvalue_expr>     ::= <ident> { "[" <expr> "]" | "." <ident> }
 
 <exprlist>        ::= <expr> { "," <expr> }
 
@@ -537,21 +556,23 @@ pp.x = 3;  // pointer-to-struct also uses '.'
 
 <while>           ::= "while" "(" <expr> ")" <statement>
 
-(* for-init inlines the variable declaration syntax without a trailing ";".
-   The ";" separators in "for(...;...;...)" are explicit in this rule. *)
-<for>             ::= "for" "(" <for_init> ";" [ <expr> ] ";" [ <expr> ] ")" <statement>
-<for_init>        ::= [ "const" ] <type> <var_declarator> { "," <var_declarator> }
-                    | <expr>
-                    | (* empty *)
+(* A declaration initializer consumes the first separator itself. *)
+<for>             ::= "for" "(" <for_decl_init> [ <expr> ] ";"
+                                 [ <expr> ] ")" <statement>
+                              | "for" "(" [ <expr> ] ";" [ <expr> ] ";"
+                                 [ <expr> ] ")" <statement>
+<for_decl_init>   ::= [ "const" ] <type> <var_declarator>
+                      { "," <var_declarator> } ";"
 
 <break>           ::= "break" ";"
 <continue>        ::= "continue" ";"
 <return>          ::= "return" [ <expr> ] ";"
 <exit>            ::= "exit" "(" <expr> ")" ";"
 <putc>            ::= "putc" "(" <expr> ")" ";"
-<puts>            ::= "puts" "(" <expr> ")" ";"
 <out>             ::= "out" "(" <expr> "," <expr> ")" ";"
 <nextreg>         ::= "nextreg" "(" <expr> "," <expr> ")" ";"
+<va_start>        ::= "va_start" "(" <ident> [ "," <ident> ] ")" ";"
+<va_end>          ::= "va_end" "(" <ident> ")" ";"
 <asm>             ::= "__asm__" "{" <Z80N_Assembly> "}"
 <include>         ::= "include" <string>
 
