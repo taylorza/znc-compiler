@@ -369,21 +369,29 @@ void emit_call(const char *name) MYCC {
 }
 
 void emit_callsym(SYMBOL* sym, PTR_LOCATION ptr_loc) MYCC {
+    /* Keep symbol fields in scalars while emitting code.  At high SDCC
+     * allocator limits, preserving this pointer across emitter calls can
+     * produce incorrect stack/register code for the bank byte. */
+    IDENT_ID name_id = sym->name_id;
+    uint16_t stack_offset = sym->stk.offset;
+    uint8_t class_scope = sym->class_scope;
+    uint8_t bank = sym->bank;
+
     if (ptr_loc == PTR_IN_CONSTANT) {
-        emit_instrln("call %u", (unsigned)(uint16_t)sym->stk.offset);
-    } else if (is_func_or_proto(sym)) {
-        if (currbank == sym->bank || sym->bank == 0) {
+        emit_instrln("call %u", (unsigned)stack_offset);
+    } else if ((class_scope & FUNCTION) || (class_scope & FUNCTION_PROTO)) {
+        if (currbank == bank || bank == 0) {
             emit_instr("call ");
-            emit_sname_id(sym->name_id);
+            emit_sname_id(name_id);
             emit_nl();
         }
         else {
             /* Emit a call to the bank-switching stub */
-            if (sym->bank == 255) {
+            if (bank == 255) {
                 error(errInvalidBank);
             }
-            emit_instrln("ld a,%d", sym->bank);
-            emit_ldde_immed(); emit_sname_id(sym->name_id);
+            emit_instrln("ld a,%d", bank);
+            emit_ldde_immed(); emit_sname_id(name_id);
             emit_nl();
             emit_rtl("ccfarcall");            
         }        
