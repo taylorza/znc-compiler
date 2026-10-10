@@ -8,13 +8,14 @@ Base types
 - `int`: signed 16‑bit scalar.
 - `uint`: unsigned 16-bit scalar, with values from 0 through 65535.
 - `fixed`: signed 16-bit fixed-point in **Q4 (12.4)** format. The upper 12 bits hold the integer part and the lower 4 bits hold the fractional part. Range: approximately **-2048.0 to +2047.9375**, precision **0.0625** (1/16). Write fixed-point literals with a decimal point: `3.14`, `0.5`, `-1.25`.
+- Literals are not range-checked. An integer literal wraps if it does not fit in 16 bits. A fixed-point literal is rounded to the nearest 1/16 using its first four fractional digits, so `2048.0` is stored as `-2048.0`.
 - `void`: used only for function return types and as the base of a generic pointer (`void*`).
 - Named enum types: declared with `enum Name { ... };` and then used as a type name (for example, `Name v;`).
 
 Explicit casts
 
 - A cast uses the form `(type) expression` and applies to the next unary expression. Use parentheses around a larger expression when that is the intended operand.
-- Casts between scalar types preserve the 16-bit representation; they do not perform a numeric fixed-point conversion. For example, `(int)(fixed)2` is `32`, because `fixed` uses four fractional bits.
+- Casts between scalar types preserve the 16-bit representation; they do not perform a numeric fixed-point conversion. For example, `(int)(fixed)2` is `2`, not `32`. To get the fixed-point value 2.0, write the literal `2.0`, which is stored as `32`.
 - Casts between integers and pointers are supported for absolute addresses: `byte *p = (byte *)0x4000;` and `int address = (int)p;`.
 
 ```c

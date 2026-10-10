@@ -85,7 +85,7 @@ int add(int a, int b) __znccall(1) {
 
 ### Banked function calls
 
-Functions declared with `bank(n)` may be called from code in another bank. The compiler temporarily maps the target bank, preserves the caller's stack and return address, and restores the previous MMU mapping when the function returns. The target function uses the same argument and return-value conventions described above.
+Functions placed in a bank with the `bank n` modifier may be called from code in another bank. The compiler temporarily maps the target bank, preserves the caller's stack and return address, and restores the previous MMU mapping when the function returns. The target function uses the same argument and return-value conventions described above.
 
 ### Optimized assembler functions with `__znccall(1)`
 

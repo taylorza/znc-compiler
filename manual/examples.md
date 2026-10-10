@@ -25,7 +25,7 @@ byte[] s = "Hi";           // inferred as byte[3] == {'H','i',0}
 int[] nums = {1000, 2000};  // inferred as int[2] == {1000,2000}
 
 // Explicit-size arrays support initializers, including nested arrays and structs:
-byte[3] fixed = {72, 105, 0};
+byte[3] msg = {72, 105, 0};
 
 // If size is omitted and no initializer is present, the declaration is treated as a pointer:
 int[] p; // equivalent to: int *p;

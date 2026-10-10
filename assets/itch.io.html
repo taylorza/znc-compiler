@@ -4,15 +4,16 @@
 <p>In this language:</p>
 <p><strong>Build Directives.</strong> A program may start with optional build directives:</p>
 <ul>
-<li>The <code>make</code> directive configures the build mode (with options &quot;dot&quot;, &quot;nex&quot;, or &quot;raw&quot;) and optionally a string specifying the name an location of the resulting binary.</li>
+<li>The <code>make</code> directive selects the output type (&quot;dot&quot;, &quot;nex&quot;, or &quot;raw&quot;). It can also set the name and location of the resulting binary, and for &quot;nex&quot; an initial stack pointer.</li>
 <li>The org directive sets the origin (memory address) of the code.</li>
 </ul>
 <p><strong>Top‐Level Items.</strong> Programs are a sequence of top‑level items (declarations and/or statements). Unlike traditional C, top‑level statements are allowed. However, if a top‑level statement calls a function, the function must have been declared before its use—either via a full definition or via a prototype.</p>
-<p><strong>Declarations.</strong> There are variable declarations, function definitions, and function prototypes. Variable types include scalar types (<code>char</code>, <code>byte</code>, <code>int</code>), arrays (e.g. <code>int[10]</code>), and pointers (e.g. <code>int*</code>).</p>
+<p><strong>Declarations.</strong> There are variable declarations, function definitions, and function prototypes. Variable types include scalar types (<code>char</code>, <code>byte</code>, <code>int</code>, <code>uint</code>, <code>fixed</code>), arrays (e.g. <code>int[10]</code>), pointers (e.g. <code>int*</code>), and structs.</p>
 <p><strong>Control Structures.</strong> You’ll find the usual control constructs: <code>if</code>–<code>else</code>, <code>while</code>, and <code>for</code> loops, as well as statements such as <code>break</code>, <code>continue</code>, and <code>return</code>.</p>
 <p><strong>Inline Assembly.</strong> A special <strong>asm</strong> block can be used to embed raw Z80N assembly code inside functions.</p>
 <p><strong>I/O Primitives.</strong> For basic output, built‑in functions <code>putc()</code> and <code>puts()</code> are provided.</p>
-<p><strong>Banks.</strong> A bank construct allows you to group a statement block into a memory bank</p>
+<p><strong>Conditional Compilation.</strong> <code>#if</code>, <code>#ifdef</code>, <code>#ifndef</code>, <code>#elif</code>, <code>#else</code>, and <code>#endif</code> are supported. The predefined <code>__NEX</code>, <code>__DOT</code>, and <code>__RAW</code> match the make type.</p>
+<p><strong>Banks.</strong> A <code>bank(n) { ... }</code> block places its statements into memory bank <code>n</code>. A function can be placed in a bank with the <code>bank</code> modifier, e.g. <code>int draw() bank 41 { ... }</code>.</p>
 <h2 id="installing-the-tools">Installing the tools</h2>
 <p>The compiler includes a suite of tools:</p>
 <ul>
@@ -87,150 +88,43 @@ while (1) {
 }
 </code></pre>
 <h2 id="syntax-incomplete">Syntax</h2>
-<pre><code class="language-EBNF">(* Program directives and top‐level items, where declarations and statements may appear. *)
-&lt;program&gt;         ::= [ &lt;make&gt; ]
-                      [ &lt;org&gt; ]
+<p>This is a summary of the main directives and declarations. Some nonterminals are omitted for brevity. The full grammar is in the <a href="https://github.com/taylorza/znc-compiler">readme.md</a> in the repository.</p>
+<pre><code class="language-EBNF">(* Program: optional directives, then top-level items *)
+&lt;program&gt;         ::= [ &lt;make&gt; [ &lt;bank&gt; ] [ &lt;org&gt; ] | &lt;org&gt; ]
                       { &lt;top_level_item&gt; }
 
-&lt;top_level_item&gt;  ::= &lt;decl&gt;
-                      | &lt;statement&gt;
+&lt;top_level_item&gt;  ::= &lt;vardecl&gt;
+                    | &lt;funcdecl&gt;
+                    | &lt;funcproto&gt;
+                    | &lt;statement&gt;
 
-&lt;make&gt;            ::= "make" [ "dot" | "nex" | "raw" ] "(" &lt;string&gt; ")" ";"
-
-&lt;org&gt;             ::= "org" &lt;number&gt; ";"
-
-&lt;bank&gt;            ::= "bank" "(" &lt;number&gt; [ "," &lt;number&gt; ] ")" &lt;stmnt_block&gt;
-
-(* Statements *)
-&lt;statement&gt;       ::= &lt;stmnt_block&gt;
-                      | &lt;decl&gt;
-                      | &lt;assignment&gt;                    
-                      | &lt;if&gt;
-                      | &lt;switch&gt;
-                      | &lt;while&gt;
-                      | &lt;for&gt;
-                      | &lt;break&gt;
-                      | &lt;continue&gt;
-                      | &lt;return&gt;
-                      | &lt;putc&gt;
-                      | &lt;puts&gt;
-                      | &lt;asm&gt;
-                      | &lt;include&gt;
-                      | &lt;expr&gt;
-                      | &lt;org&gt;
-                      | ";"
-
-&lt;stmnt_block&gt;     ::= "{" { &lt;statement&gt; } "}"
-
-(* Declarations: variable declarations, function definitions, and function prototypes *)
-&lt;decl&gt;            ::= &lt;vardecl&gt;
-                      | &lt;funcdecl&gt;
-                      | &lt;funcproto&gt;
-
-(* Function prototype: note the trailing semicolon instead of a body *)
-&lt;funcproto&gt;       ::= &lt;rettype&gt; &lt;ident&gt; "(" &lt;arglist&gt; ")" ";"
-
-(* Assignment expressions. Either a simple identifier or a more complex lvalue/expression on the left-hand side. *)
-&lt;assignment&gt;      ::= &lt;lvalue&gt; "=" &lt;expr&gt; ";"
-&lt;lvalue&gt;          ::= &lt;ident&gt;
-                    | &lt;ident&gt; "[" &lt;expr&gt; "]"
-                    | "*" &lt;lvalue&gt;
-                    | "&" &lt;lvalue&gt;
-
-(* Control structures *)
-&lt;if&gt;              ::= "if" "(" &lt;expr&gt; ")" &lt;statement&gt; [ "else" &lt;statement&gt; ]
-
-&lt;switch&gt;          ::= "switch" "(" &lt;expr&gt; ")" &lt;switch_block&gt;
-&lt;switch_block&gt;    ::= "{" { &lt;case_section&gt; } "}"
-&lt;case_section&gt;    ::= &lt;case_header&gt; { &lt;statement&gt; }
-&lt;case_header&gt;     ::= { "case" &lt;expr&gt; ":" } [ "default" ":" ]
-
-&lt;while&gt;           ::= "while" "(" &lt;expr&gt; ")" &lt;statement&gt;
-
-&lt;for&gt;             ::= "for" "(" [ &lt;decl&gt; | &lt;assignment&gt; ] ";" [ &lt;expr&gt; ] ";" [ &lt;expr&gt; ] ")" &lt;statement&gt;
-
-&lt;break&gt;           ::= "break" ";"
-
-&lt;continue&gt;        ::= "continue" ";"
-
-&lt;return&gt;          ::= "return" [ &lt;expr&gt; ] ";"
-
-&lt;putc&gt;            ::= "putc" "(" &lt;expr&gt; ")" ";"
-
-&lt;puts&gt;            ::= "puts" "(" &lt;expr&gt; ")" ";"
-
-(* Inline assembly block (contents treated as raw Z80N Assembly). *)
-&lt;asm&gt;             ::= "__asm__" "{" Z80N_Assembly "}"
-
+(* Directives *)
+&lt;make&gt;            ::= "make" ( "dot" | "raw" ) [ &lt;string&gt; ] ";"
+                    | "make" "nex" [ &lt;string&gt; ]
+                      [ "," &lt;const_expr&gt; ] ";"
+                    (* optional comma arg: NEX stack base *)
+&lt;org&gt;             ::= "org" &lt;const_expr&gt; ";"
+&lt;bank&gt;            ::= "bank" "(" &lt;const_expr&gt;
+                      [ "," &lt;const_expr&gt; ] ")" &lt;stmnt_block&gt;
 &lt;include&gt;         ::= "include" &lt;string&gt;
 
-(* String literal: content details omitted here *)
-&lt;string&gt;          ::= "\"" { &lt;character&gt; } "\""
+(* Declarations *)
+&lt;vardecl&gt;         ::= [ "const" ] &lt;type&gt; &lt;ident&gt;
+                      [ "=" &lt;initializer_expr&gt; ]
+                      { "," &lt;ident&gt; [ "=" &lt;initializer_expr&gt; ] }
+                      ";"
+&lt;funcproto&gt;       ::= &lt;rettype&gt; &lt;ident&gt; "(" [ &lt;arglist&gt; ]
+                      [ "..." ] ")" ";"
+&lt;funcdecl&gt;        ::= &lt;rettype&gt; &lt;ident&gt; "(" [ &lt;arglist&gt; ]
+                      [ "..." ] ")" ( &lt;asm&gt; | &lt;stmnt_block&gt; )
 
-(* Variable declaration: type, identifier, and optional initializer.
-   Multiple variables may be declared in one statement. *)
-&lt;vardecl&gt;         ::= [const] &lt;type&gt; &lt;ident&gt; [ "=" &lt;expr&gt; ] { "," &lt;ident&gt; [ "=" &lt;expr&gt; ] } ";"
-
-(* Function definition: includes return type, name, parameter list,
-   either an assembly block, or a function body. *)
-&lt;funcdecl&gt;        ::= &lt;rettype&gt; &lt;ident&gt; "(" &lt;arglist&gt; ")"  &lt;asm&gt; | &lt;stmnt_block&gt;
-
-(* Function call used as an expression; when used as a statement, a semicolon is appended. *)
-&lt;call_expr&gt;       ::= &lt;ident&gt; "(" [ &lt;exprlist&gt; ] ")"
-&lt;funccall_stmt&gt;   ::= &lt;call_expr&gt; ";"
-
+(* Types: scalars, pointers, and arrays. An ident names a
+   struct, enum, or delegate. *)
+&lt;type&gt;            ::= &lt;basetype&gt; { "*" }
+                      { "[" [ &lt;const_expr&gt; ] "]" }
+&lt;basetype&gt;        ::= "void" | "char" | "byte" | "uint" | "int"
+                    | "fixed" | &lt;ident&gt;
 &lt;rettype&gt;         ::= "void" | &lt;type&gt;
-
-(* Type definitions include scalar types, arrays, and pointers. *)
-&lt;type&gt;            ::= &lt;scalartype&gt;
-                      | &lt;arraytype&gt;
-                      | &lt;pointertype&gt;
-
-&lt;scalartype&gt;      ::= "char" | "byte" | "int"
-
-&lt;arraytype&gt;       ::= &lt;scalartype&gt; "[" &lt;number&gt; "]"
-
-&lt;pointertype&gt;     ::= &lt;scalartype&gt; "*"
-
 &lt;arglist&gt;         ::= &lt;arg&gt; { "," &lt;arg&gt; }
-
 &lt;arg&gt;             ::= &lt;type&gt; &lt;ident&gt;
-
-(* Expressions are parsed using a precedence-climbing algorithm.
-   The production below is schematic. *)
-&lt;expr&gt;            ::= "(" &lt;expr&gt; ")" 
-                      | &lt;factor&gt; { &lt;op&gt; &lt;factor&gt; }
-
-&lt;factor&gt;          ::= &lt;number&gt;
-                      | &lt;string&gt;
-                      | &lt;call_expr&gt;
-                      | ( "*" | "&" ) &lt;var&gt; [ "[" &lt;expr&gt; "]" ]
-
-&lt;var&gt;             ::= &lt;ident&gt;
-
-(* Operators available (similar to C, ++/-- can be prefix or postfix) *)
-&lt;op&gt;              ::= "+" | "-" | "*" | "/" | "%" 
-                      | "==" | "!=" | "&lt;" | "&gt;" | "&lt;=" | "&gt;=" 
-                      | "&&" | "||" | "^" | "|" | "&" | "&lt;&lt;" | "&gt;&gt;"
-                      | "++" | "--"
-
-(* Identifiers, letters, and digits *)
-&lt;ident&gt;           ::= &lt;letter&gt; { &lt;letter&gt; | &lt;digit&gt; | "_" }
-
-&lt;letter&gt;          ::= "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J"
-                      | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T"
-                      | "U" | "V" | "W" | "X" | "Y" | "Z"
-                      | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j"
-                      | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t"
-                      | "u" | "v" | "w" | "x" | "y" | "z"
-
-&lt;digit&gt;           ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
-
-&lt;number&gt;          ::= &lt;digit&gt; { &lt;digit&gt; }
-
-&lt;character&gt;       ::= /* any character except the double quote " */  
-                     
-
-(* The nonterminal Z80N_Assembly is assumed to represent a block of valid Z80N assembly code. *)
-               
 </code></pre>

@@ -14,7 +14,7 @@ In this language:
 
 **Top‐Level Items.** Programs are a sequence of top‑level items (declarations and/or statements). Unlike traditional C, top‑level statements are allowed. However, if a top‑level statement calls a function, the function must have been declared before its use—either via a full definition or via a prototype.
 
-**Declarations.** There are variable declarations, function definitions (including variadic functions), and function prototypes. Variable types include scalar types (`char`, `byte`, `int`), arrays (declared in C#/Java style, e.g. `int[10] items;`), pointers (e.g. `int*`), and structs defined with `struct Name { ... }`.
+**Declarations.** There are variable declarations, function definitions (including variadic functions), and function prototypes. Variable types include scalar types (`char`, `byte`, `int`, `uint`, `fixed`), arrays (declared in C#/Java style, e.g. `int[10] items;`), pointers (e.g. `int*`), and structs defined with `struct Name { ... }`.
 
 **Control Structures.** You’ll find the usual control constructs: `if`–`else`, `while`, and `for` loops, as well as statements such as `break`, `continue`, `return`, and `switch`/`case`/`default`.
 
@@ -86,7 +86,7 @@ Next, compile and assemble the code
 .asm hello.asm
 ```
 
-If you did not get any errors with the above, you can excute the program and you should see `Hello World` printed to the screen.
+If you did not get any errors with the above, you can execute the program and you should see `Hello World` printed to the screen.
 
 ### Bouncing ball
 This is a more complex example that bounces a character on the screen.
@@ -187,19 +187,25 @@ An optional directive placed at the beginning of your source file. This directiv
 If make is not specified, the compiled code will be assembled directly into memory. This can be useful if you want to compile ZNC code for use as inline code in your NextBASIC applications.
 
 **Syntax**
-`make <type> ["<binary name>"];`
+`make dot ["<binary name>"];`
+`make raw ["<binary name>"];`
+`make nex ["<binary name>"] [, <stack>];`
 
-`<type>` - Specified the type of binary to create
-* dot - Creates a DOT command binary
-* nex - Creates a NEX binary
-* raw - Raw creates a raw binary with the default code address set to 0xc000 hex or 49152 decimal
+If used, `make` must be the first directive, optionally followed by `bank` and then `org`.
 
-`["<binary name>"]` - Optionally specifies the name of the resulting binary. If not provided, the source file name is used as the base of the binary name.
+`<stack>` - Only `nex` accepts this argument. It sets the initial stack pointer (default 0xBFFF).
+
+The make types are dot, raw and nex. The type names are identifiers, not reserved words.
+* dot - Creates a DOT command binary. The code origin is 0x2000.
+* nex - Creates a NEX binary. If no `org` is given, the code origin is 0xc000.
+* raw - Creates a raw binary. The compiler does not set a code origin, so use `org` to set one.
+
+`["<binary name>"]` - Optionally specifies the name of the resulting binary. If not provided, the source file's base name is used; `nex` appends the `.nex` extension.
 
 **Example:**
-Create a DOT command named hello in the DOT folder a the root of the current SD card.
+Create a DOT command named hello in the DOT folder at the root of the current SD card.
 
-`make dot "/dot/hello"`
+`make dot "/dot/hello";`
 
 #### org
 This directive can occur anywhere in the code, but it is a rather advanced directive. It is used to control the base address used for code generation. If the code is compiled and assembled directly to memory ie. no `make` option was specified then it also controls the memory address the code will be assembled to.
@@ -215,21 +221,34 @@ Target code for address 0x8000
 `org 0x8000;`
 
 #### bank
-The `bank` directive is used to target code for specific banks. This is useful when compiling `NEX` or direct to memory binaries. Banks contain blocks of code and data.
+The `bank` directive places code and data in a specific memory bank. This is useful when compiling `NEX` or direct to memory binaries.
 
 **Syntax**
-`bank <bankno> '{' <statements> '}'`
+`bank(<bankno>[, <offset>]) { <statements> }`
 
-`<bankno>` - The bank that the block of code will be compiled and assembled for.
-`<statements>` - The code that will be included in this bank
+`<bankno>` - The bank that the block of code will be compiled and assembled for. Each bank number may only be used once.
+`<offset>` - Optional constant offset within the bank, passed to the assembler's `bank` directive.
+`<statements>` - The code that will be included in this bank. Bank blocks cannot be nested.
+
+Variables declared inside a bank block are globals. Their initializers are not run automatically when the bank is loaded, so assign initial values from a function. Inside a `dot` program, a bank block without `org` has a default origin of 0x8000 plus the offset.
+
+Calls to a function in another bank go through the `ccfarcall` trampoline, which switches MMU slot 6 (0xC000–0xDFFF) to the target bank and restores the previous mapping on return. Calls within the same bank are direct.
+
+A function can also be placed in a bank with the `bank` modifier, which takes no parentheses:
+
+```c
+int draw() bank 41 {
+  ...
+}
+```
 
 **Example:**
 Compile code for bank 40
 
 ```c
-bank 40 {
+bank(40) {
   for(char ch='A'; ch<='Z'; ch=ch+1) {
-    putc(ch)
+    putc(ch);
   }
 }
 ```
@@ -243,7 +262,10 @@ The ZNC compiler supports the following data types
 char  - Signed 8-bit integer. Range: -128..127
 byte  - Unsigned 8-bit integer. Range: 0..255
 int   - Signed 16-bit integer. Range: -32768..32767
+uint  - Unsigned 16-bit integer. Range: 0..65535
 fixed - Signed 16-bit fixed-point in Q4 (12.4) format. Range: -2048.0 to +2047.9375, precision 0.0625 (1/16). Literals use a decimal point, e.g. `3.14`.
+
+Literals are not range-checked. An integer literal is stored in 16 bits and wraps if it does not fit. A fixed-point literal is rounded to the nearest 1/16 using its first four fractional digits.
 
 You can also create pointers to or arrays for each of the data types.
 
@@ -258,7 +280,7 @@ byte *screen = 0x4000; // ZX Spectrum ULA Screen address (16384 in decimal)
 ```
 
 #### Pointer arithmetic 
-Adding/subtracting an integer scales by the pointed element size (byte → +1 byte, int/fixed → +2 bytes). Indexing `p[i]` is equivalent to `*(p + i)`. Pointer + pointer is not supported; subtracting two pointers is not supported.
+Adding/subtracting an integer scales by the pointed element size (byte → +1 byte, int/uint/fixed → +2 bytes). Indexing `p[i]` is equivalent to `*(p + i)`. Pointer + pointer is not supported; subtracting two pointers is not supported.
 
 `void*` is supported as a generic pointer; it is compatible with any other pointer type in assignments and function calls. Arithmetic on `void*` is not defined since element size is unknown.
 
@@ -277,12 +299,12 @@ int[] nums = {1, 2};   // length = 2
 char[] s = "Hi";       // length = 3 (includes trailing 0)
 ```
 
-If you omit the size and provide **no** initializer, the declaration is treated as a pointer (`int[] p;` → `int* p`). Arrays with an explicit size do **not** allow an initializer; initialize them at runtime instead.
+If you omit the size and provide **no** initializer, the declaration is treated as a pointer (`int[] p;` → `int* p`). Arrays with an explicit size may also have an initializer. The number of initializer elements must match the declared size.
 
 Array indexing uses `[]` as usual: `numbers[0] = 42;`.
 
 #### Const values
-`const` is only allowed on scalar types (`char`, `byte`, `int`, `fixed`). It creates a compile-time constant with no storage allocated; the value is folded into code. `const` on pointers or arrays is rejected.
+`const` is only allowed on scalar types (`char`, `byte`, `int`, `uint`, `fixed`). It creates a compile-time constant with no storage allocated; the value is folded into code. `const` on pointers or arrays is rejected.
 
 ### Declaring variables
 Variables can be declared at any point in the code
@@ -320,7 +342,7 @@ pp.x = 3;  // pointer-to-struct also uses '.'
    Program structure
    ---------------------------------------------------------------- *)
 
-<program>         ::= [ <make> | <org> ] { <top_level_item> }
+<program>         ::= [ <make> [ <bank> ] [ <org> ] | <org> ] { <top_level_item> }
 
 <top_level_item>  ::= <top_decl>
                     | <statement>
