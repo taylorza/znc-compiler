@@ -910,6 +910,7 @@ void far_parse_return(void) MYCC {
     if (infunc) {
         if (type_is_void(func_rettype)) {
             if (tok != tokSemi) error(errReturnValueUnexpected);
+            get_token(); // skip ';'
         } else {
             if (tok == tokSemi) error(errReturnValueExpected);
             expr_result = parse_expr(0, func_rettype);

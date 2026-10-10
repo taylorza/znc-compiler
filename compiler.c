@@ -268,7 +268,7 @@ void skip_statement(void) MYCC {
         int depth = 0;
         while (tok != tokEOS) {
             if (tok == tokLParen || tok == tokLBrack) ++depth;
-            else if (tok == tokRParen || tok == tokRBrack) --depth;
+            else if (tok == tokRParen || tok == tokRBrack) { if (--depth < 0) error(errSyntax); }
             else if (tok == tokSemi && depth == 0) { get_token(); break; }
             get_token();
         }
@@ -338,12 +338,8 @@ void parse_statement(uint16_t brklbl, uint16_t contlbl) MYCC {
             parse_delegate_decl();
             break;
         case tokStruct:
-            /* struct definitions are top-level only (<top_decl> in the grammar) */
-            if (infunc) error(errTopLevelOnly);
-            parse_struct_def();
-            break;
         case tokUnion:
-            /* union definitions are top-level only (<top_decl> in the grammar) */
+            /* struct and union definitions are top-level only (<top_decl> in the grammar) */
             if (infunc) error(errTopLevelOnly);
             parse_struct_def();
             break;
@@ -648,9 +644,14 @@ SYMBOL declloc(uint8_t type_id, SYM_CLASS_SCOPE klass, const char* name, int16_t
     return lsym;
 }
 
+/* 1 if a declaration goes to the local frame, 0 if it goes to the global table */
+static uint8_t decl_is_local(void) {
+    return (infunc || is_scoped()) && (!currbank || infunc);
+}
+
 SYMBOL decl_in_scope(uint8_t type_id, SYM_CLASS_SCOPE  klass, const char* name) {
     SYMBOL sym;
-    if ((infunc || is_scoped()) && (!currbank || infunc)) {
+    if (decl_is_local()) {
         uint16_t size = type_size(type_id); 
         sym = findloc(name);
         if (is_defined(&sym)) error(errAlreadyDefined_s, name);
@@ -667,7 +668,7 @@ SYMBOL decl_in_scope(uint8_t type_id, SYM_CLASS_SCOPE  klass, const char* name) 
 
 SYMBOL decl_absolute(uint8_t type_id, const char* name, uint16_t address) {
     SYMBOL sym;
-    if ((infunc || is_scoped()) && (!currbank || infunc)) {
+    if (decl_is_local()) {
         sym = findloc(name);
         if (is_defined(&sym)) {
             error(errAlreadyDefined_s, name);

@@ -1,3 +1,7 @@
+2026/10/xx - Version 0.7a
+- Fix - Improved rounding of fixed literals
+- Updated documentation
+
 2026/09/27 - Version 0.7
 - Enhancement - Added support of unions
 - Enhancement - Added support for named and anonymous embedded structs/unions 

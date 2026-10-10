@@ -468,7 +468,7 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
             val = val << 4;
             left_is_fixed = 1;
         }
-        emit_ldde_immed(); emit_n(val); emit_nl();
+        emit_ldde_immed_n(val);
         scaleL = 0;
     }
     else if (type_is_const(r_result.type_id)) {
@@ -528,14 +528,11 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
             emit_rtl("ccne");
             break;
         case tokPlus:
-            if (scaleR) { if (right_is_fixed) emit_fixed_to_int(); emit_scale_reg(scaleR, SCALE_HL); }
-            if (scaleL) { if (left_is_fixed) { emit_instrln("ex de,hl"); emit_fixed_to_int(); emit_instrln("ex de,hl"); } emit_scale_reg(scaleL, SCALE_DE); }
-            emit_add16();
-            break;
         case tokMinus:
             if (scaleR) { if (right_is_fixed) emit_fixed_to_int(); emit_scale_reg(scaleR, SCALE_HL); }
             if (scaleL) { if (left_is_fixed) { emit_instrln("ex de,hl"); emit_fixed_to_int(); emit_instrln("ex de,hl"); } emit_scale_reg(scaleL, SCALE_DE); }
-            emit_sub16();
+            if (op == tokPlus) emit_add16();
+            else emit_sub16();
             break;
         case tokStar:
             if (either_fixed)
@@ -554,8 +551,17 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
                 emit_rtl("ccdiv");
             break;
         case tokMod:
-            emit_rtl(is_unsigned_integer_operation(left, &r_result) ? "ccudiv" : "ccdiv");
-            emit_swap();
+            if (is_unsigned_integer_operation(left, &r_result)) {
+                emit_rtl("ccudiv");
+                emit_swap();
+            } else {
+                emit_instrln("push de");
+                emit_rtl("ccdiv");
+                emit_swap();
+                emit_instrln("pop bc");
+                emit_instrln("bit 7,b");
+                emit_instrln("call nz,ccneg");
+            }
             break;
         case tokShl:
             if (right_is_fixed) emit_fixed_to_int();
@@ -1015,7 +1021,7 @@ static void postfix_member(EXPR_RESULT* result, uint8_t* dereference, uint8_t* a
         if (had_sym) {
             if (type_is_pointer(result->type_id)) {
                 emit_ld_symval(&base_sym);
-                if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
+                if (offset) { emit_ldde_immed_n(offset); emit_add16(); }
                 *addr_in_hl = 1;
             } else {
                 emit_sym_address_with_offset(&base_sym, offset);
@@ -1023,7 +1029,7 @@ static void postfix_member(EXPR_RESULT* result, uint8_t* dereference, uint8_t* a
             }
         } else { error(errNotlvalue); return; }
     } else {
-        if (offset) { emit_ldde_immed(); emit_n(offset); emit_nl(); emit_add16(); }
+        if (offset) { emit_ldde_immed_n(offset); emit_add16(); }
     }
 
     result->type_id = fi.type_id;
@@ -1080,7 +1086,15 @@ static void parse_factor_postfix(EXPR_RESULT* result, uint8_t* dereference, uint
 #define PF_PREFIX_INC   0x08
 #define PF_PREFIX_DEC   0x10
 
-static void parse_factor_identifier(EXPR_RESULT *result, uint8_t flags) MYCC {
+/* Applies pending prefix operators (-, !, ~) to a constant value */
+static uint16_t fold_const_prefix(uint16_t v, uint8_t flags) MYCC {
+    if (flags & PF_NEG) v = -v;
+    if (flags & PF_NOT) v = !v;
+    if (flags & PF_CMPL) v = ~v;
+    return v;
+}
+
+static void parse_factor_identifier(EXPR_RESULT *result, uint8_t *flags) MYCC {
     ARENA_MARKER ident_mark = arena_get_marker();
     char* ident_name = arena_strdup(token, strnlen(token, MAX_IDENT_LEN));
     uint8_t maybe_type_id = (uint8_t)type_find_by_name(token);
@@ -1106,10 +1120,8 @@ static void parse_factor_identifier(EXPR_RESULT *result, uint8_t flags) MYCC {
     result->type_id = result->sym.type_id;
 
     if (type_is_const(result->sym.type_id)) {
-        result->value = result->sym.stk.offset;
-        if (flags & PF_NEG) result->value = -result->value;
-        if (flags & PF_NOT) result->value = !result->value;
-        if (flags & PF_CMPL) result->value = ~result->value;
+        result->value = fold_const_prefix(result->sym.stk.offset, *flags);
+        *flags &= ~(PF_NEG | PF_NOT | PF_CMPL);
         result->has_sym = 0;
         arena_free_to_marker(ident_mark);
         return;
@@ -1176,13 +1188,9 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
                     expect_RParen();
                     factor_result = parse_factor(0, 0);
                     apply_cast(&factor_result, target_type_id);
-                    if (flags & (PF_NEG | PF_NOT | PF_CMPL)) {
-                        if (type_is_const(factor_result.type_id)) {
-                            if (flags & PF_NEG) factor_result.value = -factor_result.value;
-                            if (flags & PF_NOT) factor_result.value = !factor_result.value;
-                            if (flags & PF_CMPL) factor_result.value = ~factor_result.value;
-                            flags &= ~(PF_NEG | PF_NOT | PF_CMPL);
-                        }
+                    if (type_is_const(factor_result.type_id)) {
+                        factor_result.value = fold_const_prefix(factor_result.value, flags);
+                        flags &= ~(PF_NEG | PF_NOT | PF_CMPL);
                     }
                     break;
                 }
@@ -1260,13 +1268,9 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             factor_result = far_parse_expr_delayconst(0, 0);
             
             expect_RParen();
-            if (flags & (PF_NEG | PF_NOT | PF_CMPL)) {
-                if (type_is_const(factor_result.type_id)) {
-                    if (flags & PF_NEG) factor_result.value = -factor_result.value;                        
-                    if (flags & PF_NOT) factor_result.value = !factor_result.value;
-                    if (flags & PF_CMPL) factor_result.value = ~factor_result.value;
-                    flags &= ~(PF_NEG | PF_NOT | PF_CMPL);
-                }                
+            if (type_is_const(factor_result.type_id)) {
+                factor_result.value = fold_const_prefix(factor_result.value, flags);
+                flags &= ~(PF_NEG | PF_NOT | PF_CMPL);
             }           
             break;
             
@@ -1380,9 +1384,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
 
         case tokNumber:
             factor_result.is_negative = (flags & PF_NEG) ? 1 : 0;
-            if (flags & PF_NEG) intval = -intval;
-            if (flags & PF_NOT) intval = !intval;
-            if (flags & PF_CMPL) intval = ~intval;
+            intval = (int16_t)fold_const_prefix(intval, flags);
             flags &= ~(PF_NEG | PF_NOT | PF_CMPL);
 
             get_token();
@@ -1398,18 +1400,8 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
 
         case tokFixedLit:
             /* intval already holds the 12.4 Q4 value from the scanner */
-            if (flags & PF_NEG) {
-                intval = -intval;
-                flags &= ~PF_NEG;
-            }
-            if (flags & PF_NOT) {
-                intval = !intval;
-                flags &= ~PF_NOT;
-            }
-            if (flags & PF_CMPL) {
-                intval = ~intval;
-                flags &= ~PF_CMPL;
-            }
+            intval = (int16_t)fold_const_prefix(intval, flags);
+            flags &= ~(PF_NEG | PF_NOT | PF_CMPL);
             get_token();
             if (dereference) {
                 error(errTypeError); /* can't dereference a fixed literal */
@@ -1420,7 +1412,7 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
             break;
                                
         case tokIdent: {
-            parse_factor_identifier(&factor_result, flags);
+            parse_factor_identifier(&factor_result, &flags);
             break;
         }
         default:

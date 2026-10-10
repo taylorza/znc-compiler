@@ -1578,7 +1578,44 @@ bank(4) {
         test_u16mix();
     }
 
+    void test_mulopt() {
+        int x = 5;
+        int big = 0x1000;
+        char c = 5;
+        byte b = 3;
+        chk("mo_x8",    x * 8 == 40);
+        chk("mo_x16",   x * 16 == 80);
+        chk("mo_x128",  x * 128 == 640);
+        chk("mo_8x",    8 * x == 40);
+        chk("mo_16x",   16 * x == 80);
+        chk("mo_negk",  x * -4 == -20);
+        chk("mo_negl",  -4 * x == -20);
+        chk("mo_wrap",  big * 16 == 0);
+        chk("mo_char8", c * 8 == 40);
+        chk("mo_byte32", b * 32 == 96);
+        chk("mo_x2",    x * 2 == 10);
+    }
+
+    void test_divmod() {
+        int x = 40;
+        int n = -40;
+        uint u = 40;
+        byte b = 200;
+        chk("dm_u2",   u / 2 == 20);
+        chk("dm_u8",   u / 8 == 5);
+        chk("dm_b8",   b / 8 == 25);
+        chk("dm_s8",   x / 8 == 5);
+        chk("dm_ns8",  n / 8 == -5);
+        chk("dm_s3",   x / 3 == 13);
+        chk("dm_ns3",  n / 3 == -13);
+        chk("dm_smod", x % 7 == 5);
+        chk("dm_nmod", n % 7 == -5);
+        chk("dm_umod", u % 7 == 5);
+    }
+
     void run_bank4() {
+        test_mulopt();
+        test_divmod();
         test_arr_g4();
         test_cmp_i16();
         test_casts();
