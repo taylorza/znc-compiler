@@ -144,7 +144,10 @@ static const KEYWORD_BUCKET keyword_buckets[128] = {
  */
 TOKEN far_lookup_keyword(const char* ident) MYCC {
     unsigned char c = ident[0];
-    const KEYWORD_BUCKET* b = &keyword_buckets[c];
+    const KEYWORD_BUCKET* b;
+
+    if (c >= sizeof(keyword_buckets) / sizeof(keyword_buckets[0])) return tokNone;
+    b = &keyword_buckets[c];
 
     for (uint8_t i = 0; i < b->count; ++i) {
         if (strncmp(ident, b->list[i].name, MAX_IDENT_LEN) == 0)
@@ -706,18 +709,18 @@ get_token_start:
         return (token_type = ttString);
     }
 
-    if (isdigit(c)) {
-        intval = 0;
+    if (isdigit((unsigned char)c)) {
         uint8_t base = 10;
+        uint16_t value = 0;
 
         /* Consume the first digit */
         char first = c;
         *temp++ = gnc(); /* consume first digit into token */
-        intval = (first - '0');
+        value = (uint16_t)(first - '0');
 
         /* Handle 0x / 0b prefix after leading zero */
         if (first == '0') {
-            char p = tolower(ch());
+            char p = tolower((unsigned char)ch());
             if (p == 'x') { base = 16; *temp++ = gnc(); }
             else if (p == 'b') { base = 2; *temp++ = gnc(); }
         }
@@ -727,46 +730,33 @@ get_token_start:
             char nc = ch();
             uint8_t dv = is_base_digit(nc, base);
             if (dv == 255) break;
-            intval = (intval * base) + dv;
+            value = (uint16_t)(value * base + dv);
             *temp++ = gnc();
         }
         if (l == 0) error(errTooLong);
 
-        /* Check for fractional part: only for base-10, followed by '.' then digit.
-         * Consume '.' first, then use ch() to safely check the next char without
-         * raw pointer arithmetic (which is unsafe at buffer chunk boundaries). */
+        /* Check for fractional part: only for base-10, followed by '.' then digit. */
         if (base == 10 && ch() == '.') {
             gnc(); /* consume '.' */
-            if (!isdigit(ch())) {
-                /* '.' not followed by digit - not a decimal point.
-                 * Member access on a number literal is invalid in this language
-                 * so the consumed '.' will surface as a downstream syntax error.
-                 * Fall through to emit the integer token. */
-                goto emit_integer;
-            }
-            /* Parse fractional digits and convert to 12.4 fixed-point:
-             * integer part already in intval, shift it left 4.
-             * Then parse up to 4 fractional decimal digits and compute
-             * the fractional bits by rounding to nearest 1/16.
-             */
-            intval = intval << 4; /* integer part in Q4 */
+            if (!isdigit((unsigned char)ch())) error(errExpected_s, "digit");
             *temp++ = '.'; /* record the '.' we already consumed */
 
-            /* Accumulate fractional decimal value as fixed * 10000 */
+            /* Accumulate up to 4 fractional decimal digits as frac_num / frac_den */
             uint16_t frac_num = 0;
             uint16_t frac_den = 1;
-            while (isdigit(ch()) && frac_den <= 1000) {
+            while (isdigit((unsigned char)ch()) && frac_den <= 1000) {
                 frac_num = frac_num * 10 + (ch() - '0');
                 frac_den = frac_den * 10;
                 *temp++ = gnc();
             }
             /* Skip any remaining fractional digits (beyond precision) */
-            while (isdigit(ch())) gnc();
+            while (isdigit((unsigned char)ch())) gnc();
 
-            /* Convert decimal fraction to Q4: frac_bits = round(frac_num * 16 / frac_den) */
-            uint16_t frac_bits = (uint16_t)(((uint32_t)frac_num * 16 + frac_den / 2) / frac_den);
-            if (frac_bits > 15) frac_bits = 15;
-            intval = intval + (int16_t)frac_bits;
+            /* Q4 = integer part * 16 + fraction rounded to nearest 1/16.
+             * A fraction that rounds up to 16/16 carries into the integer part. */
+            uint32_t frac_q4 = ((uint32_t)frac_num * 16 + frac_den / 2) / frac_den;
+            uint32_t q4 = (uint32_t)value * 16 + frac_q4;
+            intval = (int16_t)(uint16_t)q4;
 
             *temp = '\0';
             tok = tokFixedLit;
@@ -774,18 +764,19 @@ get_token_start:
             return (token_type = ttNumber);
         }
 
-        emit_integer:
+        intval = (int16_t)value;
+
         *temp = '\0';
         tok = tokNumber;
         token_length = (uint8_t)(temp - &token[0]);
         return (token_type = ttNumber);
     }
 
-    if (isalpha(c) || c == '_' || (token_col == 1 && c == '#')) {
+    if (isalpha((unsigned char)c) || c == '_' || (token_col == 1 && c == '#')) {
         if (c == '#') {
             *temp++ = gnc(); /* skip '#' */
         }
-        while ((c = ch()) && (isalnum(c) || c == '_') && --l) {
+        while ((c = ch()) && (isalnum((unsigned char)c) || c == '_') && --l) {
             *temp++ = gnc();
         }
         *temp = '\0';
