@@ -1611,6 +1611,12 @@ bank(4) {
         chk("dm_smod", x % 7 == 5);
         chk("dm_nmod", n % 7 == -5);
         chk("dm_umod", u % 7 == 5);
+        chk("dm_ns2",  n / 2 == -20);
+        chk("dm_ns8b", n / 8 == -5);
+        chk("dm_ps2",  x / 2 == 20);
+        chk("dm_nm2",  n % 2 == 0);
+        chk("dm_nm8",  n % 8 == 0);
+        chk("dm_nm16", -41 % 16 == -9);
     }
 
     void run_bank4() {
