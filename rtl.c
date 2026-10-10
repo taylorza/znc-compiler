@@ -180,6 +180,18 @@ RTLREC rtltbl[] = {
         NULL,
         FLAG_RTL_NONE
     },
+    // Signed power-of-2 division bias: HL = mask, DE = DE + (DE < 0 ? mask : 0)
+    {"ccsdivbias",
+#include "RTL/generated/ccsdivbias.inc"
+        NULL,
+        FLAG_RTL_NONE
+    },
+    // Signed power-of-2 modulo: HL = mask, DE = dividend, HL = DE % (mask+1)
+    {"ccsmod2",
+#include "RTL/generated/ccsmod2.inc"
+        "ccsdivbias",
+        FLAG_RTL_NONE
+    },
     // int/char 2 Fixed-point HL = HL << 4
     {"ccint2fx",    
 #include "RTL/generated/ccint2fx.inc"

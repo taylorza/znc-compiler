@@ -479,9 +479,18 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
             val = val << 4;
             right_is_fixed = 1;
         }
-        emit_ld_immed(); emit_n(val); emit_nl();
-        scaleR = 0;
-        emit_pop_de();
+        uint8_t pow2 = val && !(val & (val - 1));
+        uint8_t hl_overwritten = !left_is_fixed && !right_is_fixed && pow2 &&
+            (op == tokStar || op == tokDiv || op == tokMod);
+        if (hl_overwritten) {
+            scaleR = 0;
+            emit_pop_de();
+        }
+        else {
+            emit_ld_immed_n(val);
+            scaleR = 0;
+            emit_pop_de();
+        }
     }
     else {
         emit_pop_de();
@@ -537,6 +546,21 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
         case tokStar:
             if (either_fixed)
                 emit_rtl("ccfxmul");
+            else if (type_is_const(r_result.type_id) && r_result.value && !(r_result.value & (r_result.value - 1))) {
+                uint8_t shift = 0;
+                for (uint16_t d = r_result.value; d > 1; d >>= 1) shift++;
+                emit_instrln("ld b,%d", shift);
+                emit_instrln("bsla de,b");
+                emit_swap();
+            }
+            else if (type_is_const(left->type_id) && left->value && !(left->value & (left->value - 1)) && !type_is_const(r_result.type_id)) {
+                uint8_t shift = 0;
+                for (uint16_t d = left->value; d > 1; d >>= 1) shift++;
+                emit_instrln("ex de,hl");
+                emit_instrln("ld b,%d", shift);
+                emit_instrln("bsla de,b");
+                emit_swap();
+            }
             else if (is_unsigned_integer_operation(left, &r_result))
                 emit_rtl("ccumult");
             else
@@ -545,17 +569,31 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
         case tokDiv:
             if (either_fixed)
                 emit_rtl("ccfxdiv");
+            else if (type_is_const(r_result.type_id) && r_result.value && !(r_result.value & (r_result.value - 1))) {
+                uint8_t shift = 0;
+                for (uint16_t d = r_result.value; d > 1; d >>= 1) shift++;
+                if (is_unsigned_integer_operation(left, &r_result)) emit_udiv_pow2(shift);
+                else emit_div_pow2(shift, r_result.value);
+            }
             else if (is_unsigned_integer_operation(left, &r_result))
                 emit_rtl("ccudiv");
             else
                 emit_rtl("ccdiv");
             break;
         case tokMod:
+            if (is_unsigned_integer_operation(left, &r_result) && type_is_const(r_result.type_id) && r_result.value && !(r_result.value & (r_result.value - 1))) {
+                emit_mod_pow2(r_result.value);
+                break;
+            }
+            if (type_is_const(r_result.type_id) && r_result.value && !(r_result.value & (r_result.value - 1))) {
+                emit_smod_pow2(r_result.value);
+                break;
+            }
             if (is_unsigned_integer_operation(left, &r_result)) {
                 emit_rtl("ccudiv");
             } else {
                 emit_rtl("ccdiv");                
-                
+
             }
             emit_swap();
             break;

@@ -800,6 +800,30 @@ void emit_mulDE2(void) MYCC {
     emit_instrln("bsla de,b");
 }
 
+void emit_udiv_pow2(uint8_t shift_count) MYCC {
+    emit_instrln("ld b,%d", shift_count);
+    emit_instrln("bsrl de,b");
+    emit_swap();
+}
+
+void emit_div_pow2(uint8_t shift_count, uint16_t divisor) MYCC {
+    emit_instrln("ld hl,%d", divisor - 1);
+    emit_rtl("ccsdivbias");
+    emit_instrln("ld b,%d", shift_count);
+    emit_instrln("bsra de,b");
+    emit_swap();
+}
+
+void emit_mod_pow2(uint16_t divisor) MYCC {
+    emit_instrln("ld hl,%d", divisor - 1);
+    emit_rtl("ccand");
+}
+
+void emit_smod_pow2(uint16_t divisor) MYCC {
+    emit_instrln("ld hl,%d", divisor - 1);
+    emit_rtl("ccsmod2");
+}
+
 ///* Optimized division by power of 2 - use arithmetic right shift
 // * DE = DE / HL where HL is a power of 2
 // * For signed division, need to handle negative numbers correctly */

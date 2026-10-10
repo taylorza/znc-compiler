@@ -286,6 +286,11 @@ _
         chk("bw_shl", (x << 1) == 0x14);   // 0b10100
         chk("bw_shr", (x >> 1) == 0x5);    // 0b0101
         chk("bw_not", (~0) == -1);          // all bits set = -1 signed
+        int sb = 2;
+        chk("bnot_var", ~sb == -3);
+        byte ub = 0x80;
+        chk("bshr_u",   (ub >> 1) == 0x40);
+        chk("bshl_u",   (ub << 1) == 0x100);
     }
 
     void test_compare() {
@@ -300,6 +305,10 @@ _
         chk("log_and", a > 0 && b > 0);
         chk("log_or",  a > 10 || b > 5);
         chk("log_not", !0);
+        int z = 0;
+        chk("sc_or",    (1 || z++) == 1 && z == 0);
+        chk("sc_and",   (0 && z++) == 0 && z == 0);
+        chk("sc_and_t", (1 && z++) == 0 && z == 1);
     }
 
     void test_ternary() {
@@ -812,6 +821,15 @@ bank(2) {
         fixed mix = 2.0;
         int   iv  = 3;
         chk("fx_mix",    mix + iv == 5.0);
+        fixed ga = 1.5;
+        fixed gb = 0.5;
+        fixed gn = -1.5;
+        chk("fx_le",    ga <= 1.5);
+        chk("fx_ge",    ga >= 1.5);
+        chk("fx_ne",    ga != gb);
+        chk("fx_negsub", gb - ga == -1.0);
+        chk("fx_negmul", gn * gb == -0.75);
+        chk("fx_negcmp", gn < gb);
     }
 
     void test_rawref() {
@@ -1617,6 +1635,36 @@ bank(4) {
         chk("dm_nm2",  n % 2 == 0);
         chk("dm_nm8",  n % 8 == 0);
         chk("dm_nm16", -41 % 16 == -9);
+        uint u2 = 43;
+        int y = 43;
+        int m = -32000;
+        byte bb = 203;
+        chk("dm_umod8", u2 % 8 == 3);
+        chk("dm_smod8", y % 8 == 3);
+        chk("dm_bmod8", bb % 8 == 3);
+        chk("dm_nm16r", m % 16 == 0);
+        chk("dm_min2",  m / 2 == -16000);
+        chk("dm_one1",  x / 1 == 40);
+        chk("dm_mod1",  n % 1 == 0);
+        int s5 = -5;
+        int s21 = -21;
+        char c4 = -7;
+        chk("dm_snm4",  s5 % 4 == -1);
+        chk("dm_snm8",  s21 % 8 == -5);
+        chk("dm_snm16", n % 16 == -8);
+        chk("dm_spm4",  x % 4 == 0);
+        chk("dm_snm2",  s5 % 2 == -1);
+        chk("dm_spm2",  x % 2 == 0);
+        chk("dm_snm4b", s21 % 4 == -1);
+        chk("dm_snm16b", s21 % 16 == -5);
+        chk("dm_sp8",   x % 8 == 0);
+        chk("dm_sm8",   m % 8 == 0);
+        chk("dm_cmod4", c4 % 4 == -3);
+        chk("dm_bmod4", bb % 4 == 3);
+        int sa = -7;
+        int sb = 2;
+        chk("sdiv_neg", sa / sb == -3);
+        chk("smod_neg", sa % 3 == -1);
     }
 
     void run_bank4() {

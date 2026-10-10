@@ -1,7 +1,12 @@
 2026/10/xx - Version 0.7a
+- Enhancement - Optimized generated code for mul, div and modulo by 2^k
+- Fix - Constant folding of signed const % signed constant
 - Fix - Improved rounding of fixed literals
+- Fix - Modulo of negative dividend calculation
+- Fix - Standard Libraries - rnd.znc now returns uint instead of int
+- Standard Libraries - rnd.znc now returns uint instead of int
 - Updated documentation
-
+ 
 2026/09/27 - Version 0.7
 - Enhancement - Added support of unions
 - Enhancement - Added support for named and anonymous embedded structs/unions 

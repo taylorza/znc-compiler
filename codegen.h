@@ -94,8 +94,10 @@ void emit_clean_stack(int16_t bytes) MYCC;
 void emit_neg(void) MYCC;
 void emit_mul2(void) MYCC;
 void emit_mulDE2(void) MYCC;
-void emit_div_pow2(uint8_t shift_count) MYCC;
+void emit_udiv_pow2(uint8_t shift_count) MYCC;
+void emit_div_pow2(uint8_t shift_count, uint16_t divisor) MYCC;
 void emit_mod_pow2(uint16_t divisor) MYCC;
+void emit_smod_pow2(uint16_t divisor) MYCC;
 void emit_div_const_optimized(uint16_t divisor) MYCC;
 void emit_mod_const_optimized(uint16_t divisor) MYCC;
 

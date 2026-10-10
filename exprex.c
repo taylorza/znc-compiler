@@ -91,7 +91,7 @@ void far_parse_compound_assign(TOKEN op, uint8_t dereference, SYMBOL *sym, uint8
                    type_is_integral(type_id)) {
             rhs.value = (uint16_t)((int16_t)rhs.value >> 4);
         }
-        emit_ld_immed(); emit_n(rhs.value); emit_nl();
+        emit_ld_immed_n(rhs.value);
     } else {
         /* Emit runtime fixed <-> int/char conversion if types differ */
         if (type_is_fixed(type_id) && !type_is_fixed(rhs.type_id) &&
