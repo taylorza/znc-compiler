@@ -2,21 +2,19 @@
  xor h
  ex af, af'
  bit 7,d
- jr z,.divA
  
- ld a,e ; DE = -DE
- cpl
- ld e,a
- ld a,d
- cpl
- ld d,a
- inc de
+ push de
+ call nz, ccdeneg
  
 .divA
  bit 7,h
  call nz,ccneg
 
  call ccudiv
+
+ pop bc
+ bit 7,b
+ call nz,ccdeneg
 
  ex af,af'
  or a

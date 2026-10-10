@@ -410,7 +410,7 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
                 break;
             case tokMod:
                 if (fold_unsigned_arith) left->value = (uint16_t)left->value % (uint16_t)r_result.value;
-                else left->value = left->value % r_result.value;
+                else left->value = (int16_t)left->value % (int16_t)r_result.value;
                 break;
             case tokShl: 
                 if (left_is_unsigned)
@@ -553,15 +553,11 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
         case tokMod:
             if (is_unsigned_integer_operation(left, &r_result)) {
                 emit_rtl("ccudiv");
-                emit_swap();
             } else {
-                emit_instrln("push de");
-                emit_rtl("ccdiv");
-                emit_swap();
-                emit_instrln("pop bc");
-                emit_instrln("bit 7,b");
-                emit_instrln("call nz,ccneg");
+                emit_rtl("ccdiv");                
+                
             }
+            emit_swap();
             break;
         case tokShl:
             if (right_is_fixed) emit_fixed_to_int();
