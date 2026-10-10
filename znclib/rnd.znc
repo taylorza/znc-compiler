@@ -2,7 +2,7 @@
 const byte RND__=1;
 
 // John Metcalf http://www.retroprogramming.com/2017/07/xorshift-pseudorandom-numbers-in-z80.html
-int rnd() __asm__ {
+uint rnd() __asm__ {
 .seed+1
     ld hl, 1
     ld a,h
