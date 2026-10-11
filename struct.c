@@ -7,8 +7,9 @@ static uint16_t field_next = 0;
 static int struct_count = 0;
 
 int far_find_struct(const char* name) MYCC {
+    IDENT_ID id = intern_ident(name);
     for (int i = 0; i < struct_count; ++i) {
-        if (strncmp(struct_tab[i].name, name, MAX_IDENT_LEN) == 0) return i;
+        if (struct_tab[i].name_id == id) return i;
     }
     return -1;
 }
@@ -20,7 +21,7 @@ int far_add_struct(const char* name, uint8_t is_union) MYCC {
     }
     if (far_find_struct(name) != -1) return -1; /* already exists */
     STRUCTDEF* s = &struct_tab[struct_count];
-    strncpy(s->name, name, MAX_IDENT_LEN);
+    s->name_id = intern_ident(name);
     s->first_field = 0xFFFF;
     s->last_field = 0xFFFF;
     s->fieldcount = 0;
@@ -29,7 +30,7 @@ int far_add_struct(const char* name, uint8_t is_union) MYCC {
     return struct_count++;
 }
 
-void add_struct_field_with_offset(int id, const char* name, uint8_t type_id, uint16_t offset) MYCC {
+void add_struct_field_with_offset(int id, IDENT_ID name_id, uint8_t type_id, uint16_t offset) MYCC {
     if (id < 0 || id >= struct_count) return;
     if (struct_tab[id].fieldcount >= MAX_FIELDS_PER_STRUCT) {
         error(errTooManySymbols);
@@ -45,7 +46,7 @@ void add_struct_field_with_offset(int id, const char* name, uint8_t type_id, uin
     /* allocate a field in the global pool */
     uint16_t idx = field_next++;
     FIELDDEF* f = &field_pool[idx];
-    strncpy(f->name, name, MAX_IDENT_LEN);
+    f->name_id = name_id;
     f->type_id = type_id;
     f->offset = offset;
     f->next = 0xFFFF;
@@ -68,7 +69,7 @@ void far_add_struct_field(int id, const char* name, uint8_t type_id) MYCC {
         newsize = inc > far_get_struct_size(id) ? inc : far_get_struct_size(id);
     }
 
-    add_struct_field_with_offset(id, name, type_id, cur);
+    add_struct_field_with_offset(id, intern_ident(name), type_id, cur);
     far_set_struct_size(id, newsize);    
 }
 
@@ -79,7 +80,7 @@ void far_add_struct_anonymous_field(int parent_id, int child_id, uint8_t field_i
         child_index = field_pool[child_index].next;
     if (child_index == 0xFFFF) return;
     FIELDDEF* child_field = &field_pool[child_index];
-    add_struct_field_with_offset(parent_id, child_field->name,
+    add_struct_field_with_offset(parent_id, child_field->name_id,
                                  child_field->type_id, base + child_field->offset);
     field_pool[struct_tab[parent_id].last_field].anonymous_id = (uint8_t)child_id;
 }
@@ -99,10 +100,11 @@ int far_find_struct_field(int id, const char* name) MYCC {
     if (id < 0 || id >= struct_count) return -1;
     STRUCTDEF* s = &struct_tab[id];
     if (s->first_field == 0xFFFF) return -1;
+    IDENT_ID name_id = intern_ident(name);
     uint16_t idx = s->first_field;
     for (int i = 0; i < s->fieldcount; ++i) {
         if (idx == 0xFFFF) return -1;
-        if (strncmp(field_pool[idx].name, name, MAX_IDENT_LEN) == 0) return i;
+        if (field_pool[idx].name_id == name_id) return i;
         idx = field_pool[idx].next;
     }
     return -1;

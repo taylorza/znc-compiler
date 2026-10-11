@@ -101,9 +101,7 @@ void far_parse_vastart(void) MYCC;
 void far_parse_vaend(void) MYCC;
 void far_parse_org(void) MYCC;
 void far_parse_bank(void) MYCC;
-void far_parse_enum(void) MYCC;
 void far_parse_struct_def(void) MYCC;
-void far_parse_enum_member(EXPR_RESULT *result, const char* enum_name) MYCC;
 void far_parse_hashif(uint16_t brklbl, uint16_t contlbl) MYCC;
 
 /* Called from BANK_47 parser code to skip syntax without emitting code. */
@@ -465,12 +463,6 @@ void parse_struct_def(void) MYCC {
     EPILOG
 }
 
-void parse_enum_def(void) MYCC {
-    PROLOG(47)
-    far_parse_enum();
-    EPILOG
-}
-
 void parse_if(uint16_t brklbl, uint16_t contlbl) MYCC {
     PROLOG(47)
     far_parse_if(brklbl, contlbl);
@@ -613,12 +605,6 @@ void parse_vaend(void) MYCC {
 void parse_org(void) MYCC {
     PROLOG(47)
     far_parse_org();
-    EPILOG
-}
-
- void parse_enum_member(EXPR_RESULT *result, const char* enum_name) MYCC {
-    PROLOG(47)
-    far_parse_enum_member(result, enum_name);
     EPILOG
 }
 

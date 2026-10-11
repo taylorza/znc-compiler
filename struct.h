@@ -8,7 +8,7 @@
 #define MAX_FIELDS 512 /* pooled field storage to reduce per-struct memory */
 
 typedef struct FIELDDEF {
-    char name[MAX_IDENT_LEN+1];
+    IDENT_ID name_id;
     uint8_t type_id;
     uint16_t offset;
     uint16_t next;
@@ -16,7 +16,7 @@ typedef struct FIELDDEF {
 } FIELDDEF;
 
 typedef struct STRUCTDEF {
-    char name[MAX_IDENT_LEN+1];
+    IDENT_ID name_id;
     uint16_t first_field; /* index into global FIELDDEF pool, 0xFFFF = none */
     uint16_t last_field;  /* index into global FIELDDEF pool, 0xFFFF = none */
     uint8_t fieldcount;

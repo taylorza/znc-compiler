@@ -12,7 +12,7 @@ CFLAGS_O2 = --list -m -c -clib=sdcc_iy -O2 -SO2 -opt-code-size --max-allocs-per-
 AFLAGS =
 LFLAGS = -m -startup=30 -clib=sdcc_iy -subtype=dotn -pragma-include:zpragma.inc -create-app
 
-SOURCES = main.c farcall.c callgraph.c callgraph_stub.c identtbl_stub.c strtbl_stub.c sym_stub.c rtl_stub.c expr_stub.c errordata_stub.c initializer_stub.c shared.c typedata.c typedata2.c typedata3.c errordata.c struct_stub.c struct.c strtbl.c identtbl.c initializer.c codegen.c compiler.c compilerex.c dataarea.c error.c expr.c exprex.c type.c rtl.c scanner.c scannerdata.c sym.c util.c
+SOURCES = main.c farcall.c callgraph.c callgraph_stub.c identtbl_stub.c strtbl_stub.c sym_stub.c rtl_stub.c expr_stub.c errordata_stub.c initializer_stub.c shared.c typedata.c typedata2.c typedata3.c errordata.c struct_stub.c struct.c enum_stub.c enum.c strtbl.c identtbl.c initializer.c codegen.c compiler.c compilerex.c dataarea.c error.c expr.c exprex.c type.c rtl.c scanner.c scannerdata.c sym.c util.c
 
 OBJFILES = $(patsubst %.c,$(OUTPUT_DIR)/%.o,$(SOURCES))
 
@@ -46,11 +46,6 @@ $(OUTPUT_DIR)/strtbl.o: strtbl.c | $(OUTPUT_DIR)
 $(OUTPUT_DIR)/sym.o: sym.c | $(OUTPUT_DIR)
 	@echo "Compiling BANK 41"
 	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_41 --codesegBANK_41 --constsegBANK_41 --bsssegBANK_41
-
-$(OUTPUT_DIR)/rtl.o: rtl.c $(RTL_INCS) | $(OUTPUT_DIR)
-	@echo "Compiling BANK 50 (RTL)"
-	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_50 --codesegBANK_50 --constsegBANK_50 --bsssegBANK_50
-	@echo "-> Generated $@"
 
 $(OUTPUT_DIR)/errordata.o: errordata.c | $(OUTPUT_DIR)
 	@echo "Compiling BANK 42 (error strings)"
@@ -95,9 +90,9 @@ $(OUTPUT_DIR)/struct.o: struct.c | $(OUTPUT_DIR)
 	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_44 --codesegBANK_44 --constsegBANK_44 --bsssegBANK_44
 	@echo "-> Generated $@"
 
-$(OUTPUT_DIR)/typedata2.o: typedata2.c | $(OUTPUT_DIR)
-	@echo "Compiling BANK 49 (named-type registry)"
-	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_49 --codesegBANK_49 --constsegBANK_49 --bsssegBANK_49
+$(OUTPUT_DIR)/enum.o: enum.c | $(OUTPUT_DIR)
+	@echo "Compiling BANK 51 (enums)"
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_51 --codesegBANK_51 --constsegBANK_51 --bsssegBANK_51
 	@echo "-> Generated $@"
 
 $(OUTPUT_DIR)/identtbl.o: identtbl.c | $(OUTPUT_DIR)
@@ -123,6 +118,16 @@ $(OUTPUT_DIR)/compilerex.o: compilerex.c | $(OUTPUT_DIR)
 $(OUTPUT_DIR)/callgraph.o: callgraph.c | $(OUTPUT_DIR)
 	@echo "Compiling BANK 48 (call graph)"
 	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_48 --codesegBANK_48 --constsegBANK_48 --bsssegBANK_48
+	@echo "-> Generated $@"
+
+$(OUTPUT_DIR)/typedata2.o: typedata2.c | $(OUTPUT_DIR)
+	@echo "Compiling BANK 49 (named-type registry)"
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_49 --codesegBANK_49 --constsegBANK_49 --bsssegBANK_49
+	@echo "-> Generated $@"
+
+$(OUTPUT_DIR)/rtl.o: rtl.c $(RTL_INCS) | $(OUTPUT_DIR)
+	@echo "Compiling BANK 50 (RTL)"
+	$(ZCC) $(TARGET) $(CFLAGS) $< -o $@ --datasegBANK_50 --codesegBANK_50 --constsegBANK_50 --bsssegBANK_50
 	@echo "-> Generated $@"
 
 $(OUTPUT_DIR)/shared.o: shared.c | $(OUTPUT_DIR)

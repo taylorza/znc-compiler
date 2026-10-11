@@ -4,13 +4,9 @@
  * Identifiers are stored as NUL-terminated strings packed sequentially,
  * exactly like strtbl.  The IDENT_ID is the byte offset of the string
  * within this table.
- *
- * Max entries: MAX_SYMBOLS (650) identifiers, each up to MAX_IDENT_LEN (14)
- * chars + NUL = 15 bytes → 650*15 = 9750 bytes worst-case, well within one
- * 8 KB bank once the code overhead is subtracted.
  */
 
-#define MAX_IDENTTBL_SIZE 9750
+#define MAX_IDENTTBL_SIZE 11264
 
 static char identtbl[MAX_IDENTTBL_SIZE];
 static uint16_t lastident = 0;
