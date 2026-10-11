@@ -6,7 +6,7 @@
  * within this table.
  */
 
-#define MAX_IDENTTBL_SIZE 11264
+#define MAX_IDENTTBL_SIZE 11776
 
 static char identtbl[MAX_IDENTTBL_SIZE];
 static uint16_t lastident = 0;
