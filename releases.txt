@@ -1,5 +1,7 @@
 2026/10/xx - Version 0.7a
 - Enhancement - Optimized generated code for mul, div and modulo by 2^k
+- Enhancement - Maximum identifier length increased from 14 to 32 characters
+- Enhancement - Identifier table size increased to 11776 bytes
 - Fix - Constant folding of signed const % signed constant
 - Fix - Improved rounding of fixed literals
 - Fix - Modulo of negative dividend calculation

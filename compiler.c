@@ -123,6 +123,7 @@ void parse(const char* sourcefile, char* outfilename, uint8_t entrypoint) MYCC {
     }
 
     if (entrypoint) { 
+        emit_instrln("map \"%s.map\"", outfilename);
         emit_instrln("options case_s");       
         if (tokMakeType == tokNex) {
             start_lbl = newlbl();

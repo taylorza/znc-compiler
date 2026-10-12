@@ -627,7 +627,7 @@ pp.x = 3;  // pointer-to-struct also uses '.'
    Lexical rules
    ---------------------------------------------------------------- *)
 
-(* Maximum identifier length is 14 characters; longer names are a compile error. *)
+(* Maximum identifier length is 32 characters; longer names are a compile error. *)
 <ident>           ::= <letter> { <letter> | <digit> | "_" }
 
 <number>          ::= <decimal_literal>
