@@ -303,6 +303,8 @@ void far_parse_funcdecl(uint8_t rettype_id, const char* name) MYCC {
             symfunc.bank = (uint8_t)expr_result.value;
         } else if (tok == tokZncCall) {
             calling_convention = parse_znccall(func_is_variadic);
+        } else {
+            get_token();
         }
     }
 
