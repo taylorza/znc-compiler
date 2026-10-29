@@ -227,7 +227,7 @@ static uint16_t parse_initializer_item(uint8_t field_type_id, uint16_t *counter,
         } else {
             if (type_is_fixed(field_type_id) && !type_is_fixed(element.type_id) &&
                 type_is_integral(element.type_id)) {
-                emit_val = (uint16_t)((int16_t)emit_val << 4);
+                emit_val = (uint16_t)(emit_val << 4);
             }
             emit_initializer_value(counter, last_is_char, 0, emit_val);
         }

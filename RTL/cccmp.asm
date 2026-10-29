@@ -1,12 +1,7 @@
- ld a,e
- sub l
- ld e,a
  ld a,d
- sbc a,h
- ld hl,1
- jp m,cccmp1
- or e
- ret
-cccmp1
- or e
- scf
+ xor $80
+ ld d,a
+ ld a,h
+ xor $80
+ ld h,a
+ jp ccucmp

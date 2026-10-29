@@ -58,6 +58,7 @@ void asm_close(void) MYCC {
 #else        
         if (asm_fh != stdout) fclose(asm_fh);
 #endif
+        asm_fh = 0;
     }
 }
 
@@ -190,10 +191,9 @@ void emit_add_hl_small(int16_t n) MYCC {
         return;
     }
     
-    const char *instr = (n > 0) ? "inc hl" : "dec hl";
-    int16_t count = (n > 0) ? n : -n;
-    
-    if (count <= 3) {
+    if (n >= -3 && n <= 3) {
+        const char *instr = (n > 0) ? "inc hl" : "dec hl";
+        uint8_t count = (n > 0) ? n : -n;
         while (count--) {
             emit_instrln(instr);
         }
@@ -269,14 +269,22 @@ void emit_mul_const_optimized(uint16_t factor) MYCC {
             /* Check if power of two */
             if ((factor & (factor - 1)) == 0) {
                 uint16_t temp = factor;
-                while (temp > 1) {
-                    emit_mul2();
-                    temp >>= 1;
+                uint8_t shift = 0;
+                while (temp > 1) { shift++; temp >>= 1; }
+                if (shift > 7) {
+                    emit_swap();
+                    emit_instrln("ld b,%d", shift);
+                    emit_instrln("bsla de,b");
+                    emit_swap();
+                } else {
+                    while (shift--) emit_mul2();
                 }
             } else {
-                /* Use generic multiplication */
+                /* Scaling must preserve the other operand in DE. */
+                emit_instrln("push de");
                 emit_ldde_immed_n(factor);
-                emit_rtl("ccmult");
+                emit_rtl("ccumult");
+                emit_pop_de();
             }
             break;
     }
@@ -494,6 +502,7 @@ static void emit_store_variadic_arg(SYMBOL *sym) MYCC {
     emit_instrln("ld (hl),e");
     emit_instrln("inc hl");
     emit_instrln("ld (hl),d");
+    emit_swap();
 }
 
 void emit_ld_symval(SYMBOL* sym) MYCC {
@@ -661,6 +670,7 @@ void emit_store_sym(SYMBOL* sym) MYCC {
                 emit_pop_de();
                 /* DE contains value, HL contains address: store directly */
                 emit_store_byte_at_hl();
+                emit_swap();
             }
         } else {
             /* Int scalar/pointer or argument: store 2-byte value */
@@ -676,12 +686,13 @@ void emit_store_sym(SYMBOL* sym) MYCC {
                 emit_pop_de();
                 /* DE contains value, HL contains address: store directly */
                 emit_store_word_at_hl();
+                emit_swap();
             }
         }
     }
 }
 
-/* Store value from HL into address on top of stack */
+/* Pop the destination address and store the value, leaving the value in HL. */
 void emit_store(uint8_t type_id) MYCC {
     emit_swap();         // value in DE
     emit_pop_hl();       // target address in HL
@@ -690,6 +701,7 @@ void emit_store(uint8_t type_id) MYCC {
     } else {
         emit_store_word_at_hl();
     }
+    emit_swap();
 } 
 
 void emit_load(uint8_t type_id) MYCC {
@@ -773,7 +785,7 @@ void emit_clean_stack(int16_t bytes) MYCC {
             bytes -= 2;
         }
         while (bytes) {
-            emit_instrln("dec sp");
+            emit_instrln("inc sp");
             bytes--;
         }
         return;
@@ -796,7 +808,7 @@ void emit_mul2(void) MYCC {
 }
 
 void emit_mulDE2(void) MYCC {
-    emit_instrln("ld b,2");
+    emit_instrln("ld b,1");
     emit_instrln("bsla de,b");
 }
 

@@ -97,7 +97,7 @@ RTLREC rtltbl[] = {
     // Compare HL, DE
     {"cccmp",
 #include "RTL/generated/cccmp.inc"
-    NULL,
+    "ccucmp",
     FLAG_RTL_NONE
     },
     // Unsigned HL>=DE
@@ -145,6 +145,12 @@ RTLREC rtltbl[] = {
     // HL = ~HL
     {"cccom",
 #include "RTL/generated/cccom.inc"
+    NULL,
+    FLAG_RTL_NONE
+    },
+    // HL = (HL != 0)
+    { "ccbool",
+#include "RTL/generated/ccbool.inc"
     NULL,
     FLAG_RTL_NONE
     },
@@ -347,7 +353,5 @@ void far_dump_rtl(char *outfilename) MYCC {
     F_WRITE(fh, ";#OPT_ON\n", 9);
     F_CLOSE(fh);
 }
-
-
 
 

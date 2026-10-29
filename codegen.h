@@ -43,6 +43,7 @@ void emit_ldde_immed_n(uint16_t n) MYCC;
 
 /* Actually beneficial optimizations: */
 void emit_add_hl_small(int16_t n) MYCC;
+/* Multiply HL modulo 65536, preserving DE. */
 void emit_mul_const_optimized(uint16_t factor) MYCC;
 
 void emit_load_word_from_hl(void) MYCC;

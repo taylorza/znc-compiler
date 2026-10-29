@@ -2,7 +2,7 @@
 
 ZNC is a language and compiler for the ZX Spectrum Next. The language is closely modeled after the C programming language, but does deviate in some cases where it either made the language easier to parse or in other cases where I preferred an alternate syntax.
 
-The compiler is a non-optimizing single pass compiler, while the generated code is not the fastest or the smallest it should outperform non-compiled languages.
+The compiler is a single-pass compiler with constant folding and local code-generation optimizations, including constant multiplication and power-of-two division. ZOPT can further optimize the generated assembly.
 
 In this language:
 

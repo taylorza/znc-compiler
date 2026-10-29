@@ -86,7 +86,7 @@ void far_parse_compound_assign(TOKEN op, uint8_t dereference, SYMBOL *sym, uint8
         /* Fold fixed <-> int/char conversion at compile time */
         if (type_is_fixed(type_id) && !type_is_fixed(rhs.type_id) &&
             type_is_integral(rhs.type_id)) {
-            rhs.value = (uint16_t)((int16_t)rhs.value << 4);
+            rhs.value = (uint16_t)(rhs.value << 4);
         } else if (!type_is_fixed(type_id) && type_is_fixed(rhs.type_id) &&
                    type_is_integral(type_id)) {
             rhs.value = (uint16_t)((int16_t)rhs.value >> 4);
@@ -216,7 +216,7 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
 
         if (type_is_fixed(sym->type_id) && !type_is_fixed(r.type_id) &&
             type_is_integral(r.type_id)) {
-            r.value = (uint16_t)((int16_t)r.value << 4);
+            r.value = (uint16_t)(r.value << 4);
         } else if (!type_is_fixed(sym->type_id) && type_is_fixed(r.type_id) &&
                    type_is_integral(sym->type_id)) {
             r.value = (uint16_t)((int16_t)r.value >> 4);
@@ -498,7 +498,7 @@ void far_parse_assign_ex(uint8_t dereference, SYMBOL *sym, uint8_t indexed, uint
         if (type_is_fixed(type_id) && !type_is_fixed(r_result.type_id) &&
             type_is_integral(r_result.type_id)) {
             /* int/char constant -> fixed: pre-shift value into Q4 at compile time */
-            r_result.value = (uint16_t)((int16_t)r_result.value << 4);
+            r_result.value = (uint16_t)(r_result.value << 4);
         } else if (!type_is_fixed(type_id) && type_is_fixed(r_result.type_id) &&
                    type_is_integral(type_id)) {
             /* fixed constant -> int/char: truncate Q4 value at compile time */

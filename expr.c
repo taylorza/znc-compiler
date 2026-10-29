@@ -150,6 +150,16 @@ static uint8_t is_unsigned_integer_operation(EXPR_RESULT *left, EXPR_RESULT *rig
     return unsigned_operation_semantics(left, right);
 }
 
+static uint16_t fold_fixed_div(uint16_t left, uint16_t right) MYCC {
+    uint8_t negative = ((left ^ right) & 0x8000) != 0;
+    if ((int16_t)left < 0) left = (uint16_t)(0 - left);
+    if ((int16_t)right < 0) right = (uint16_t)(0 - right);
+    if (right == 0) error(errInvalid_s, "division by zero");
+    /* Match ccfxdiv: nearest Q4 value, with ties away from zero. */
+    uint16_t quotient = (uint16_t)(((uint32_t)left * 16 + right / 2) / right);
+    return negative ? (uint16_t)(0 - quotient) : quotient;
+}
+
 /* Helper: Emit inc/dec of HL by 'step' (modifies HL, isdec=1 for decrement) */
 static void emit_incdec_step(uint16_t step, uint8_t isdec) MYCC {
     if (step <= 3) {
@@ -357,6 +367,10 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
     }
 
     uint8_t left_is_unsigned = expr_shift_right_is_unsigned(left);
+    if ((op == tokDiv || op == tokMod) &&
+        type_is_const(r_result.type_id) && r_result.value == 0) {
+        error(errInvalid_s, "division by zero");
+    }
     if (type_is_const(left->type_id) && type_is_const(r_result.type_id)) {
         uint8_t lf = type_is_fixed(left->type_id);
         uint8_t rf = type_is_fixed(r_result.type_id);
@@ -395,36 +409,34 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
                 else left->value = left->value - r_result.value;
                 break;
             case tokStar:
-                /* fixed * fixed in Q4: (a*b)>>4 */
-                /* Cast to int32_t before multiply to avoid overflow on 16-bit targets (SDCC). */
-                if (lf && rf) left->value = (uint16_t)(((int32_t)(int16_t)left->value * (int32_t)(int16_t)r_result.value) >> 4);
-                else if (fold_unsigned_arith) left->value = (uint16_t)left->value * (uint16_t)r_result.value;
-                else left->value = left->value * r_result.value;
+                /* Match ccfxmul: discard fractional magnitude bits toward zero. */
+                if (lf && rf) left->value = (uint16_t)(((int32_t)(int16_t)left->value * (int32_t)(int16_t)r_result.value) / 16);
+                else left->value = (uint16_t)((uint32_t)left->value * r_result.value);
                 break;
             case tokDiv:
-                /* fixed / fixed in Q4: (a<<4)/b */
-                /* Cast to int32_t before shift to avoid overflow on 16-bit targets (SDCC). */
-                if (lf && rf) left->value = (uint16_t)(((int32_t)(int16_t)left->value << 4) / (int32_t)(int16_t)r_result.value);
+                if (lf && rf) left->value = fold_fixed_div(left->value, r_result.value);
                 else if (fold_unsigned_arith) left->value = (uint16_t)left->value / (uint16_t)r_result.value;
-                else left->value = left->value / r_result.value;
+                else left->value = (uint16_t)((int32_t)(int16_t)left->value / (int32_t)(int16_t)r_result.value);
                 break;
             case tokMod:
                 if (fold_unsigned_arith) left->value = (uint16_t)left->value % (uint16_t)r_result.value;
-                else left->value = (int16_t)left->value % (int16_t)r_result.value;
+                else left->value = (uint16_t)((int32_t)(int16_t)left->value % (int32_t)(int16_t)r_result.value);
                 break;
-            case tokShl: 
-                if (left_is_unsigned)
-                    left->value = (uint16_t)left->value << (rf ? (r_result.value >> 4) : r_result.value); 
-                else
-                    left->value = left->value << (rf ? (uint16_t)((int16_t)r_result.value >> 4) : r_result.value); 
-                    
+            case tokShl: case tokShr: {
+                /* Z80N barrel shifts use the low five count bits. */
+                uint8_t count = (rf ? (uint16_t)((int16_t)r_result.value >> 4) : r_result.value) & 31;
+                if (count >= 16) {
+                    left->value = (op == tokShr && !left_is_unsigned &&
+                                   (int16_t)left->value < 0) ? 0xffff : 0;
+                } else if (op == tokShl) {
+                    left->value = (uint16_t)((uint32_t)left->value << count);
+                } else if (left_is_unsigned) {
+                    left->value >>= count;
+                } else {
+                    left->value = (int16_t)left->value >> count;
+                }
                 break;
-            case tokShr:
-                if (expr_shift_right_is_unsigned(left))
-                    left->value = (uint16_t)left->value >> (rf ? (r_result.value >> 4) : r_result.value);
-                else
-                    left->value = left->value >> (rf ? (uint16_t)((int16_t)r_result.value >> 4) : r_result.value);
-                break;
+            }
 
             case tokBitOr: left->value = left->value | r_result.value; break;
             case tokBitAnd: left->value = left->value & r_result.value; break;
@@ -459,8 +471,28 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
     uint8_t left_is_fixed = type_is_fixed(left->type_id);
     uint8_t right_is_fixed = type_is_fixed(r_result.type_id);
     uint8_t either_fixed = left_is_fixed || right_is_fixed;
+    uint8_t const_multiply = op == tokStar && !either_fixed && !pointer &&
+        (type_is_const(left->type_id) || type_is_const(r_result.type_id));
+    uint8_t pow2_divisor = type_is_const(r_result.type_id) && !either_fixed &&
+        r_result.value && !(r_result.value & (r_result.value - 1)) &&
+        (r_result.value != 0x8000 || is_unsigned_integer_operation(left, &r_result));
 
-    if (type_is_const(left->type_id)) {
+    if (const_multiply) {
+        uint16_t factor = type_is_const(left->type_id) ? left->value : r_result.value;
+        if (factor >= 64 && !(factor & (factor - 1))) {
+            uint8_t shift = 0;
+            for (uint16_t d = factor; d > 1; d >>= 1) shift++;
+            if (type_is_const(r_result.type_id)) emit_pop_de();
+            else emit_swap();
+            emit_instrln("ld b,%d", shift);
+            emit_instrln("bsla de,b");
+            emit_swap();
+        } else {
+            if (type_is_const(r_result.type_id)) emit_pop_hl();
+            emit_mul_const_optimized(factor);
+        }
+    }
+    else if (type_is_const(left->type_id)) {
         uint16_t val = left->value;
         if (scaleL) val = val * scaleL;
         /* If right is fixed and left is a plain int constant, pre-shift it */
@@ -479,9 +511,7 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
             val = val << 4;
             right_is_fixed = 1;
         }
-        uint8_t pow2 = val && !(val & (val - 1));
-        uint8_t hl_overwritten = !left_is_fixed && !right_is_fixed && pow2 &&
-            (op == tokStar || op == tokDiv || op == tokMod);
+        uint8_t hl_overwritten = pow2_divisor && (op == tokDiv || op == tokMod);
         if (hl_overwritten) {
             scaleR = 0;
             emit_pop_de();
@@ -544,23 +574,10 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
             else emit_sub16();
             break;
         case tokStar:
+            if (const_multiply)
+                break;
             if (either_fixed)
                 emit_rtl("ccfxmul");
-            else if (type_is_const(r_result.type_id) && r_result.value && !(r_result.value & (r_result.value - 1))) {
-                uint8_t shift = 0;
-                for (uint16_t d = r_result.value; d > 1; d >>= 1) shift++;
-                emit_instrln("ld b,%d", shift);
-                emit_instrln("bsla de,b");
-                emit_swap();
-            }
-            else if (type_is_const(left->type_id) && left->value && !(left->value & (left->value - 1)) && !type_is_const(r_result.type_id)) {
-                uint8_t shift = 0;
-                for (uint16_t d = left->value; d > 1; d >>= 1) shift++;
-                emit_instrln("ex de,hl");
-                emit_instrln("ld b,%d", shift);
-                emit_instrln("bsla de,b");
-                emit_swap();
-            }
             else if (is_unsigned_integer_operation(left, &r_result))
                 emit_rtl("ccumult");
             else
@@ -569,7 +586,7 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
         case tokDiv:
             if (either_fixed)
                 emit_rtl("ccfxdiv");
-            else if (type_is_const(r_result.type_id) && r_result.value && !(r_result.value & (r_result.value - 1))) {
+            else if (pow2_divisor) {
                 uint8_t shift = 0;
                 for (uint16_t d = r_result.value; d > 1; d >>= 1) shift++;
                 if (is_unsigned_integer_operation(left, &r_result)) emit_udiv_pow2(shift);
@@ -581,11 +598,11 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
                 emit_rtl("ccdiv");
             break;
         case tokMod:
-            if (is_unsigned_integer_operation(left, &r_result) && type_is_const(r_result.type_id) && r_result.value && !(r_result.value & (r_result.value - 1))) {
+            if (is_unsigned_integer_operation(left, &r_result) && pow2_divisor) {
                 emit_mod_pow2(r_result.value);
                 break;
             }
-            if (type_is_const(r_result.type_id) && r_result.value && !(r_result.value & (r_result.value - 1))) {
+            if (pow2_divisor) {
                 emit_smod_pow2(r_result.value);
                 break;
             }
@@ -672,7 +689,10 @@ void parse_op_right(EXPR_RESULT *left, uint8_t minprec, uint8_t expected_type_id
             }
             *left = far_parse_expr(p + 1, 0);
             emit_lbl(short_circuit_lbl);
+            /* Both paths must produce a materialized boolean in HL. */
+            emit_rtl("ccbool");
             left->type_id = TYPE_ID_INT;
+            left->has_sym = 0;
         }
         else {
             handle_binary_op(left, op, p);
@@ -695,7 +715,7 @@ EXPR_RESULT far_parse_expr(uint8_t minprec, uint8_t expected_type_id) MYCC {
         if (expected_type_id != 0 && type_is_fixed(expected_type_id) &&
             !type_is_fixed(expr_result.type_id) &&
             type_is_integral(expr_result.type_id)) {
-            val = (uint16_t)((int16_t)val << 4);
+            val = (uint16_t)(val << 4);
         } else if (expected_type_id != 0 && !type_is_fixed(expected_type_id) &&
                    type_is_fixed(expr_result.type_id) &&
                    type_is_integral(expected_type_id)) {
@@ -726,7 +746,7 @@ EXPR_RESULT far_parse_expr_delayconst(uint8_t minprec, uint8_t expected_type_id)
     if (type_is_const(expr_result.type_id)) {
         if (expected_type_id != 0 && type_is_fixed(expected_type_id) && !type_is_fixed(expr_result.type_id) &&
             type_is_integral(expr_result.type_id)) {
-            expr_result.value = (uint16_t)((int16_t)expr_result.value << 4);
+            expr_result.value = (uint16_t)(expr_result.value << 4);
             expr_result.type_id = type_make_fixed(1);
         } else if (expected_type_id != 0 && !type_is_fixed(expected_type_id) && type_is_fixed(expr_result.type_id) &&
                    type_is_integral(expected_type_id)) {
@@ -775,6 +795,10 @@ static void parse_factor_ampersand(EXPR_RESULT *result) MYCC {
             uint8_t elemtype_id = type_get_element_type_id(result->type_id);
             uint16_t scale = (uint16_t)type_size(elemtype_id);
 
+            if (!addr_base_sym) {
+                if (type_is_pointer(result->type_id)) emit_load(result->type_id);
+                emit_push();
+            }
             get_token(); // skip '['
             EXPR_RESULT index_result = far_parse_expr_delayconst(0, TYPE_ID_INT);
             expect(tokRBrack, ']');
@@ -797,8 +821,9 @@ static void parse_factor_ampersand(EXPR_RESULT *result) MYCC {
                         if (type_is_fixed(index_result.type_id)) emit_fixed_to_int();
                         if (scale > 1) emit_scale_reg(scale, 1);
                         /* load pointer value (HL) and add scaled index in HL */
-                        emit_swap(); /* index currently in HL from parse */
+                        emit_push();
                         emit_ld_symval(&sym);
+                        emit_pop_de();
                         emit_add16();
                     }
                 } else {
@@ -810,25 +835,20 @@ static void parse_factor_ampersand(EXPR_RESULT *result) MYCC {
                     } else {
                         if (type_is_fixed(index_result.type_id)) emit_fixed_to_int();
                         if (scale > 1) emit_scale_reg(scale, 1);
-                        emit_swap();
+                        emit_push();
                         emit_ld_symaddr(&sym);
+                        emit_pop_de();
                         emit_add16();
                     }
                 }
                 addr_base_sym = 0;
             } else {
-                emit_push();
                 if (type_is_const(index_result.type_id)) {
                     if (type_is_fixed(index_result.type_id))
                         index_result.value = (uint16_t)((int16_t)index_result.value >> 4);
                     uint16_t offset = index_result.value * scale;
-                    if (offset) {
-                        emit_pop_de();
-                        emit_ldde_immed_n(offset);
-                        emit_add16();
-                    } else {
-                        emit_pop_hl();
-                    }
+                    emit_pop_hl();
+                    if (offset) emit_add_hl_small((int16_t)offset);
                 } else {
                     if (type_is_fixed(index_result.type_id)) emit_fixed_to_int();
                     if (scale > 1) emit_scale_reg(scale, SCALE_HL);
@@ -848,6 +868,8 @@ static void parse_factor_ampersand(EXPR_RESULT *result) MYCC {
             uint16_t offset;
             if (!lookup_struct_member(check_type_id, &fi, &offset)) break;
 
+            if (!addr_base_sym && type_is_pointer(result->type_id))
+                emit_load(result->type_id);
             if (addr_base_sym) {
                 emit_sym_address_with_offset(&sym, offset);
                 addr_base_sym = 0;
@@ -912,10 +934,8 @@ static void postfix_subscript(EXPR_RESULT* result, uint8_t* dereference, uint8_t
     result->has_sym = 0;
     uint8_t elemtype_id = type_get_element_type_id(result->type_id);
     get_token(); // skip '['
-    /* A numeric literal cannot emit runtime code, so it cannot overwrite the
-     * base address in HL. Preserve HL only for indexes that may do so. */
-    uint8_t literal_index = (tok == tokNumber || tok == tokFixedLit);
-    if (!had_sym && !literal_index) emit_push();
+    /* Even an index beginning with a literal may contain a runtime expression. */
+    if (!had_sym) emit_push();
 
     EXPR_RESULT index_result = far_parse_expr_delayconst(0, TYPE_ID_INT);
     expect(tokRBrack, ']');
@@ -941,7 +961,7 @@ static void postfix_subscript(EXPR_RESULT* result, uint8_t* dereference, uint8_t
             *addr_in_hl = 1;
             return;
         }
-        if (!had_sym && !literal_index) emit_pop_hl();
+        if (!had_sym) emit_pop_hl();
         if (offset) emit_add_hl_small((int16_t)offset);
     } else {
         if (type_is_fixed(index_result.type_id)) emit_fixed_to_int();
@@ -1518,4 +1538,3 @@ EXPR_RESULT parse_factor(uint8_t dereference, uint8_t expected_type_id) MYCC {
     if (flags & PF_CMPL) emit_rtl("cccom");
     return factor_result;
 }
-
