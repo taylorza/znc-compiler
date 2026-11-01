@@ -1,5 +1,7 @@
-2026/10/xx - Version 0.7b
+2026/11/01 - Version 0.7b
+- Enhancement - Improved code generation of comparison operators
 - Fix - function header parsing fix for invalid attributes
+
 
 2026/10/11 - Version 0.7a
 - Enhancement - Optimized generated code for mul, div and modulo by 2^k
