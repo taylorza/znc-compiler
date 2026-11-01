@@ -2,7 +2,6 @@
 - Enhancement - Improved code generation of comparison operators
 - Fix - function header parsing fix for invalid attributes
 
-
 2026/10/11 - Version 0.7a
 - Enhancement - Optimized generated code for mul, div and modulo by 2^k
 - Enhancement - Maximum identifier length increased from 14 to 32 characters
