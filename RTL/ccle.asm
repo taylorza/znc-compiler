@@ -1,4 +1,2 @@
- call cccmp
- ret z
- ret c
- dec hl
+ ex de,hl
+ jp ccge

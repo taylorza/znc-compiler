@@ -471,6 +471,8 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
     uint8_t left_is_fixed = type_is_fixed(left->type_id);
     uint8_t right_is_fixed = type_is_fixed(r_result.type_id);
     uint8_t either_fixed = left_is_fixed || right_is_fixed;
+    /* x OP const with DE = const and HL = x; the routine is mirrored below. */
+    uint8_t mirror_cmp = 0;
     uint8_t const_multiply = op == tokStar && !either_fixed && !pointer &&
         (type_is_const(left->type_id) || type_is_const(r_result.type_id));
     uint8_t pow2_divisor = type_is_const(r_result.type_id) && !either_fixed &&
@@ -516,6 +518,18 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
             scaleR = 0;
             emit_pop_de();
         }
+        else if (op == tokEq || op == tokNeq || op == tokGt || op == tokLeq) {
+            /* Calling the mirrored routine directly avoids the ccgt/ccle
+             * wrappers and links only the routine that is actually called. */
+            emit_pop_hl();
+            if (right_is_fixed && !left_is_fixed && op_needs_fixed_align(op)) {
+                emit_int_to_fixed();
+                left_is_fixed = 1;
+            }
+            emit_ldde_immed_n(val);
+            scaleR = 0;
+            mirror_cmp = 1;
+        }
         else {
             emit_ld_immed_n(val);
             scaleR = 0;
@@ -552,10 +566,12 @@ static void handle_binary_op(EXPR_RESULT *left, TOKEN op, uint8_t p) MYCC {
             emit_rtl(use_unsigned ? "ccult" : "cclt");
             break;
         case tokLeq:
-            emit_rtl(use_unsigned ? "ccule" : "ccle");
+            if (mirror_cmp) emit_rtl(use_unsigned ? "ccuge" : "ccge");
+            else emit_rtl(use_unsigned ? "ccule" : "ccle");
             break;
         case tokGt:
-            emit_rtl(use_unsigned ? "ccugt" : "ccgt");
+            if (mirror_cmp) emit_rtl(use_unsigned ? "ccult" : "cclt");
+            else emit_rtl(use_unsigned ? "ccugt" : "ccgt");
             break;
         case tokGeq:
             emit_rtl(use_unsigned ? "ccuge" : "ccge");

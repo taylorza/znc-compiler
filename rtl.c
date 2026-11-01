@@ -74,10 +74,10 @@ RTLREC rtltbl[] = {
     "cclt",
     FLAG_RTL_NONE
     },
-    // Less than equal
+    // Less than equal (wrapper: DE<=HL is HL>=DE)
     {"ccle",
 #include "RTL/generated/ccle.inc"
-    "cccmp",
+    "ccge",
     FLAG_RTL_NONE
     },
     // Greater than equal
@@ -118,10 +118,10 @@ RTLREC rtltbl[] = {
     "ccult",
     FLAG_RTL_NONE
     },    
-    // Unsigned HL<=DE
+    // Unsigned DE<=HL (wrapper: HL>=DE)
     {"ccule",
 #include "RTL/generated/ccule.inc"
-    "ccucmp",
+    "ccuge",
     FLAG_RTL_NONE
     },
     // Unsigned compare HL, DE

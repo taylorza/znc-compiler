@@ -805,9 +805,11 @@ void far_parse_out(void) MYCC {
     get_token(); // skip 'out'
     expect_LParen();
     parse_expr(0, 0);
-    emit_copy_hl_to_bc();
+    /* The value expression may clobber BC (shifts, calls, offsets). */
+    emit_push();
     expect_comma();
     parse_expr(0, 0);
+    emit_instrln("pop bc");
     emit_instrln("out (c),l");
     expect_RParen();
     expect_semi();
